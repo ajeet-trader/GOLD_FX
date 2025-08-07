@@ -1,0 +1,32 @@
+(venv) PS J:\Gold_FX> python .\core\mt5_manager.py --test
+Config file not found: config\master_config.yaml
+2025-08-07 20:15:19,481 - __main__ - INFO - Loaded 227 tradable symbols from CSV
+2025-08-07 20:15:19,481 - __main__ - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-07 20:15:19,481 - __main__ - INFO - Not connected. Attempting to connect...
+2025-08-07 20:15:19,500 - __main__ - INFO - Successfully connected to MT5. Account: 273949055, Balance: 147.53, Server: Exness-MT5Trial6
+
+==================================================
+MT5 CONNECTION TEST
+==================================================
+
+📊 ACCOUNT INFORMATION:
+Login: 273949055
+Server: Exness-MT5Trial6
+Balance: $147.53
+Equity: $142.21
+Leverage: 1:2000
+Currency: USD
+
+📈 SYMBOL INFORMATION (XAUUSDm):
+Bid: 3386.652
+Ask: 3386.812
+Spread: 160 points
+
+📊 DATA FETCH TEST:
+2025-08-07 20:15:19,526 - __main__ - INFO - Retrieved 10 bars for XAUUSDm M5
+Successfully fetched 10 bars
+Latest bar: 2025-08-07 14:45:00
+Close price: 3386.628
+
+✅ Connection test successful!
+==================================================

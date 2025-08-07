@@ -1,0 +1,14 @@
+✅ 1. Create a Virtual Environment
+🔸 Windows (CMD or PowerShell):
+python -m venv venv
+🔸 macOS / Linux (Terminal):
+python3 -m venv venv
+
+
+✅ 2. Activate the Virtual Environment
+🔸 Windows (CMD):
+venv\Scripts\activate.bat
+🔸 Windows (PowerShell):
+venv\Scripts\Activate.ps1
+🔸 macOS / Linux:
+source venv/bin/activate
