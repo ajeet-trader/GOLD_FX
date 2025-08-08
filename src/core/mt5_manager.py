@@ -941,7 +941,8 @@ class MT5Manager:
                 'price_current': pos.price_current,
                 'profit': pos.profit,
                 'swap': pos.swap,
-                'commission': pos.commission,
+                #'commission': pos.commission,
+                'commission': getattr(pos, 'commission', 0.0),
                 'comment': pos.comment,
                 'magic': pos.magic
             })
@@ -1256,16 +1257,8 @@ class MT5Manager:
 
 
 # Command-line interface for testing
-if __name__ == "__main__":
-    """
-    Command-line interface for MT5Manager testing
     
-    Usage:
-        python mt5_manager.py --test              # Test connection
-        python mt5_manager.py --fetch-history     # Fetch historical data
-        python mt5_manager.py --account-info      # Display account info
-        python mt5_manager.py --check-env         # Check environment variables
-    """
+if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='MT5 Manager CLI')
@@ -1278,6 +1271,11 @@ if __name__ == "__main__":
     parser.add_argument('--bars', type=int, default=100, help='Number of bars to fetch')
     
     args = parser.parse_args()
+    
+    # Create manager with simple symbol string
+    mt5_mgr = MT5Manager(symbol=args.symbol)
+    
+    # Rest of your code remains the same    
     
     # Create manager
     mt5_mgr = MT5Manager(symbol=args.symbol)

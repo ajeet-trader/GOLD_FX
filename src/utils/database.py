@@ -60,6 +60,10 @@ class Account(Base):
     profit = Column(Float, nullable=False)
     leverage = Column(Integer, nullable=False)
     currency = Column(String(10), nullable=False)
+    # Add these fields to match MT5 account info
+    trade_allowed = Column(Boolean, default=True)
+    trade_expert = Column(Boolean, default=True)
+    limit_orders = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -67,7 +71,7 @@ class Account(Base):
     trades = relationship("Trade", back_populates="account")
     performance_records = relationship("Performance", back_populates="account")
 
-
+    
 class Trade(Base):
     """Trade execution model"""
     __tablename__ = 'trades'
@@ -750,9 +754,9 @@ class DatabaseManager:
         metadata = None
         if signal.signal_metadata:
             try:
-                metadata = json.loads(signal.metadata)
+                metadata = json.loads(signal.signal.metadata)
             except:
-                metadata = signal.metadata
+                metadata = signal.signal.metadata
         
         return {
             'id': signal.id,

@@ -224,7 +224,9 @@ class CoreSystem:
             
             # Step 4: Initialize MT5 Manager
             print("📋 Step 4: Initializing MT5 Manager...")
-            self.mt5_manager = MT5Manager(self.config)
+            #self.mt5_manager = MT5Manager(self.config)
+            symbol = self.config.get('trading', {}).get('symbol', 'XAUUSDm')
+            self.mt5_manager = MT5Manager(symbol=symbol, magic_number=123456)
             print("✅ MT5 Manager initialized (connection will be established when needed)")
             
             # Step 5: System Health Check
