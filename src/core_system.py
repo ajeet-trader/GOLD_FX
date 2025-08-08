@@ -26,6 +26,12 @@ Usage:
     >>> core.logger.info("System started")
     >>> core.database.store_trade(trade_data)
 """
+import sys
+from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parent))
+
 
 import yaml
 import sys
@@ -36,10 +42,10 @@ from datetime import datetime
 
 # Import our Phase 1 modules
 try:
-    from src.utils.logger import LoggerManager, get_logger_manager
-    from src.utils.database import DatabaseManager
-    from src.utils.error_handler import ErrorHandler, get_error_handler
-    from src.core.mt5_manager import MT5Manager
+    from utils.logger import LoggerManager, get_logger_manager
+    from utils.database import DatabaseManager
+    from utils.error_handler import ErrorHandler, get_error_handler
+    from core.mt5_manager import MT5Manager
 except ImportError as e:
     print(f"Import error: {e}")
     print("Please ensure all Phase 1 modules are in the correct directories:")

@@ -437,13 +437,17 @@ system:
 # ==========================================
 # MT5 CONNECTION SETTINGS
 # ==========================================
-mt5:
+#mt5:
   # Your MT5 account credentials
-  login: 12345678                    # Your MT5 account number
-  password: "your_password_here"     # Your MT5 password
-  server: "YourBroker-Server"        # Your broker's server name
-  terminal_path: null                # Path to terminal64.exe (optional, auto-detect if null)
-  
+  #login: 123456                    # Your MT5 account number
+  #password: "yor password"     # Your MT5 password
+  #server: "Exness-MT5Trial6"        # Your broker's server name
+  #terminal_path: null                # Path to terminal64.exe (optional, auto-detect if null)
+mt5:
+  login: null          # Will be overwritten from .env at runtime
+  password: null
+  server: null
+  terminal_path: null # Will be overwritten from .env at runtime  
   # Connection settings
   timeout: 60000                     # Connection timeout in milliseconds
   retry_count: 3                     # Number of connection retry attempts

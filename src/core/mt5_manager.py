@@ -1,13 +1,12 @@
-
 """
 MT5 Manager - Core MetaTrader 5 Integration Module
 ==================================================
 Author: XAUUSD Trading System
-Version: 1.0.0
-Date: 2025-01-07
+Version: 1.1.0
+Date: 2025-01-08
 
 This module handles all interactions with MetaTrader 5:
-- Connection management
+- Connection management using environment variables
 - Historical data fetching
 - Real-time data streaming
 - Order execution
@@ -19,7 +18,14 @@ Dependencies:
     - pandas
     - numpy
     - datetime
+    - python-dotenv
 """
+
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 import MetaTrader5 as mt5
 import pandas as pd
@@ -45,21 +51,27 @@ class MT5Manager:
     Comprehensive MT5 Manager for XAUUSD Trading System
     
     This class provides a complete interface to MetaTrader 5, handling:
-    - Platform initialization and connection
+    - Platform initialization and connection using environment variables
     - Data retrieval (historical and real-time)
     - Order management (market, pending, modify, close)
     - Account information
     - Symbol specifications
     
+    Environment Variables Required:
+        MT5_LOGIN: MT5 account number
+        MT5_PASSWORD: MT5 account password
+        MT5_SERVER: Broker server name
+        MT5_TERMINAL_PATH: Path to MT5 terminal (optional)
+    
     Attributes:
-        config (dict): Configuration dictionary from master_config.yaml
         connected (bool): Connection status to MT5
         symbol (str): Trading symbol (default: XAUUSD)
         account_info (dict): Current account information
         symbol_info (dict): Symbol specifications
+        magic_number (int): Magic number for orders
     
     Example:
-        >>> mt5_mgr = MT5Manager(config)
+        >>> mt5_mgr = MT5Manager()
         >>> mt5_mgr.connect()
         >>> data = mt5_mgr.get_historical_data("XAUUSDm", "M5", 1000)
         >>> mt5_mgr.place_market_order("XAUUSDm", "BUY", 0.01)
@@ -88,36 +100,54 @@ class MT5Manager:
         'SELL_STOP': mt5.ORDER_TYPE_SELL_STOP
     }
     
-    def __init__(self, config: dict):
+    def __init__(self, symbol: str = "XAUUSD", magic_number: int = 123456):
         """
-        Initialize MT5 Manager with configuration
+        Initialize MT5 Manager with environment variables
         
         Args:
-            config (dict): Configuration dictionary containing MT5 settings
+            symbol (str): Default trading symbol (default: "XAUUSD")
+            magic_number (int): Magic number for orders (default: 123456)
         """
-        self.config = config
-        self.mt5_config = config.get('mt5', {})
         self.connected = False
-        self.symbol = config.get('trading', {}).get('symbol', 'XAUUSDm')  # Updated default symbol
+        self.symbol = symbol
         self.account_info = {}
         self.symbol_info = {}
-        self.magic_number = self.mt5_config.get('magic_number', 123456)
+        self.magic_number = magic_number
         
-        # Load available symbols if provided
+        # Load credentials from environment
+        self.mt5_login = os.getenv('MT5_LOGIN')
+        self.mt5_password = os.getenv('MT5_PASSWORD')
+        self.mt5_server = os.getenv('MT5_SERVER')
+        self.mt5_terminal_path = os.getenv('MT5_TERMINAL_PATH')
+        
+        # Validate required environment variables
+        if not all([self.mt5_login, self.mt5_password, self.mt5_server]):
+            logger.warning("Missing required environment variables: MT5_LOGIN, MT5_PASSWORD, MT5_SERVER")
+            logger.info("Please set these variables in your .env file")
+        
+        # Convert login to integer
+        try:
+            self.mt5_login = int(self.mt5_login) if self.mt5_login else None
+        except (ValueError, TypeError):
+            self.mt5_login = None
+            logger.error("MT5_LOGIN must be a valid integer")
+        
+        # Load available symbols if CSV exists
         self.available_symbols = self._load_available_symbols()
         
         logger.info(f"MT5Manager initialized for symbol: {self.symbol}")
+        logger.info(f"Magic number: {self.magic_number}")
     
     def connect(self, login: Optional[int] = None, password: Optional[str] = None, 
                 server: Optional[str] = None, path: Optional[str] = None) -> bool:
         """
-        Establish connection to MT5 terminal
+        Establish connection to MT5 terminal using environment variables or provided credentials
         
         Args:
-            login (int, optional): Account login. Uses config if not provided
-            password (str, optional): Account password. Uses config if not provided
-            server (str, optional): Broker server. Uses config if not provided
-            path (str, optional): Path to MT5 terminal. Uses config if not provided
+            login (int, optional): Account login. Uses env var if not provided
+            password (str, optional): Account password. Uses env var if not provided
+            server (str, optional): Broker server. Uses env var if not provided
+            path (str, optional): Path to MT5 terminal. Uses env var if not provided
         
         Returns:
             bool: True if connection successful, False otherwise
@@ -130,26 +160,35 @@ class MT5Manager:
             True
         """
         try:
-            # Use provided credentials or fall back to config
-            login = login or self.mt5_config.get('login')
-            password = password or self.mt5_config.get('password')
-            server = server or self.mt5_config.get('server')
-            path = path or self.mt5_config.get('terminal_path')
+            # Use provided credentials or fall back to environment variables
+            login = login or self.mt5_login
+            password = password or self.mt5_password
+            server = server or self.mt5_server
+            path = path or self.mt5_terminal_path
+            
+            # Validate required credentials
+            if not all([login, password, server]):
+                raise ConnectionError(
+                    "Missing MT5 credentials. Please set MT5_LOGIN, MT5_PASSWORD, and MT5_SERVER "
+                    "in your .env file or provide them as parameters."
+                )
             
             # Initialize MT5 connection
-            if path:
+            if path and Path(path).exists():
+                logger.info(f"Initializing MT5 with custom path: {path}")
                 if not mt5.initialize(path):
                     raise ConnectionError(f"Failed to initialize MT5 with path: {path}")
             else:
+                logger.info("Initializing MT5 with default path")
                 if not mt5.initialize():
                     raise ConnectionError("Failed to initialize MT5")
             
-            # Login to account if credentials provided
-            if login and password and server:
-                authorized = mt5.login(login, password=password, server=server)
-                if not authorized:
-                    error = mt5.last_error()
-                    raise ConnectionError(f"Failed to login: {error}")
+            # Login to account
+            logger.info(f"Attempting to login to account {login} on server {server}")
+            authorized = mt5.login(login, password=password, server=server)
+            if not authorized:
+                error = mt5.last_error()
+                raise ConnectionError(f"Failed to login to MT5: {error}")
             
             # Verify connection and get account info
             self.account_info = self._get_account_info()
@@ -161,7 +200,7 @@ class MT5Manager:
             if not self.symbol_info:
                 logger.warning(f"Symbol {self.symbol} not found, trying alternative symbols")
                 # Try alternative symbols for Gold
-                alternative_symbols = ['XAUUSDm', 'XAUUSD', 'GOLD', 'Gold']
+                alternative_symbols = ['XAUUSDm', 'XAUUSD', 'GOLD', 'Gold', 'XAUUSD.', 'XAUUSDpro']
                 for alt_symbol in alternative_symbols:
                     self.symbol_info = self._get_symbol_info(alt_symbol)
                     if self.symbol_info:
@@ -174,13 +213,16 @@ class MT5Manager:
                     raise ConnectionError("Gold symbol not available")
             
             self.connected = True
-            logger.info(f"Successfully connected to MT5. Account: {self.account_info['login']}, "
-                       f"Balance: {self.account_info['balance']}, Server: {self.account_info['server']}")
+            logger.info(f"✅ Successfully connected to MT5")
+            logger.info(f"   Account: {self.account_info['login']}")
+            logger.info(f"   Balance: ${self.account_info['balance']:,.2f}")
+            logger.info(f"   Server: {self.account_info['server']}")
+            logger.info(f"   Symbol: {self.symbol}")
             
             return True
             
         except Exception as e:
-            logger.error(f"Connection failed: {str(e)}")
+            logger.error(f"❌ Connection failed: {str(e)}")
             self.connected = False
             return False
     
@@ -198,7 +240,7 @@ class MT5Manager:
     
     def _load_available_symbols(self) -> Dict:
         """
-        Load available trading symbols from configuration or CSV
+        Load available trading symbols from CSV file
         
         Returns:
             dict: Dictionary of available symbols with their specifications
@@ -318,7 +360,7 @@ class MT5Manager:
             raise ConnectionError("Not connected to MT5. Call connect() first.")
         
         # Common suffix variations for different brokers
-        suffixes = ['m', '', '.', '_m', '.m', 'pro', '.pro']
+        suffixes = ['m', '', '.', '_m', '.m', 'pro', '.pro', '.raw']
         
         for suffix in suffixes:
             test_symbol = f"{base_symbol}{suffix}"
@@ -899,7 +941,9 @@ class MT5Manager:
                 'price_current': pos.price_current,
                 'profit': pos.profit,
                 'swap': pos.swap,
-                'commission': pos.commission,
+                #'commission': pos.commission,
+                'commission': getattr(pos, 'commission', 0.0),
+                #'commission_agent': getattr(pos, 'commission_agent', 0.0),
                 'comment': pos.comment,
                 'magic': pos.magic
             })
@@ -1081,6 +1125,47 @@ class MT5Manager:
         
         return df
     
+    def check_environment_variables(self) -> Dict:
+        """
+        Check if all required environment variables are set
+        
+        Returns:
+            dict: Status of each environment variable
+        
+        Example:
+            >>> status = mt5_mgr.check_environment_variables()
+            >>> print(status)
+        """
+        env_vars = {
+            'MT5_LOGIN': self.mt5_login,
+            'MT5_PASSWORD': self.mt5_password,
+            'MT5_SERVER': self.mt5_server,
+            'MT5_TERMINAL_PATH': self.mt5_terminal_path
+        }
+        
+        status = {}
+        for var, value in env_vars.items():
+            if var == 'MT5_TERMINAL_PATH':  # Optional
+                status[var] = {
+                    'set': value is not None and value != '',
+                    'required': False,
+                    'value': '***HIDDEN***' if value else None
+                }
+            else:  # Required
+                status[var] = {
+                    'set': value is not None and value != '',
+                    'required': True,
+                    'value': '***HIDDEN***' if value else None
+                }
+        
+        all_required_set = all(
+            status[var]['set'] for var in ['MT5_LOGIN', 'MT5_PASSWORD', 'MT5_SERVER']
+        )
+        
+        status['all_required_set'] = all_required_set
+        
+        return status
+    
     def test_connection(self) -> bool:
         """
         Test MT5 connection and display account info
@@ -1093,23 +1178,42 @@ class MT5Manager:
             True
         """
         try:
+            print("\n" + "="*60)
+            print("MT5 CONNECTION TEST")
+            print("="*60)
+            
+            # Check environment variables first
+            print("\n🔧 ENVIRONMENT VARIABLES:")
+            env_status = self.check_environment_variables()
+            
+            for var, info in env_status.items():
+                if var == 'all_required_set':
+                    continue
+                status_icon = "✅" if info['set'] else "❌"
+                required_text = "(Required)" if info['required'] else "(Optional)"
+                print(f"{status_icon} {var}: {'SET' if info['set'] else 'NOT SET'} {required_text}")
+            
+            if not env_status['all_required_set']:
+                print("\n❌ Missing required environment variables!")
+                print("Please set MT5_LOGIN, MT5_PASSWORD, and MT5_SERVER in your .env file")
+                return False
+            
+            # Attempt connection
+            print(f"\n🔌 CONNECTING TO MT5...")
             if not self.connected:
-                logger.info("Not connected. Attempting to connect...")
                 if not self.connect():
                     return False
-            
-            print("\n" + "="*50)
-            print("MT5 CONNECTION TEST")
-            print("="*50)
             
             # Account info
             print("\n📊 ACCOUNT INFORMATION:")
             print(f"Login: {self.account_info['login']}")
             print(f"Server: {self.account_info['server']}")
-            print(f"Balance: ${self.account_info['balance']:.2f}")
-            print(f"Equity: ${self.account_info['equity']:.2f}")
+            print(f"Balance: ${self.account_info['balance']:,.2f}")
+            print(f"Equity: ${self.account_info['equity']:,.2f}")
+            print(f"Free Margin: ${self.account_info['free_margin']:,.2f}")
             print(f"Leverage: 1:{self.account_info['leverage']}")
             print(f"Currency: {self.account_info['currency']}")
+            print(f"Trading Allowed: {'Yes' if self.account_info['trade_allowed'] else 'No'}")
             
             # Symbol info
             print(f"\n📈 SYMBOL INFORMATION ({self.symbol}):")
@@ -1118,21 +1222,38 @@ class MT5Manager:
                 print(f"Bid: {tick['bid']}")
                 print(f"Ask: {tick['ask']}")
                 print(f"Spread: {self.symbol_info['spread']} points")
+                print(f"Min Lot: {self.symbol_info['volume_min']}")
+                print(f"Max Lot: {self.symbol_info['volume_max']}")
+                print(f"Lot Step: {self.symbol_info['volume_step']}")
             
             # Test data fetch
             print("\n📊 DATA FETCH TEST:")
             df = self.get_historical_data(self.symbol, "M5", 10)
             if not df.empty:
-                print(f"Successfully fetched {len(df)} bars")
-                print(f"Latest bar: {df.index[-1]}")
+                print(f"✅ Successfully fetched {len(df)} bars")
+                print(f"Latest bar time: {df.index[-1]}")
                 print(f"Close price: {df['Close'].iloc[-1]}")
+                print(f"Date range: {df.index[0]} to {df.index[-1]}")
+            else:
+                print("❌ Failed to fetch historical data")
             
-            print("\n✅ Connection test successful!")
-            print("="*50)
+            # Check open positions
+            positions = self.get_open_positions()
+            print(f"\n💼 OPEN POSITIONS: {len(positions)}")
+            if positions:
+                for pos in positions[:3]:  # Show first 3 positions
+                    print(f"  Ticket: {pos['ticket']}, {pos['type']} {pos['volume']} {pos['symbol']}, "
+                          f"P/L: ${pos['profit']:.2f}")
+                if len(positions) > 3:
+                    print(f"  ... and {len(positions) - 3} more")
+            
+            print("\n✅ CONNECTION TEST SUCCESSFUL!")
+            print("="*60)
             return True
             
         except Exception as e:
             print(f"\n❌ Connection test failed: {str(e)}")
+            print("="*60)
             return False
 
 
@@ -1145,49 +1266,77 @@ if __name__ == "__main__":
         python mt5_manager.py --test              # Test connection
         python mt5_manager.py --fetch-history     # Fetch historical data
         python mt5_manager.py --account-info      # Display account info
+        python mt5_manager.py --check-env         # Check environment variables
     """
     import argparse
-    import yaml
     
     parser = argparse.ArgumentParser(description='MT5 Manager CLI')
     parser.add_argument('--test', action='store_true', help='Test MT5 connection')
     parser.add_argument('--fetch-history', action='store_true', help='Fetch historical data')
     parser.add_argument('--account-info', action='store_true', help='Display account info')
-    parser.add_argument('--config', type=str, default='config/master_config.yaml', 
-                       help='Path to config file')
+    parser.add_argument('--check-env', action='store_true', help='Check environment variables')
+    parser.add_argument('--symbol', type=str, default='XAUUSD', help='Trading symbol')
+    parser.add_argument('--timeframe', type=str, default='H1', help='Timeframe for data')
+    parser.add_argument('--bars', type=int, default=100, help='Number of bars to fetch')
     
     args = parser.parse_args()
     
-    # Load config
-    config_path = Path(args.config)
-    if config_path.exists():
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-    else:
-        print(f"Config file not found: {config_path}")
-        config = {}
-    
     # Create manager
-    mt5_mgr = MT5Manager(config)
+    mt5_mgr = MT5Manager(symbol=args.symbol)
     
     if args.test:
         mt5_mgr.test_connection()
     
+    elif args.check_env:
+        print("\n" + "="*50)
+        print("ENVIRONMENT VARIABLES CHECK")
+        print("="*50)
+        status = mt5_mgr.check_environment_variables()
+        
+        for var, info in status.items():
+            if var == 'all_required_set':
+                continue
+            status_icon = "✅" if info['set'] else "❌"
+            required_text = "(Required)" if info['required'] else "(Optional)"
+            print(f"{status_icon} {var}: {'SET' if info['set'] else 'NOT SET'} {required_text}")
+        
+        print(f"\n{'✅' if status['all_required_set'] else '❌'} All required variables: "
+              f"{'SET' if status['all_required_set'] else 'NOT SET'}")
+        
+        if not status['all_required_set']:
+            print("\nTo fix this, create a .env file with:")
+            print("MT5_LOGIN=your_account_number")
+            print("MT5_PASSWORD=your_password") 
+            print("MT5_SERVER=your_broker_server")
+            print("MT5_TERMINAL_PATH=path_to_terminal64.exe  # Optional")
+    
     elif args.fetch_history:
         if mt5_mgr.connect():
-            # First validate the symbol
-            symbol = mt5_mgr.get_valid_symbol("XAUUSD")
-            print(f"Using symbol: {symbol}")
-            df = mt5_mgr.get_historical_data(symbol, "H1", 100)
-            print(f"Fetched {len(df)} bars")
-            print(df.tail())
+            # Get valid symbol
+            valid_symbol = mt5_mgr.get_valid_symbol(args.symbol)
+            print(f"Using symbol: {valid_symbol}")
+            
+            df = mt5_mgr.get_historical_data(valid_symbol, args.timeframe, args.bars)
+            if not df.empty:
+                print(f"\nFetched {len(df)} bars for {valid_symbol} {args.timeframe}")
+                print(f"Date range: {df.index[0]} to {df.index[-1]}")
+                print("\nLatest 5 bars:")
+                print(df.tail().round(2))
+            else:
+                print("❌ No data retrieved")
             mt5_mgr.disconnect()
     
     elif args.account_info:
         if mt5_mgr.connect():
             info = mt5_mgr._get_account_info()
+            print("\n" + "="*40)
+            print("ACCOUNT INFORMATION")
+            print("="*40)
             for key, value in info.items():
-                print(f"{key}: {value}")
+                if isinstance(value, float):
+                    print(f"{key.replace('_', ' ').title()}: {value:,.2f}")
+                else:
+                    print(f"{key.replace('_', ' ').title()}: {value}")
             mt5_mgr.disconnect()
     
     else:

@@ -747,7 +747,7 @@ if __name__ == '__main__':
             
             # Test core system if available
             try:
-                from core_system import CoreSystem
+                from src.core_system import CoreSystem
                 
                 # Create and initialize core system
                 core = CoreSystem()

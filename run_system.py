@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 try:
-    from core_system import CoreSystem
+    from src.core_system import CoreSystem
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Please ensure Phase 1 setup is complete.")
