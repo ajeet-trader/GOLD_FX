@@ -941,9 +941,7 @@ class MT5Manager:
                 'price_current': pos.price_current,
                 'profit': pos.profit,
                 'swap': pos.swap,
-                #'commission': pos.commission,
-                'commission': getattr(pos, 'commission', 0.0),
-                #'commission_agent': getattr(pos, 'commission_agent', 0.0),
+                'commission': pos.commission,
                 'comment': pos.comment,
                 'magic': pos.magic
             })
