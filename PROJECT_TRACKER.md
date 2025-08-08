@@ -34,8 +34,8 @@
 - [x] Design project architecture
 - [x] Create master configuration system
 - [x] Implement MT5 integration module
-- [ ] Set up logging infrastructure
-- [ ] Create database schema
+- [x] Set up logging infrastructure
+- [x] Create database schema
 - [ ] Implement error handling framework
 
 ### Phase 2: Strategy Development [⏳ PENDING]
