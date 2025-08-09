@@ -732,6 +732,7 @@ class IchimokuStrategy:
         """Get strategy information and performance"""
         return {
             'name': 'Ichimoku Cloud Strategy',
+            'type': 'Technical',
             'version': '2.0.0',
             'description': 'Advanced Ichimoku Kinko Hyo implementation with multi-timeframe analysis',
             'parameters': {

@@ -15,7 +15,7 @@ This creates a unified core system that serves as the foundation
 for all other trading system components.
 
 Usage:
-    >>> from core_system import CoreSystem
+    >>> from phase_1_core_integration import CoreSystem
     >>> 
     >>> # Initialize with configuration
     >>> core = CoreSystem('config/master_config.yaml')

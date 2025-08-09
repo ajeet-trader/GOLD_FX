@@ -19,7 +19,7 @@ XAUUSD_Trading_System/
 │   │   ├── logger.py               # 📝 New - from artifacts
 │   │   ├── database.py             # 📝 New - from artifacts
 │   │   └── error_handler.py        # 📝 New - from artifacts
-│   └── core_system.py              # 📝 New - from artifacts
+│   └── phase_1_core_integration.py              # 📝 New - from artifacts
 ├── config/
 │   ├── master_config.yaml          # ✅ Already provided
 │   └── mt5_config.yaml             # 📝 Optional additional config
@@ -113,7 +113,7 @@ XAUUSD_Trading_System/
 # - System health monitoring
 ```
 
-### 4. Core System Integration (`src/core_system.py`)
+### 4. Core System Integration (`src/phase_1_core_integration.py`)
 ```python
 # Use the complete phase1_integration.py artifact provided above
 # Features:
