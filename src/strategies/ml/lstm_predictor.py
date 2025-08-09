@@ -78,7 +78,14 @@ except ImportError:
         take_profit: Optional[float] = None
         metadata: Dict[str, Any] = None
 
-
+# Fallback classes when ML libraries are not available
+if not ML_AVAILABLE:
+    class Sequential:
+        pass
+    
+    class Model:
+        pass
+    
 class LSTMPredictor:
     """
     Advanced LSTM Neural Network for Gold Price Prediction
@@ -272,7 +279,9 @@ class LSTMPredictor:
             features_df['momentum'] = data['Close'] - data['Close'].shift(10)
             
             # Clean and prepare data
-            features_df = features_df.fillna(method='ffill').fillna(method='bfill')
+            #features_df = features_df.fillna(method='ffill').fillna(method='bfill')
+            features_df = features_df.ffill().bfill()
+
             features_df = features_df.replace([np.inf, -np.inf], np.nan).fillna(0)
             
             # Store feature names for later reference

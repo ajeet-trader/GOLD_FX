@@ -40,7 +40,7 @@
 
 ### Phase 2: Strategy Development [⏳ PENDING]
 #### Technical Strategies (10 Total)
-- [ ] 1. Ichimoku Cloud System
+- [x] 1. Ichimoku Cloud System
 - [ ] 2. Harmonic Pattern Recognition
 - [ ] 3. Elliott Wave Analysis
 - [ ] 4. Volume Profile Analysis
@@ -51,7 +51,7 @@
 - [ ] 9. Advanced Fibonacci Clusters
 - [ ] 10. Multi-timeframe Momentum Divergence
 
-#### SMC Enhancement
+#### SMC Enhancement - DONE WITH ORDERBLOCK PART
 - [ ] Fix current swing point detection
 - [ ] Implement proper order block identification
 - [ ] Add institutional order flow analysis
@@ -59,7 +59,7 @@
 - [ ] Add session-based manipulation detection
 
 #### ML Strategies (4 Models)
-- [ ] LSTM for price prediction
+- [x] LSTM for price prediction
 - [ ] XGBoost for signal classification
 - [ ] Reinforcement Learning (PPO) agent
 - [ ] Ensemble Neural Network
@@ -291,7 +291,7 @@ sqlalchemy==2.0.0
 
 ### Week 1 (Jan 7-13, 2025)
 - [x] Day 1: Project setup, architecture design
-- [ ] Day 2-3: Complete MT5 integration
+- [x] Day 2-3: Complete MT5 integration
 - [ ] Day 4-5: Implement 5 technical strategies
 - [ ] Day 6-7: Build risk management system
 

@@ -510,6 +510,7 @@ class IchimokuStrategy:
             
             # Ensure cloud has minimum thickness
             thick_enough = current.cloud_thickness >= self.min_cloud_thickness
+            #thick_enough = current.cloud_thickness >= (self.min_cloud_thickness * 0.1)
             
             return (breakout_up or breakout_down) and thick_enough
             
@@ -764,7 +765,7 @@ def test_ichimoku_strategy():
     class MockMT5Manager:
         def get_historical_data(self, symbol, timeframe, bars):
             # Generate sample OHLCV data
-            dates = pd.date_range(start='2025-01-01', periods=bars, freq='15T')
+            dates = pd.date_range(start='2025-01-01', periods=bars, freq='15min')
             
             # Generate trending price data for better testing
             base_price = 2000.0

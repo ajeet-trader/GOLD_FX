@@ -74,7 +74,7 @@ class PositionSizingMethod(Enum):
     """Position sizing methods"""
     FIXED = "FIXED"
     KELLY = "KELLY"
-    KELLY_MODIFIED = "KELLY_MODIFIED"
+    KELLY_MODIFIED = "kelly_modified"
     VOLATILITY_BASED = "VOLATILITY_BASED"
     CONFIDENCE_BASED = "CONFIDENCE_BASED"
 
@@ -838,14 +838,6 @@ class RiskManager:
         except Exception as e:
             self.logger.error(f"Drawdown calculation failed: {str(e)}")
             return 0.0
-    
-    def _update_risk_metrics(self) -> None:
-        """Update comprehensive risk metrics"""
-        try:
-            # Get current account info
-            account_balance = self.mt5_manager.get_account_balance()
-            equity = self.mt5_manager.get_account_equity()
-            open_positions = self.mt5_manager.get_open_positions()
             
     def _update_risk_metrics(self) -> None:
         """Update comprehensive risk metrics"""

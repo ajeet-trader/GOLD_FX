@@ -21,6 +21,7 @@ Features:
 - Correlation-based position limits
 - Emergency stop mechanisms
 """
+from __future__ import annotations
 
 import pandas as pd
 import numpy as np
@@ -37,6 +38,8 @@ import time
 try:
     from ..signal_engine import Signal, SignalType, SignalGrade
     from ..risk_manager import RiskManager
+    #from src.core.risk_manager import RiskManager
+
 except ImportError:
     # Fallback for testing
     class SignalType(Enum):
