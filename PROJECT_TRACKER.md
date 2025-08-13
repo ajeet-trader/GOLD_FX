@@ -1,3 +1,12 @@
+This will be project core source of truth untile all the below files will be completed.
+phase 0 and 1.md - Completed
+phase 2.md - In Progress
+phase 3.md - Not Started
+phase 4.md - Not Started
+phase 5.md - Not Started
+phase 6.md - Not Started
+phase 7.md - Not Started
+
 # 🎯 XAUUSD MT5 Trading System - PROJECT TRACKER
 
 ## 📊 Project Overview

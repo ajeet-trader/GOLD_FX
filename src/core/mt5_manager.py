@@ -19,6 +19,12 @@ Dependencies:
     - numpy
     - datetime
     - python-dotenv
+    
+Environment Variables (.env file):
+    MT5_LOGIN=your_account_number
+    MT5_PASSWORD=your_password
+    MT5_SERVER=your_broker_server
+    MT5_PATH=path_to_terminal64.exe (optional)    
 """
 
 import os

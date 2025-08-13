@@ -5,7 +5,7 @@ Author: XAUUSD Trading System
 Version: 2.0.0
 Date: 2025-08-08
 
-Complete implementation of Order Blocks strategy with:
+Advanced Order Block detection and trading for XAUUSD:
 - Institutional order block identification
 - Fair Value Gap (FVG) detection
 - Break of Structure (BOS) analysis
@@ -13,7 +13,20 @@ Complete implementation of Order Blocks strategy with:
 - Liquidity sweep detection
 - Premium/Discount zones
 
-This is the COMPLETE implementation from the partial code.
+Order blocks represent areas where institutions have placed large orders,
+creating significant supply/demand zones that often act as strong
+support/resistance levels.
+
+Key Concepts:
+- Bullish Order Block: Last bearish candle before bullish impulse
+- Bearish Order Block: Last bullish candle before bearish impulse
+- Fair Value Gap: Imbalance in price showing inefficiency
+- Mitigation: When price returns to test order block
+
+Dependencies:
+    - pandas
+    - numpy
+    - datetime
 """
 
 import pandas as pd
