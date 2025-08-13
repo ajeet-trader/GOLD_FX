@@ -12,3 +12,67 @@ venv\Scripts\activate.bat
 venv\Scripts\Activate.ps1
 🔸 macOS / Linux:
 source venv/bin/activate
+
+| **Task**                           | **Command**                                  | **Description**                                            |
+| ---------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| List all local branches            | `git branch`                                 | Shows all branches on your local repository.               |
+| List all remote branches           | `git branch -r`                              | Shows branches on the remote repository.                   |
+| List all local and remote branches | `git branch -a`                              | Shows all branches (local + remote).                       |
+| Create a new branch                | `git branch <branch_name>`                   | Creates a new branch locally.                              |
+| Create and switch to a new branch  | `git checkout -b <branch_name>`              | Creates a branch and switches to it immediately.           |
+| Switch to an existing branch       | `git checkout <branch_name>`                 | Switches to a branch.                                      |
+| Rename current branch              | `git branch -m <new_name>`                   | Renames the current branch.                                |
+| Delete a local branch              | `git branch -d <branch_name>`                | Deletes a local branch (safe, checks merged status).       |
+| Force delete a local branch        | `git branch -D <branch_name>`                | Deletes a local branch regardless of merge status.         |
+| Push a branch to remote            | `git push origin <branch_name>`              | Pushes a local branch to the remote repository.            |
+| Delete a remote branch             | `git push origin --delete <branch_name>`     | Deletes a branch from the remote repository.               |
+| Set upstream branch                | `git push -u origin <branch_name>`           | Pushes the branch and links it to track the remote branch. |
+| Merge another branch into current  | `git merge <branch_name>`                    | Merges specified branch into the current branch.           |
+| Rebase current branch onto another | `git rebase <branch_name>`                   | Moves the current branch commits on top of another branch. |
+| Fetch remote branches              | `git fetch`                                  | Updates your local copy of remote branches.                |
+| Pull latest changes from a branch  | `git pull origin <branch_name>`              | Pulls latest commits from remote branch.                   |
+| View last commit of each branch    | `git log --oneline --decorate --graph --all` | Visual representation of branches and commits.             |
+
+
+
+| **Task**                                   | **Command**                                                                        | **Description / Notes**                                                     |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Check current status**                   | `git status`                                                                       | Shows modified, staged, and untracked files.                                |
+| **Initialize repo**                        | `git init`                                                                         | Initializes a new Git repository locally.                                   |
+| **Clone remote repo**                      | `git clone <repo_url>`                                                             | Clones a GitHub repo to your machine.                                       |
+| **Stage changes**                          | `git add <file>`<br>`git add .`                                                    | Adds specific files or all files to staging.                                |
+| **Commit changes**                         | `git commit -m "message"`                                                          | Commits staged changes with a descriptive message.                          |
+| **Amend last commit**                      | `git commit --amend -m "new message"`                                              | Updates the last commit without creating a new one.                         |
+| **View commit history**                    | `git log`<br>`git log --oneline --graph --all`                                     | Shows commit history; second version is compact and visual.                 |
+| **Check local branches**                   | `git branch`                                                                       | Lists all local branches.                                                   |
+| **Check remote branches**                  | `git branch -r`                                                                    | Lists remote branches.                                                      |
+| **Create a branch**                        | `git branch <branch_name>`                                                         | Creates a new branch locally.                                               |
+| **Create & switch branch**                 | `git checkout -b <branch_name>`                                                    | Creates and switches immediately.                                           |
+| **Switch branch**                          | `git checkout <branch_name>`                                                       | Switch to an existing branch.                                               |
+| **Rename branch**                          | `git branch -m <old> <new>`                                                        | Rename a local branch.                                                      |
+| **Delete local branch**                    | `git branch -d <branch_name>`                                                      | Deletes a local branch safely.                                              |
+| **Delete remote branch**                   | `git push origin --delete <branch_name>`                                           | Deletes a branch on GitHub.                                                 |
+| **Push branch to remote**                  | `git push origin <branch_name>`                                                    | Push local branch to GitHub.                                                |
+| **Push & set upstream**                    | `git push -u origin <branch_name>`                                                 | Push branch and track remote branch.                                        |
+| **Pull changes**                           | `git pull origin <branch_name>`                                                    | Pull latest changes from remote branch.                                     |
+| **Fetch remote updates**                   | `git fetch`                                                                        | Updates remote tracking branches without merging.                           |
+| **Merge branch into current**              | `git merge <branch_name>`                                                          | Merge another branch into your current branch.                              |
+| **Rebase current branch**                  | `git rebase <branch_name>`                                                         | Moves current branch commits on top of another branch.                      |
+| **Stash changes**                          | `git stash`                                                                        | Temporarily saves uncommitted changes.                                      |
+| **Apply stash**                            | `git stash apply`                                                                  | Restores stashed changes.                                                   |
+| **Drop stash**                             | `git stash drop`                                                                   | Deletes a stash after applying it.                                          |
+| **View remote URLs**                       | `git remote -v`                                                                    | Shows fetch/push URLs for remotes.                                          |
+| **Add new remote**                         | `git remote add origin <url>`                                                      | Add a new remote repository.                                                |
+| **Rename remote**                          | `git remote rename <old> <new>`                                                    | Rename a remote reference.                                                  |
+| **Check differences**                      | `git diff`                                                                         | Shows unstaged changes.                                                     |
+| **Check staged differences**               | `git diff --staged`                                                                | Shows changes staged for commit.                                            |
+| **Reset file to last commit**              | `git checkout -- <file>`                                                           | Discards changes in working directory.                                      |
+| **Undo last commit (keep changes staged)** | `git reset --soft HEAD~1`                                                          | Moves HEAD back one commit.                                                 |
+| **Undo last commit (discard changes)**     | `git reset --hard HEAD~1`                                                          | Deletes last commit and changes.                                            |
+| **View branch tracking**                   | `git branch -vv`                                                                   | Shows which remote branch a local branch is tracking.                       |
+| **Tag a commit**                           | `git tag <tag_name>`                                                               | Create a tag for release or milestone.                                      |
+| **Push tags to remote**                    | `git push origin <tag_name>`                                                       | Push a specific tag to GitHub.                                              |
+| **Push all tags**                          | `git push origin --tags`                                                           | Push all tags to remote.                                                    |
+| **Git configuration**                      | `git config --global user.name "Name"`<br>`git config --global user.email "email"` | Set global identity for commits.                                            |
+| **Undo a pushed commit**                   | `git revert <commit_hash>`                                                         | Creates a new commit that undoes a previous commit (safe for shared repos). |
+| **Interactive rebase**                     | `git rebase -i HEAD~n`                                                             | Rewrite last n commits (squash, edit, reorder).                             |
