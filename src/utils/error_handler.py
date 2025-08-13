@@ -587,10 +587,27 @@ class ErrorHandler:
         self.circuit_breakers[function_name]['failure_count'] += 1
         self.circuit_breakers[function_name]['last_failure'] = datetime.now()
     
+    
     def _reset_circuit_breaker(self, function_name: str) -> None:
         """Reset circuit breaker state"""
         if function_name in self.circuit_breakers:
             self.circuit_breakers[function_name]['failure_count'] = 0
+    
+    def setup_circuit_breaker(self, function_name: str, threshold: int = 5, timeout: int = 300):
+        """
+        Public method to initialize circuit breaker for a function.
+        Args:
+            function_name (str): Identifier for the protected function.
+            threshold (int): Number of allowed failures before opening the circuit.
+            timeout (int): Time in seconds before resetting the breaker.
+        """
+        self.circuit_breakers[function_name] = {
+            'failure_count': 0,
+            'threshold': threshold,
+            'timeout': timeout,
+            'last_failure': datetime.now()
+        }
+        
     
     def _check_system_health(self, error_context: ErrorContext) -> None:
         """Check if error affects system health"""

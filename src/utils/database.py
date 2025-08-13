@@ -246,7 +246,9 @@ class DatabaseManager:
         >>> db_mgr.store_trade(trade_data)
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Union[Dict[str, Any], str]):
+        if isinstance(config, str):
+            config = {"database": {"sqlite": {"path": config}}}
         """
         Initialize the database manager
         

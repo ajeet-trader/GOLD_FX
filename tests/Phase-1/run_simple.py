@@ -15,3 +15,4 @@ if core.initialize():
     if core.connect_mt5():
         print("MT5 connected")
     core.shutdown()
+

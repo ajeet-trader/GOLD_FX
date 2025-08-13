@@ -289,7 +289,7 @@ class MT5Manager:
         """
         account_info = mt5.account_info()
         if account_info is None:
-            return {}
+            return self._get_account_info()
         
         return {
             'login': account_info.login,

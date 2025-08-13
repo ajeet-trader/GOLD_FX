@@ -1,11 +1,16 @@
 """
 Logger Module - Complete Logging Infrastructure
+
 ==============================================
+
 Author: XAUUSD Trading System
+
 Version: 1.0.0
+
 Date: 2025-08-07
 
 This module provides comprehensive logging functionality for the trading system:
+
 - Structured logging with multiple levels
 - File rotation and management
 - Console and file output
@@ -14,6 +19,7 @@ This module provides comprehensive logging functionality for the trading system:
 - Error tracking
 
 Features:
+
 - Automatic log rotation
 - Colored console output
 - JSON structured logs
@@ -22,10 +28,11 @@ Features:
 - Error tracking and notifications
 
 Dependencies:
-    - logging
-    - colorlog
-    - json
-    - pathlib
+
+- logging
+- colorlog
+- json
+- pathlib
 """
 
 import logging
@@ -39,7 +46,6 @@ from typing import Dict, Any, Optional
 import colorlog
 from enum import Enum
 
-
 class LogLevel(Enum):
     """Log level enumeration"""
     DEBUG = "DEBUG"
@@ -48,28 +54,27 @@ class LogLevel(Enum):
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
 
-
 class LoggerManager:
     """
     Comprehensive logging manager for the trading system
-    
+
     This class manages all logging operations including:
     - System logs
     - Trade logs
     - Signal logs
     - Error logs
     - Performance logs
-    
+
     Example:
-        >>> logger_mgr = LoggerManager(config)
-        >>> logger_mgr.setup_logging()
-        >>> logger_mgr.log_trade("BUY", "XAUUSDm", 0.01, 1950.0)
+    >>> logger_mgr = LoggerManager(config)
+    >>> logger_mgr.setup_logging()
+    >>> logger_mgr.log_trade("BUY", "XAUUSDm", 0.01, 1950.0)
     """
-    
+
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the logging manager
-        
+
         Args:
             config (dict): Configuration dictionary
         """
@@ -77,63 +82,68 @@ class LoggerManager:
         self.logging_config = config.get('logging', {})
         self.log_dir = Path("logs")
         self.log_dir.mkdir(exist_ok=True)
-        
+
         # Create subdirectories
         (self.log_dir / "trades").mkdir(exist_ok=True)
         (self.log_dir / "signals").mkdir(exist_ok=True)
         (self.log_dir / "performance").mkdir(exist_ok=True)
         (self.log_dir / "errors").mkdir(exist_ok=True)
-        
+
         # Logger instances
         self.system_logger = None
         self.trade_logger = None
         self.signal_logger = None
         self.error_logger = None
         self.performance_logger = None
-        
+
         # Setup flag
         self._setup_complete = False
-    
+
     def setup_logging(self) -> bool:
         """
         Set up all logging components
-        
+
         Returns:
             bool: True if setup successful
         """
         try:
             # Get log level
             log_level = getattr(logging, self.logging_config.get('level', 'INFO'))
-            
+
             # Setup system logger
             self._setup_system_logger(log_level)
-            
+
             # Setup specialized loggers
             self._setup_trade_logger()
             self._setup_signal_logger()
             self._setup_error_logger()
             self._setup_performance_logger()
-            
+
             # Setup console logger if enabled
             if self.logging_config.get('console', {}).get('enabled', True):
                 self._setup_console_logger(log_level)
-            
+
             self._setup_complete = True
             self.system_logger.info("Logging system initialized successfully")
             return True
-            
+
         except Exception as e:
             print(f"Failed to setup logging: {str(e)}")
             return False
-    
+
     def _setup_system_logger(self, log_level: int) -> None:
         """Setup the main system logger"""
         self.system_logger = logging.getLogger('xau_system')
         self.system_logger.setLevel(log_level)
-        
-        # Remove existing handlers
+
+        # ✅ Close old handlers before clearing
+        for handler in list(self.system_logger.handlers):
+            try:
+                handler.close()
+            except Exception:
+                pass
         self.system_logger.handlers.clear()
-        
+
         # File handler with rotation
         log_file = self.log_dir / "system.log"
         file_handler = logging.handlers.RotatingFileHandler(
@@ -141,7 +151,7 @@ class LoggerManager:
             maxBytes=int(self._parse_size(self.logging_config.get('rotation', {}).get('max_size', '10MB'))),
             backupCount=self.logging_config.get('rotation', {}).get('backup_count', 10)
         )
-        
+
         # Formatter
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
@@ -149,72 +159,71 @@ class LoggerManager:
         )
         file_handler.setFormatter(formatter)
         self.system_logger.addHandler(file_handler)
-    
+
     def _setup_trade_logger(self) -> None:
         """Setup trade-specific logger"""
         self.trade_logger = logging.getLogger('xau_trades')
         self.trade_logger.setLevel(logging.INFO)
-        
-        # Remove existing handlers
+
+        # ✅ Close old handlers before clearing
+        for handler in list(self.trade_logger.handlers):
+            try:
+                handler.close()
+            except Exception:
+                pass
         self.trade_logger.handlers.clear()
-        
-        # Daily rotating file handler
+
         log_file = self.log_dir / "trades" / "trades.log"
         file_handler = logging.handlers.TimedRotatingFileHandler(
-            log_file,
-            when='midnight',
-            interval=1,
-            backupCount=30  # Keep 30 days
+            log_file, when='midnight', interval=1, backupCount=30
         )
-        
-        # JSON formatter for structured trade data
+
         formatter = JsonFormatter()
         file_handler.setFormatter(formatter)
         self.trade_logger.addHandler(file_handler)
-        
-        # Prevent propagation to avoid duplicate logs
         self.trade_logger.propagate = False
-    
+
     def _setup_signal_logger(self) -> None:
         """Setup signal-specific logger"""
         self.signal_logger = logging.getLogger('xau_signals')
         self.signal_logger.setLevel(logging.INFO)
-        
-        # Remove existing handlers
+
+        # ✅ Close old handlers before clearing
+        for handler in list(self.signal_logger.handlers):
+            try:
+                handler.close()
+            except Exception:
+                pass
         self.signal_logger.handlers.clear()
-        
-        # Daily rotating file handler
+
         log_file = self.log_dir / "signals" / "signals.log"
         file_handler = logging.handlers.TimedRotatingFileHandler(
-            log_file,
-            when='midnight',
-            interval=1,
-            backupCount=30  # Keep 30 days
+            log_file, when='midnight', interval=1, backupCount=30
         )
-        
-        # JSON formatter
+
         formatter = JsonFormatter()
         file_handler.setFormatter(formatter)
         self.signal_logger.addHandler(file_handler)
         self.signal_logger.propagate = False
-    
+
     def _setup_error_logger(self) -> None:
         """Setup error-specific logger"""
         self.error_logger = logging.getLogger('xau_errors')
         self.error_logger.setLevel(logging.ERROR)
-        
-        # Remove existing handlers
+
+        # ✅ Close old handlers before clearing
+        for handler in list(self.error_logger.handlers):
+            try:
+                handler.close()
+            except Exception:
+                pass
         self.error_logger.handlers.clear()
-        
-        # File handler
+
         log_file = self.log_dir / "errors" / "errors.log"
         file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=5*1024*1024,  # 5MB
-            backupCount=10
+            log_file, maxBytes=5*1024*1024, backupCount=10
         )
-        
-        # Detailed formatter for errors
+
         formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s\n'
             'Exception: %(exc_info)s\n' + '='*80,
@@ -223,40 +232,36 @@ class LoggerManager:
         file_handler.setFormatter(formatter)
         self.error_logger.addHandler(file_handler)
         self.error_logger.propagate = False
-    
+
     def _setup_performance_logger(self) -> None:
         """Setup performance-specific logger"""
         self.performance_logger = logging.getLogger('xau_performance')
         self.performance_logger.setLevel(logging.INFO)
-        
-        # Remove existing handlers
+
+        # ✅ Close old handlers before clearing
+        for handler in list(self.performance_logger.handlers):
+            try:
+                handler.close()
+            except Exception:
+                pass
         self.performance_logger.handlers.clear()
-        
-        # Daily rotating file handler
+
         log_file = self.log_dir / "performance" / "performance.log"
         file_handler = logging.handlers.TimedRotatingFileHandler(
-            log_file,
-            when='midnight',
-            interval=1,
-            backupCount=365  # Keep 1 year of performance data
+            log_file, when='midnight', interval=1, backupCount=365
         )
-        
-        # JSON formatter
+
         formatter = JsonFormatter()
         file_handler.setFormatter(formatter)
         self.performance_logger.addHandler(file_handler)
         self.performance_logger.propagate = False
-    
+
     def _setup_console_logger(self, log_level: int) -> None:
         """Setup colored console output"""
         console_config = self.logging_config.get('console', {})
-        
         if console_config.get('colored', True):
-            # Colored console handler
             console_handler = colorlog.StreamHandler()
             console_handler.setLevel(log_level)
-            
-            # Color formatter
             color_formatter = colorlog.ColoredFormatter(
                 '%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                 datefmt='%H:%M:%S',
@@ -271,17 +276,15 @@ class LoggerManager:
             console_handler.setFormatter(color_formatter)
             self.system_logger.addHandler(console_handler)
         else:
-            # Regular console handler
             console_handler = logging.StreamHandler()
             console_handler.setLevel(log_level)
-            
             formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                 datefmt='%H:%M:%S'
             )
             console_handler.setFormatter(formatter)
             self.system_logger.addHandler(console_handler)
-    
+
     def _parse_size(self, size_str: str) -> int:
         """Parse size string (e.g., '10MB') to bytes"""
         size_str = size_str.upper()

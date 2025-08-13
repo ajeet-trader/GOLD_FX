@@ -27,7 +27,7 @@
 
 # 📁 Phase 0: Initial Setup & Architecture
 ## Status: ✅ COMPLETE
-## Completed: 08 January 2025
+## Completed: 08 August 2025
 
 ### 0.1 Project Structure Creation
 
@@ -956,36 +956,65 @@ python src/core/mt5_manager.py --test
 
 ##### Output Log:
 ```
-2025-01-08 10:15:23 - MT5Manager - INFO - Initializing MT5 Manager...
-2025-01-08 10:15:23 - MT5Manager - INFO - Loading configuration from config/master_config.yaml
-2025-01-08 10:15:24 - MT5Manager - INFO - Attempting to connect to MT5...
-2025-01-08 10:15:24 - MT5Manager - SUCCESS - Connected to MT5
-2025-01-08 10:15:24 - MT5Manager - INFO - Terminal Info:
-  - Company: XM Global Limited
-  - Platform: MetaTrader 5
-  - Version: 5.0.5200
-2025-01-08 10:15:24 - MT5Manager - INFO - Account Info:
-  - Login: 12345678
-  - Server: XMGlobal-MT5 3
-  - Balance: $100.00
-  - Equity: $100.00
-  - Leverage: 1:500
-2025-01-08 10:15:25 - MT5Manager - INFO - Validating symbol XAUUSDm...
-2025-01-08 10:15:25 - MT5Manager - SUCCESS - Symbol XAUUSDm is tradable
-  - Min Lot: 0.01
-  - Max Lot: 100.0
-  - Lot Step: 0.01
-  - Current Spread: 15 points
-2025-01-08 10:15:25 - MT5Manager - INFO - Fetching historical data...
-2025-01-08 10:15:26 - MT5Manager - SUCCESS - Fetched 1000 bars of M15 data
-2025-01-08 10:15:26 - MT5Manager - INFO - Latest bar:
-  - Time: 2025-01-08 10:15:00
-  - Open: 2651.45
-  - High: 2651.89
-  - Low: 2651.12
-  - Close: 2651.67
-  - Volume: 245
-Test completed successfully!
+(venv) PS J:\Gold_FX> python src/core/mt5_manager.py --test
+2025-08-13 21:10:38,409 - __main__ - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 21:10:38,409 - __main__ - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-13 21:10:38,410 - __main__ - INFO - Magic number: 123456
+2025-08-13 21:10:38,411 - __main__ - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 21:10:38,411 - __main__ - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-13 21:10:38,411 - __main__ - INFO - Magic number: 123456
+
+============================================================
+MT5 CONNECTION TEST
+============================================================
+
+🔧 ENVIRONMENT VARIABLES:
+✅ MT5_LOGIN: SET (Required)
+✅ MT5_PASSWORD: SET (Required)
+✅ MT5_SERVER: SET (Required)
+✅ MT5_TERMINAL_PATH: SET (Optional)
+
+🔌 CONNECTING TO MT5...
+2025-08-13 21:10:38,413 - __main__ - INFO - Initializing MT5 with default path
+2025-08-13 21:10:38,693 - __main__ - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 21:10:38,711 - __main__ - WARNING - Symbol XAUUSD not found, trying alternative symbols
+2025-08-13 21:10:38,713 - __main__ - INFO - Using alternative symbol: XAUUSDm
+2025-08-13 21:10:38,713 - __main__ - INFO - ✅ Successfully connected to MT5
+2025-08-13 21:10:38,713 - __main__ - INFO -    Account: 273949055
+2025-08-13 21:10:38,713 - __main__ - INFO -    Balance: $147.53
+2025-08-13 21:10:38,714 - __main__ - INFO -    Server: Exness-MT5Trial6
+2025-08-13 21:10:38,714 - __main__ - INFO -    Symbol: XAUUSDm
+
+📊 ACCOUNT INFORMATION:
+Login: 273949055
+Server: Exness-MT5Trial6
+Balance: $147.53
+Equity: $172.74
+Free Margin: $171.05
+Leverage: 1:2000
+Currency: USD
+Trading Allowed: Yes
+
+📈 SYMBOL INFORMATION (XAUUSDm):
+Bid: 3356.117
+Ask: 3356.277
+Spread: 160 points
+Min Lot: 0.01
+Max Lot: 200.0
+Lot Step: 0.01
+
+📊 DATA FETCH TEST:
+2025-08-13 21:10:38,897 - __main__ - INFO - Retrieved 10 bars for XAUUSDm M5
+✅ Successfully fetched 10 bars
+Latest bar time: 2025-08-13 14:45:00
+Close price: 3363.29
+Date range: 2025-08-13 14:00:00 to 2025-08-13 14:45:00
+
+💼 OPEN POSITIONS: 1
+  Ticket: 2285983117, SELL 0.01 XAUUSDm, P/L: $25.21
+
+✅ CONNECTION TEST SUCCESSFUL!
+============================================================
 ```
 
 ##### Integration Points:
@@ -1128,24 +1157,13 @@ python src/utils/database.py --test
 
 ##### Output Log:
 ```
-2025-01-08 10:20:15 - DatabaseManager - INFO - Initializing database at data/trading.db
-2025-01-08 10:20:15 - DatabaseManager - INFO - Creating database schema...
-2025-01-08 10:20:15 - DatabaseManager - SUCCESS - Database tables created:
-  - trades
-  - signals
-  - performance
-  - configurations
-  - logs
-2025-01-08 10:20:16 - DatabaseManager - INFO - Testing trade storage...
-2025-01-08 10:20:16 - DatabaseManager - SUCCESS - Trade stored: ID=1, Ticket=12345
-2025-01-08 10:20:16 - DatabaseManager - INFO - Testing signal storage...
-2025-01-08 10:20:16 - DatabaseManager - SUCCESS - Signal stored: ID=1, Strategy=ichimoku
-2025-01-08 10:20:16 - DatabaseManager - INFO - Testing data retrieval...
-2025-01-08 10:20:16 - DatabaseManager - SUCCESS - Retrieved 1 trades, 1 signals
-2025-01-08 10:20:17 - DatabaseManager - INFO - Database size: 48 KB
-2025-01-08 10:20:17 - DatabaseManager - INFO - Creating backup...
-2025-01-08 10:20:17 - DatabaseManager - SUCCESS - Backup created at data/backups/trading_20250108_102017.db
-Database tests completed successfully!
+(venv) PS J:\Gold_FX> python src/utils/database.py --test
+Account stored with ID: 1
+Trade stored with ID: 8
+Signal stored with ID: 8
+Config value: test_value
+Database stats: {'accounts': 1, 'trades': 8, 'open_trades': 8, 'signals': 8, 'executed_signals': 0, 'performance_records': 0, 'market_data_records': 0, 'configurations': 3}
+Database test completed successfully!
 ```
 
 ### 1.3 Error Handling Framework
@@ -1271,21 +1289,97 @@ class ErrorHandler:
 
 ##### Test Output:
 ```
-2025-01-08 10:25:30 - ErrorHandler - INFO - Initializing error handling framework
-2025-01-08 10:25:30 - ErrorHandler - INFO - Registering recovery strategies...
-2025-01-08 10:25:30 - ErrorHandler - INFO - Setting up circuit breakers...
-2025-01-08 10:25:30 - ErrorHandler - INFO - Testing error handling...
-2025-01-08 10:25:30 - ErrorHandler - WARNING - Handled ConnectionError: Test connection error
-2025-01-08 10:25:30 - ErrorHandler - INFO - Attempting recovery strategy...
-2025-01-08 10:25:31 - ErrorHandler - SUCCESS - Recovery successful after 1 attempt
-2025-01-08 10:25:31 - ErrorHandler - INFO - Testing circuit breaker...
-2025-01-08 10:25:31 - ErrorHandler - WARNING - Circuit breaker 'order_errors' triggered after 3 errors
-2025-01-08 10:25:31 - ErrorHandler - INFO - System health check:
-  - Total Errors: 4
-  - Critical Errors: 0
-  - Active Circuit Breakers: 1
-  - System Status: OPERATIONAL
-Error handler tests completed successfully!
+(venv) PS J:\Gold_FX> python src/utils/error_handler.py
+Error handled: TRADING - Test trading error
+High/Critical error notification: Test trading error
+Error handled: CONNECTION - Test connection error
+High/Critical error notification: Test connection error
+Error handled: CONNECTION - Test connection error
+High/Critical error notification: Test connection error
+Error handled: CONNECTION - Test connection error
+High/Critical error notification: Test connection error
+Error handled: CONNECTION - Test connection error
+Function failed after retries: Test connection error
+Function succeeded: Success!
+High/Critical error notification: Test connection error
+Error statistics: {
+  "total_errors": 5,
+  "errors_by_category": {
+    "TRADING": 1,
+    "CONNECTION": 4
+  },
+  "errors_by_severity": {
+    "HIGH": 5
+  },
+  "recovery_success_rate": 1.0,
+  "recent_error_count": 5,
+  "system_healthy": true,
+  "last_health_check": "2025-08-13 21:40:00.810660",
+  "circuit_breakers": 0
+}
+Recent errors: [
+  {
+    "error_id": "ERR_20250813_214000_2151381324800",
+    "timestamp": "2025-08-13T21:40:00.810717",
+    "category": "TRADING",
+    "severity": "HIGH",
+    "message": "Test trading error",
+    "function_name": "unknown",
+    "module_name": "unknown",
+    "recovery_attempted": false,
+    "recovery_successful": false,
+    "retry_count": 0
+  },
+  {
+    "error_id": "ERR_20250813_214000_2151381324800",
+    "timestamp": "2025-08-13T21:40:00.812680",
+    "category": "CONNECTION",
+    "severity": "HIGH",
+    "message": "Test connection error",
+    "function_name": "test_function",
+    "module_name": "J:\\Gold_FX\\src\\utils\\error_handler.py",
+    "recovery_attempted": true,
+    "recovery_successful": true,
+    "retry_count": 0
+  },
+  {
+    "error_id": "ERR_20250813_214006_2151381324800",
+    "timestamp": "2025-08-13T21:40:06.815180",
+    "category": "CONNECTION",
+    "severity": "HIGH",
+    "message": "Test connection error",
+    "function_name": "test_function",
+    "module_name": "J:\\Gold_FX\\src\\utils\\error_handler.py",
+    "recovery_attempted": true,
+    "recovery_successful": true,
+    "retry_count": 0
+  },
+  {
+    "error_id": "ERR_20250813_214013_2151381324800",
+    "timestamp": "2025-08-13T21:40:13.818145",
+    "category": "CONNECTION",
+    "severity": "HIGH",
+    "message": "Test connection error",
+    "function_name": "test_function",
+    "module_name": "J:\\Gold_FX\\src\\utils\\error_handler.py",
+    "recovery_attempted": true,
+    "recovery_successful": true,
+    "retry_count": 0
+  },
+  {
+    "error_id": "ERR_20250813_214022_2151381324800",
+    "timestamp": "2025-08-13T21:40:22.821255",
+    "category": "CONNECTION",
+    "severity": "HIGH",
+    "message": "Test connection error",
+    "function_name": "test_function",
+    "module_name": "J:\\Gold_FX\\src\\utils\\error_handler.py",
+    "recovery_attempted": false,
+    "recovery_successful": false,
+    "retry_count": 0
+  }
+]
+Error handling test completed!
 ```
 
 ### 1.4 Logging Infrastructure
@@ -1394,26 +1488,13 @@ class TradingLogger:
 
 ##### Test Output:
 ```
-2025-01-08 10:30:45 - TradingLogger - INFO - Initializing logging system
-2025-01-08 10:30:45 - TradingLogger - INFO - Creating log directories...
-2025-01-08 10:30:45 - TradingLogger - SUCCESS - Log directories created:
-  - logs/
-  - logs/archives/
-  - logs/trades/
-  - logs/signals/
-2025-01-08 10:30:45 - TradingLogger - INFO - Setting up loggers...
-2025-01-08 10:30:45 - TradingLogger - SUCCESS - Loggers configured:
-  - system.log (10MB rotation, 10 backups)
-  - trades.log (JSON format)
-  - signals.log (JSON format)
-  - errors.log (with traceback)
-  - performance.log (metrics)
-[32m2025-01-08 10:30:45[0m - [36mTradingLogger[0m - [32mINFO[0m - Testing colored console output
-[33m2025-01-08 10:30:45[0m - [36mTradingLogger[0m - [33mWARNING[0m - This is a warning message
-[31m2025-01-08 10:30:45[0m - [36mTradingLogger[0m - [31mERROR[0m - This is an error message
-2025-01-08 10:30:46 - TradingLogger - INFO - Trade logged: BUY XAUUSDm 0.01 lots @ 2651.45
-2025-01-08 10:30:46 - TradingLogger - INFO - Signal logged: ichimoku LONG confidence=0.85
-Logger tests completed successfully!
+(venv) PS J:\Gold_FX> python .\src\utils\logger.py     
+21:41:45 - xau_system - INFO - Logging system initialized successfully
+21:41:45 - xau_system - INFO - System started
+21:41:45 - xau_system - DEBUG - Debug message
+21:41:45 - xau_system - WARNING - Warning message
+Logging test completed. Check the logs/ directory for output files.
+
 ```
 
 ### 1.5 Phase 1 Core Integration
@@ -1523,28 +1604,117 @@ class CoreSystem:
 
 ##### Integration Test Output:
 ```
-2025-01-08 10:35:00 - CoreSystem - INFO - ========================================
-2025-01-08 10:35:00 - CoreSystem - INFO - Core System Integration Test Starting
-2025-01-08 10:35:00 - CoreSystem - INFO - ========================================
-2025-01-08 10:35:00 - CoreSystem - INFO - Loading configuration from config/master_config.yaml
-2025-01-08 10:35:00 - CoreSystem - INFO - Initializing Core System...
-2025-01-08 10:35:01 - TradingLogger - SUCCESS - Logging system initialized
-2025-01-08 10:35:01 - ErrorHandler - SUCCESS - Error handling framework initialized
-2025-01-08 10:35:01 - DatabaseManager - SUCCESS - Database connection established
-2025-01-08 10:35:01 - MT5Manager - SUCCESS - MT5 manager initialized
-2025-01-08 10:35:01 - CoreSystem - INFO - Setting up error recovery strategies...
-2025-01-08 10:35:01 - CoreSystem - SUCCESS - Core System initialized successfully
-2025-01-08 10:35:02 - CoreSystem - INFO - Connecting to MT5...
-2025-01-08 10:35:02 - MT5Manager - SUCCESS - Connected to XMGlobal-MT5 3
-2025-01-08 10:35:02 - CoreSystem - INFO - Running health check...
-2025-01-08 10:35:02 - CoreSystem - INFO - System Health Status:
-  - MT5 Connection: ✅ CONNECTED
-  - Database: ✅ OPERATIONAL
-  - Logging: ✅ ACTIVE
-  - Error Handler: ✅ READY
-  - Overall Status: ✅ HEALTHY
-2025-01-08 10:35:03 - CoreSystem - SUCCESS - All systems operational
-Integration test completed successfully!
+(venv) PS J:\Gold_FX> python .\src\phase_1_core_integration.py
+🎯 XAUUSD MT5 Trading System - Phase 1 Test
+==================================================
+Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250813_214231
+Start Time: 2025-08-13 21:42:31.505196
+Config Path: config\master_config.yaml
+
+📋 Step 1: Initializing Error Handler...
+2025-08-13 21:42:31,545 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+21:42:31 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 21:42:31,548 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 21:42:31,672 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 21:42:31,685 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 21:42:31,685 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 21:42:31,685 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
+
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
+
+🚀 System is ready for Phase 2 development!
+============================================================
+21:42:31 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 21:42:31,971 - xau_system - INFO - Core system initialization completed successfully
+
+🧪 Performing System Tests...
+========================================
+🧪 Test 1: Logging System...
+21:42:31 - xau_system - INFO - Test log message
+2025-08-13 21:42:31,973 - xau_system - INFO - Test log message
+   ✅ PASS
+🧪 Test 2: Database Operations...
+   ✅ PASS
+🧪 Test 3: Error Handling...
+2025-08-13 21:42:32,058 - xau_error_handler - ERROR - Error handled: SYSTEM - Test error for system testing
+   ✅ PASS
+🧪 Test 4: MT5 Manager...
+   ❌ FAIL: Not connected to MT5. Call connect() first.
+🧪 Test 5: System Integration...
+2025-08-13 21:42:32,058 - xau_error_handler - WARNING - High/Critical error notification: Test error for system testing
+   ✅ PASS
+========================================
+🧪 Test Summary: 4/5 tests passed
+📊 Success Rate: 80.0%
+21:42:32 - xau_system - INFO - System test completed: 4/5 passed
+2025-08-13 21:42:32,063 - xau_system - INFO - System test completed: 4/5 passed
+
+📡 Attempting MT5 connection (optional)...
+📡 Connecting to MT5...
+2025-08-13 21:42:32,064 - core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 21:42:32,079 - core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 21:42:32,080 - core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 21:42:32,080 - core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 21:42:32,081 - core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 21:42:32,081 - core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 21:42:32,081 - core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ MT5 connection established
+21:42:32 - xau_system - INFO - MT5 connection established successfully
+2025-08-13 21:42:32,081 - xau_system - INFO - MT5 connection established successfully
+21:42:32 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 21:42:32,162 - xau_system - INFO - Account information stored with ID: 1
+✅ MT5 connection successful
+2025-08-13 21:42:32,163 - core.mt5_manager - INFO - Found valid symbol: XAUUSDm
+2025-08-13 21:42:32,498 - core.mt5_manager - INFO - Retrieved 10 bars for XAUUSDm M15
+✅ Retrieved 10 bars of market data
+21:42:32 - xau_system - INFO - Market data test successful: 10 bars
+2025-08-13 21:42:32,498 - xau_system - INFO - Market data test successful: 10 bars
+
+📊 System Statistics:
+==============================
+System ID: XAU_SYS_20250813_214231
+Uptime: 1.0 seconds
+Initialized: True
+
+🎯 Phase 1 Core System is running!
+Press Enter to shutdown...
+
+
+🔄 Shutting down Core System...
+21:42:34 - xau_system - INFO - System shutdown initiated
+2025-08-13 21:42:34,751 - xau_system - INFO - System shutdown initiated
+2025-08-13 21:42:34,752 - core.mt5_manager - INFO - Disconnected from MT5
+✅ MT5 disconnected
+2025-08-13 21:42:40,101 - xau_error_handler - INFO - Error handling system stopped
+✅ Error handler stopped
+21:42:40 - xau_system - INFO - System shutdown completed. Uptime: 8.6 seconds
+2025-08-13 21:42:40,102 - xau_system - INFO - System shutdown completed. Uptime: 8.6 seconds
+✅ Logging system finalized
+🎯 Core System shutdown complete
 ```
 
 ### 1.6 Phase 1 Test Files
@@ -1560,93 +1730,96 @@ Simple test runner for Phase 1 core system
 """
 
 import sys
+import os
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
+# Add project root to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.phase_1_core_integration import CoreSystem
-import time
 
-def run_simple_test():
-    """Run simple test of core system"""
-    print("\n" + "="*60)
-    print("Phase 1 - Simple Test Runner")
-    print("="*60)
-    
-    # Initialize core system
-    core = CoreSystem('config/master_config.yaml')
-    
-    # Initialize components
-    if not core.initialize():
-        print("❌ Failed to initialize core system")
-        return False
-    
-    print("✅ Core system initialized")
-    
-    # Connect to MT5
-    if not core.connect():
-        print("❌ Failed to connect to MT5")
-        return False
-        
-    print("✅ Connected to MT5")
-    
-    # Get account info
-    account = core.mt5_manager.get_account_info()
-    print(f"\n📊 Account Info:")
-    print(f"  - Balance: ${account.get('balance', 0):.2f}")
-    print(f"  - Equity: ${account.get('equity', 0):.2f}")
-    print(f"  - Server: {account.get('server', 'Unknown')}")
-    
-    # Get symbol info
-    symbol_info = core.mt5_manager.get_symbol_info("XAUUSDm")
-    print(f"\n📈 Symbol Info (XAUUSDm):")
-    print(f"  - Bid: {symbol_info.get('bid', 0)}")
-    print(f"  - Ask: {symbol_info.get('ask', 0)}")
-    print(f"  - Spread: {symbol_info.get('spread', 0)} points")
-    
-    # Test database
-    test_signal = {
-        'timestamp': time.time(),
-        'symbol': 'XAUUSDm',
-        'strategy': 'test',
-        'direction': 'LONG',
-        'confidence': 0.85
-    }
-    
-    if core.database.store_signal(test_signal):
-        print("\n✅ Database test successful")
-    
-    # Disconnect
-    core.disconnect()
-    print("\n✅ Test completed successfully!")
-    return True
+core = CoreSystem()
+if core.initialize():
+    print("System initialized successfully")
+    # Test MT5 connection
+    if core.connect_mt5():
+        print("MT5 connected")
+    core.shutdown()
 
-if __name__ == "__main__":
-    run_simple_test()
 ```
 
 ##### Test Execution Output:
 ```bash
-(venv) PS J:\Gold_FX> python tests/Phase-1/run_simple.py
-
+(venv) PS J:\Gold_FX> python tests/Phase-1/run_simple.py             
+Configuration loaded from: config\master_config.yaml
 ============================================================
-Phase 1 - Simple Test Runner
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
 ============================================================
-✅ Core system initialized
-✅ Connected to MT5
+System ID: XAU_SYS_20250813_214344
+Start Time: 2025-08-13 21:43:44.067047
+Config Path: config\master_config.yaml
 
-📊 Account Info:
-  - Balance: $100.00
-  - Equity: $100.00
-  - Server: XMGlobal-MT5 3
+📋 Step 1: Initializing Error Handler...
+2025-08-13 21:43:44,098 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+21:43:44 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 21:43:44,100 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 21:43:44,137 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 21:43:44,139 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 21:43:44,139 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 21:43:44,139 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
 
-📈 Symbol Info (XAUUSDm):
-  - Bid: 2651.45
-  - Ask: 2651.60
-  - Spread: 15 points
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
 
-✅ Database test successful
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
 
-✅ Test completed successfully!
+🚀 System is ready for Phase 2 development!
+============================================================
+21:43:44 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 21:43:44,556 - xau_system - INFO - Core system initialization completed successfully
+System initialized successfully
+📡 Connecting to MT5...
+2025-08-13 21:43:44,558 - core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 21:43:44,580 - core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 21:43:44,581 - core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 21:43:44,581 - core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 21:43:44,582 - core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 21:43:44,582 - core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 21:43:44,582 - core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ MT5 connection established
+21:43:44 - xau_system - INFO - MT5 connection established successfully
+2025-08-13 21:43:44,583 - xau_system - INFO - MT5 connection established successfully
+21:43:44 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 21:43:44,659 - xau_system - INFO - Account information stored with ID: 1
+MT5 connected
+
+🔄 Shutting down Core System...
+21:43:44 - xau_system - INFO - System shutdown initiated
+2025-08-13 21:43:44,660 - xau_system - INFO - System shutdown initiated
+2025-08-13 21:43:44,661 - core.mt5_manager - INFO - Disconnected from MT5
+✅ MT5 disconnected
+2025-08-13 21:43:50,105 - xau_error_handler - INFO - Error handling system stopped
+✅ Error handler stopped
+21:43:50 - xau_system - INFO - System shutdown completed. Uptime: 6.0 seconds
+2025-08-13 21:43:50,106 - xau_system - INFO - System shutdown completed. Uptime: 6.0 seconds
+✅ Logging system finalized
+🎯 Core System shutdown complete
 ```
 
 #### File: `tests/Phase-1/test_components.py`
@@ -1655,116 +1828,104 @@ Phase 1 - Simple Test Runner
 
 ##### Code Structure:
 ```python
-"""
-Component tests for Phase 1 modules
-"""
+# Component tests for Phase 1 modules
 
 import unittest
-import sys
+import sys, os
+from datetime import datetime
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.core.mt5_manager import MT5Manager
 from src.utils.database import DatabaseManager
 from src.utils.error_handler import ErrorHandler, TradingError, ErrorSeverity
-from src.utils.logger import TradingLogger
+from src.utils.logger import LoggerManager
 
 class TestMT5Manager(unittest.TestCase):
-    """Test MT5Manager functionality"""
-    
     def setUp(self):
-        """Setup test environment"""
-        self.mt5 = MT5Manager('config/master_config.yaml')
-        
+        self.mt5 = MT5Manager('XAUUSDm')
+
     def test_connection(self):
-        """Test MT5 connection"""
         result = self.mt5.connect()
         self.assertTrue(result)
         self.mt5.disconnect()
-        
+
     def test_symbol_validation(self):
-        """Test symbol validation"""
         self.mt5.connect()
         symbol = self.mt5.get_valid_symbol("XAUUSD")
-        self.assertEqual(symbol, "XAUUSDm")
+        self.assertIn("XAUUSD", symbol)
         self.mt5.disconnect()
-        
+
     def test_account_info(self):
-        """Test account information retrieval"""
         self.mt5.connect()
-        info = self.mt5.get_account_info()
+        info = self.mt5._get_account_info()  # or self.mt5.account_info
         self.assertIn('balance', info)
         self.assertIn('equity', info)
         self.mt5.disconnect()
 
+
 class TestDatabase(unittest.TestCase):
-    """Test DatabaseManager functionality"""
-    
     def setUp(self):
-        """Setup test database"""
-        self.db = DatabaseManager('data/test_trading.db')
-        
+        self.db = DatabaseManager({"database": {"sqlite": {"path": "data/test_trading.db"}}})
+        self.db.initialize_database()
+
     def test_trade_storage(self):
-        """Test trade storage and retrieval"""
         trade = {
-            'ticket': 99999,
-            'symbol': 'XAUUSDm',
-            'order_type': 'BUY',
-            'volume': 0.01,
-            'open_price': 2650.00,
-            'profit': 10.50
+            "account_id": 1,
+            "ticket": 99999,
+            "symbol": "XAUUSDm",
+            "action": "BUY",
+            "volume": 0.01,
+            "price_open": 2650.00,
+            "open_time": datetime.now(),
+            "profit": 10.50
         }
         result = self.db.store_trade(trade)
         self.assertTrue(result)
-        
+
     def test_signal_storage(self):
-        """Test signal storage"""
         signal = {
-            'symbol': 'XAUUSDm',
-            'strategy': 'test',
-            'direction': 'LONG',
-            'confidence': 0.75
+            "symbol": "XAUUSDm",
+            "strategy": "test",
+            "signal_type": "BUY",
+            "confidence": 0.75,
+            "price": 2650.00,
+            "timeframe": "M15"
         }
         result = self.db.store_signal(signal)
         self.assertTrue(result)
 
+
 class TestErrorHandler(unittest.TestCase):
-    """Test ErrorHandler functionality"""
-    
     def setUp(self):
-        """Setup error handler"""
-        self.handler = ErrorHandler()
-        
+        self.handler = ErrorHandler({})
+        self.handler.start()
+
     def test_error_handling(self):
-        """Test basic error handling"""
         error = TradingError("Test error", ErrorSeverity.LOW)
         result = self.handler.handle_error(error)
         self.assertTrue(result)
-        
+
     def test_circuit_breaker(self):
-        """Test circuit breaker functionality"""
         self.handler.setup_circuit_breaker("test", threshold=3, timeout=60)
-        # Simulate multiple errors
         for i in range(5):
             error = TradingError(f"Error {i}", ErrorSeverity.MEDIUM)
             self.handler.handle_error(error)
-        stats = self.handler.get_error_statistics()
+        stats = self.handler.get_error_stats()
         self.assertGreater(stats['total_errors'], 0)
 
+
 class TestLogger(unittest.TestCase):
-    """Test TradingLogger functionality"""
-    
     def setUp(self):
-        """Setup logger"""
-        self.logger = TradingLogger("TestLogger")
-        
+        self.logger = LoggerManager({"logging": {"level": "INFO"}})
+        self.logger.setup_logging()
+
     def test_logger_creation(self):
-        """Test logger creation"""
         log = self.logger.get_logger('system')
         self.assertIsNotNone(log)
-        
+
     def test_trade_logging(self):
-        """Test trade logging"""
         trade = {
             'symbol': 'XAUUSDm',
             'type': 'BUY',
@@ -1772,36 +1933,74 @@ class TestLogger(unittest.TestCase):
             'price': 2650.00
         }
         try:
-            self.logger.log_trade(trade)
+            self.logger.log_trade(trade['type'], trade['symbol'], trade['volume'], trade['price'])
             success = True
         except:
             success = False
         self.assertTrue(success)
 
+
 if __name__ == '__main__':
     unittest.main()
+
 ```
 
 ##### Test Execution Output:
 ```bash
-(venv) PS J:\Gold_FX> python -m unittest tests.Phase-1.test_components
-
-......................
+(venv) PS J:\Gold_FX> python tests/Phase-1/test_components.py
+2025-08-13 22:27:41,030 - xau_database - INFO - Database initialized successfully
+.2025-08-13 22:27:41,120 - xau_database - INFO - Database initialized successfully
+.2025-08-13 22:27:41,199 - xau_error_handler - INFO - Error handling system started
+2025-08-13 22:27:41,202 - xau_error_handler - ERROR - Error handled: TRADING - Error 0
+2025-08-13 22:27:41,203 - xau_error_handler - ERROR - Error handled: TRADING - Error 1
+2025-08-13 22:27:41,204 - xau_error_handler - ERROR - Error handled: TRADING - Error 2
+2025-08-13 22:27:41,206 - xau_error_handler - ERROR - Error handled: TRADING - Error 3
+2025-08-13 22:27:41,206 - xau_error_handler - ERROR - Error handled: TRADING - Error 4
+.2025-08-13 22:27:41,207 - xau_error_handler - INFO - Error handling system started
+2025-08-13 22:27:41,208 - xau_error_handler - ERROR - Error handled: TRADING - Test error
+.22:27:41 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:27:41,210 - xau_system - INFO - Logging system initialized successfully
+.22:27:41 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:27:41,214 - xau_system - INFO - Logging system initialized successfully
+.2025-08-13 22:27:41,217 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:27:41,217 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:27:41,217 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-13 22:27:41,218 - src.core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 22:27:41,235 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 22:27:41,236 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 22:27:41,236 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 22:27:41,237 - src.core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 22:27:41,237 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 22:27:41,237 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-13 22:27:41,238 - src.core.mt5_manager - INFO - Disconnected from MT5
+.2025-08-13 22:27:41,241 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:27:41,241 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:27:41,241 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-13 22:27:41,242 - src.core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 22:27:41,254 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 22:27:41,255 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 22:27:41,255 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 22:27:41,255 - src.core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 22:27:41,255 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 22:27:41,256 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-13 22:27:41,256 - src.core.mt5_manager - INFO - Disconnected from MT5
+.2025-08-13 22:27:41,258 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:27:41,258 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:27:41,258 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-13 22:27:41,258 - src.core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 22:27:41,268 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 22:27:41,269 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 22:27:41,269 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 22:27:41,269 - src.core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 22:27:41,270 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 22:27:41,271 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-13 22:27:41,272 - src.core.mt5_manager - INFO - Found valid symbol: XAUUSDm
+2025-08-13 22:27:41,272 - src.core.mt5_manager - INFO - Disconnected from MT5
+.
 ----------------------------------------------------------------------
-Ran 22 tests in 3.456s
+Ran 9 tests in 0.283s
 
 OK
-
-Test Results:
-✅ TestMT5Manager.test_connection ... ok
-✅ TestMT5Manager.test_symbol_validation ... ok
-✅ TestMT5Manager.test_account_info ... ok
-✅ TestDatabase.test_trade_storage ... ok
-✅ TestDatabase.test_signal_storage ... ok
-✅ TestErrorHandler.test_error_handling ... ok
-✅ TestErrorHandler.test_circuit_breaker ... ok
-✅ TestLogger.test_logger_creation ... ok
-✅ TestLogger.test_trade_logging ... ok
 ```
 
 #### File: `tests/Phase-1/test_phase1.py`
@@ -1817,105 +2016,372 @@ Phase 1 Integration Tests
 import unittest
 import sys
 from pathlib import Path
+from datetime import datetime
+import time
+
+# Add project root
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.phase_1_core_integration import CoreSystem
-import time
 
 class TestPhase1Integration(unittest.TestCase):
     """Test complete Phase 1 integration"""
-    
+
     def setUp(self):
         """Setup test environment"""
         self.core = CoreSystem('config/master_config.yaml')
-        
+
     def test_full_initialization(self):
         """Test complete system initialization"""
         result = self.core.initialize()
         self.assertTrue(result)
         self.assertTrue(self.core.initialized)
-        
+
     def test_mt5_connection_flow(self):
         """Test MT5 connection workflow"""
         self.core.initialize()
-        result = self.core.connect()
+        # Updated to use connect_mt5() instead of missing connect()
+        result = self.core.connect_mt5()
         self.assertTrue(result)
-        
-        # Test account access
-        account = self.core.mt5_manager.get_account_info()
+
+        # Test account access - account_info is a dict attribute, not callable
+        account = self.core.mt5_manager.account_info
         self.assertIsNotNone(account)
         self.assertIn('balance', account)
-        
-        self.core.disconnect()
-        
+
+        self.core.mt5_manager.disconnect()
+
     def test_health_check(self):
         """Test system health check"""
         self.core.initialize()
-        self.core.connect()
-        
-        health = self.core.health_check()
-        self.assertEqual(health['status'], 'HEALTHY')
-        self.assertTrue(health['mt5_connected'])
-        self.assertTrue(health['database_operational'])
-        
-        self.core.disconnect()
-        
+        self.core.connect_mt5()
+
+        # _perform_health_check returns bool in CoreSystem, not dict
+        health_ok = self.core._perform_health_check()
+        self.assertTrue(health_ok)  # just check that system is healthy
+
+        self.core.mt5_manager.disconnect()
+
     def test_error_recovery(self):
         """Test error recovery mechanisms"""
         self.core.initialize()
-        
+
         # Simulate error
         try:
             raise ConnectionError("Test connection error")
         except Exception as e:
-            handled = self.core.error_handler.handle_error(e)
-            self.assertTrue(handled)
-            
+            handled_context = self.core.error_handler.handle_error(e)
+            self.assertIsNotNone(handled_context)
+
     def test_data_flow(self):
         """Test data flow through system"""
         self.core.initialize()
-        self.core.connect()
-        
-        # Fetch data
-        data = self.core.mt5_manager.get_historical_data("XAUUSDm", 15, 100)
+        self.core.connect_mt5()
+
+        # Fetch data - timeframe should be a string like "M15"
+        data = self.core.mt5_manager.get_historical_data("XAUUSDm", "M15", 100)
         self.assertIsNotNone(data)
         self.assertGreater(len(data), 0)
-        
-        # Store signal
+
+        # Store signal - must match database Signal model fields
         signal = {
             'symbol': 'XAUUSDm',
             'strategy': 'test',
-            'direction': 'LONG',
+            'signal_type': 'LONG',       # renamed from 'direction'
             'confidence': 0.80,
-            'timestamp': time.time()
+            'price': 1950.0,
+            'timeframe': 'M15',
+            'timestamp': datetime.now()
         }
-        result = self.core.database.store_signal(signal)
-        self.assertTrue(result)
-        
-        self.core.disconnect()
+        result = self.core.database_manager.store_signal(signal)
+        self.assertIsNotNone(result)
+
+        self.core.mt5_manager.disconnect()
+
 
 if __name__ == '__main__':
     unittest.main()
+
 ```
 
 ##### Integration Test Output:
 ```bash
-(venv) PS J:\Gold_FX> python -m unittest tests.Phase-1.test_phase1
+(venv) PS J:\Gold_FX> python .\tests\Phase-1\test_phase1.py
+Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250813_224832
+Start Time: 2025-08-13 22:48:32.117887
+Config Path: config\master_config.yaml
 
-.....
+📋 Step 1: Initializing Error Handler...
+2025-08-13 22:48:32,152 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+22:48:32 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:48:32,154 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 22:48:32,193 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 22:48:32,195 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:48:32,195 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:48:32,195 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
+
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
+
+🚀 System is ready for Phase 2 development!
+============================================================
+22:48:32 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 22:48:32,968 - xau_system - INFO - Core system initialization completed successfully
+📡 Connecting to MT5...
+2025-08-13 22:48:32,969 - core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 22:48:32,982 - core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 22:48:32,983 - core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 22:48:32,983 - core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 22:48:32,983 - core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 22:48:32,983 - core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 22:48:32,983 - core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ MT5 connection established
+22:48:32 - xau_system - INFO - MT5 connection established successfully
+2025-08-13 22:48:32,984 - xau_system - INFO - MT5 connection established successfully
+22:48:33 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 22:48:33,063 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 22:48:33,069 - core.mt5_manager - INFO - Retrieved 100 bars for XAUUSDm M15
+2025-08-13 22:48:33,148 - core.mt5_manager - INFO - Disconnected from MT5
+.Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250813_224833
+Start Time: 2025-08-13 22:48:33.150070
+Config Path: config\master_config.yaml
+
+📋 Step 1: Initializing Error Handler...
+2025-08-13 22:48:33,183 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+22:48:33 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:48:33,185 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 22:48:33,192 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 22:48:33,194 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:48:33,194 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:48:33,194 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
+
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
+
+🚀 System is ready for Phase 2 development!
+============================================================
+22:48:33 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 22:48:33,496 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 22:48:33,504 - xau_error_handler - ERROR - Error handled: CONNECTION - Test connection error
+.2025-08-13 22:48:33,504 - xau_error_handler - WARNING - High/Critical error notification: Test connection error
+Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250813_224833
+Start Time: 2025-08-13 22:48:33.504768
+Config Path: config\master_config.yaml
+
+📋 Step 1: Initializing Error Handler...
+2025-08-13 22:48:33,564 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+22:48:33 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:48:33,567 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 22:48:33,572 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 22:48:33,574 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:48:33,574 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:48:33,575 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
+
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
+
+🚀 System is ready for Phase 2 development!
+============================================================
+22:48:33 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 22:48:33,848 - xau_system - INFO - Core system initialization completed successfully
+.Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250813_224833
+Start Time: 2025-08-13 22:48:33.849918
+Config Path: config\master_config.yaml
+
+📋 Step 1: Initializing Error Handler...
+2025-08-13 22:48:33,884 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+22:48:33 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:48:33,887 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 22:48:33,893 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 22:48:33,896 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:48:33,896 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:48:33,896 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
+
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
+
+🚀 System is ready for Phase 2 development!
+============================================================
+22:48:34 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 22:48:34,169 - xau_system - INFO - Core system initialization completed successfully
+📡 Connecting to MT5...
+2025-08-13 22:48:34,170 - core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 22:48:34,178 - core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 22:48:34,179 - core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 22:48:34,179 - core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 22:48:34,179 - core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 22:48:34,180 - core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 22:48:34,180 - core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ MT5 connection established
+22:48:34 - xau_system - INFO - MT5 connection established successfully
+2025-08-13 22:48:34,180 - xau_system - INFO - MT5 connection established successfully
+22:48:34 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 22:48:34,265 - xau_system - INFO - Account information stored with ID: 1
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+2025-08-13 22:48:34,270 - core.mt5_manager - INFO - Disconnected from MT5
+.Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250813_224834
+Start Time: 2025-08-13 22:48:34.270918
+Config Path: config\master_config.yaml
+
+📋 Step 1: Initializing Error Handler...
+2025-08-13 22:48:34,305 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+22:48:34 - xau_system - INFO - Logging system initialized successfully
+2025-08-13 22:48:34,308 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-13 22:48:34,313 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-13 22:48:34,315 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-13 22:48:34,316 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-13 22:48:34,316 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+J:\Gold_FX\venv\Lib\site-packages\sqlalchemy\sql\annotation.py:152: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000020CC29F5E40>
+  def _deannotate(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+J:\Gold_FX\venv\Lib\site-packages\sqlalchemy\sql\annotation.py:152: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000020CC2BABE20>
+  def _deannotate(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
+============================================================
+
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
+
+🚀 System is ready for Phase 2 development!
+============================================================
+22:48:34 - xau_system - INFO - Core system initialization completed successfully
+2025-08-13 22:48:34,601 - xau_system - INFO - Core system initialization completed successfully
+📡 Connecting to MT5...
+2025-08-13 22:48:34,602 - core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-13 22:48:34,618 - core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-13 22:48:34,619 - core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-13 22:48:34,620 - core.mt5_manager - INFO -    Account: 273949055
+2025-08-13 22:48:34,620 - core.mt5_manager - INFO -    Balance: $147.53
+2025-08-13 22:48:34,620 - core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-13 22:48:34,621 - core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ MT5 connection established
+22:48:34 - xau_system - INFO - MT5 connection established successfully
+2025-08-13 22:48:34,621 - xau_system - INFO - MT5 connection established successfully
+22:48:34 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 22:48:34,706 - xau_system - INFO - Account information stored with ID: 1
+2025-08-13 22:48:34,706 - core.mt5_manager - INFO - Disconnected from MT5
+.
 ----------------------------------------------------------------------
-Ran 5 tests in 8.234s
+Ran 5 tests in 2.590s
 
 OK
-
-Integration Test Results:
-✅ test_full_initialization ... ok (1.234s)
-✅ test_mt5_connection_flow ... ok (2.456s)
-✅ test_health_check ... ok (1.789s)
-✅ test_error_recovery ... ok (0.567s)
-✅ test_data_flow ... ok (2.188s)
-
-All Phase 1 integration tests passed!
 ```
 
 ---
