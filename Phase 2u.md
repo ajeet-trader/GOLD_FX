@@ -1490,7 +1490,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.4.3 Reinforcement Learning Agent
+## 2.4.3 Reinforcement Learning Agent
 
 ### File: `src/strategies/ml/rl_agent.py`
 **Status**: ⏳ PENDING  
@@ -1530,7 +1530,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.4.4 Ensemble Neural Network
+## 2.4.4 Ensemble Neural Network
 
 ### File: `src/strategies/ml/ensemble_nn.py`
 **Status**: ⏳ PENDING  
@@ -1579,9 +1579,9 @@ Output missing – needs capture
 
 ---
 
-### 2.5 Fusion Strategies
+# 2.5 Fusion Strategies
 
-#### 2.5.1 Confidence Sizing
+## 2.5.1 Confidence Sizing
 
 ### File: `src/strategies/fusion/confidence_sizing.py`
 **Status**: ⏳ PENDING  
@@ -1620,7 +1620,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.5.2 Regime Detection
+## 2.5.2 Regime Detection
 
 ### File: `src/strategies/fusion/regime_detection.py`
 **Status**: ⏳ PENDING  
@@ -1659,7 +1659,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.5.3 Weighted Voting
+## 2.5.3 Weighted Voting
 
 ### File: `src/strategies/fusion/weighted_voting.py`
 **Status**: ⏳ PENDING  
@@ -1698,9 +1698,9 @@ Output missing – needs capture
 
 ---
 
-### 2.6 Integration & Testing
+# 2.6 Integration & Testing
 
-#### 2.6.1 Phase 2 Core Integration
+## 2.6.1 Phase 2 Core Integration
 
 ### File: `src/phase_2_core_integration.py`
 **Status**: ✅ Complete  
@@ -1796,7 +1796,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.6.2 Phase 2 Test Suite
+## 2.6.2 Phase 2 Test Suite
 
 ### File: `tests/Phase-2/test_strategies.py`
 **Status**: ⏳ PENDING  
