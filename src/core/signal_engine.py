@@ -424,14 +424,15 @@ class SignalEngine:
         for strategy_name, strategy_class in self.available_ml.items():
             if active_models.get(strategy_name, False):
                 try:
-                    if self.mt5_manager and self.database:
-                        strategy_instance = strategy_class(
-                            config=ml_config,
-                            mt5_manager=self.mt5_manager,
-                            database=self.database
-                        )
-                    else:
-                        strategy_instance = strategy_class(config=ml_config)
+                    # MODIFICATION START: Ensure 'database' is always passed for ML strategies
+                    # The strategy will receive None if mt5_manager or database_manager were not provided
+                    # during SignalEngine initialization, assuming the strategy's __init__ can handle it.
+                    strategy_instance = strategy_class(
+                        config=ml_config,
+                        mt5_manager=self.mt5_manager,
+                        database=self.database
+                    )
+                    # MODIFICATION END
                     
                     self.ml_strategies[strategy_name] = strategy_instance
                     self.logger.info(f"Initialized ML strategy: {strategy_name}")
@@ -646,8 +647,8 @@ class SignalEngine:
             return signals
             
         except Exception as e:
-            self.logger.warning(f"Signal fusion failed: {e}")
-            return signals
+                self.logger.warning(f"Signal fusion failed: {e}")
+                return signals
     
     def _filter_and_grade_signals(self, signals: List[Signal]) -> List[Signal]:
         """Filter and grade signals based on quality criteria"""
