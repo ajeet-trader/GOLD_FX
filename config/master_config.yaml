@@ -107,13 +107,13 @@ strategies:
       ichimoku: true                # Ichimoku Cloud System
       harmonic: true                # Harmonic Pattern Recognition
       elliott_wave: true           # Elliott Wave Analysis (complex, disabled by default)
-      volume_profile: false          # Volume Profile Analysis
-      market_profile: false         # Market Profile (requires tick data)
-      order_flow: false              # Order Flow Imbalance
-      wyckoff: false                 # Wyckoff Method
-      gann: false                   # Gann Analysis (complex)
-      fibonacci_advanced: false      # Advanced Fibonacci Clusters
-      momentum_divergence: false     # Multi-timeframe Momentum Divergence
+      volume_profile: true          # Volume Profile Analysis
+      market_profile: true         # Market Profile (requires tick data)
+      order_flow: true              # Order Flow Imbalance
+      wyckoff: true                 # Wyckoff Method
+      gann: true                   # Gann Analysis (complex)
+      fibonacci_advanced: true      # Advanced Fibonacci Clusters
+      momentum_divergence: true     # Multi-timeframe Momentum Divergence
     
     # Technical strategy parameters
     parameters:
@@ -129,11 +129,11 @@ strategies:
     
     # SMC components
     active_components:
-      market_structure: false        # Market structure analysis
+      market_structure: true        # Market structure analysis
       order_blocks: true            # Order block detection
       fair_value_gaps: false         # FVG identification
-      liquidity_pools: false         # Liquidity pool detection
-      manipulation: false            # Session manipulation detection
+      liquidity_pools: true         # Liquidity pool detection
+      manipulation: true            # Session manipulation detection
     
     # SMC parameters
     parameters:
