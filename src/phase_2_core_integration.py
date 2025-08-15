@@ -51,6 +51,7 @@ try:
     from strategies.smc.order_blocks import OrderBlocksStrategy
     from strategies.ml.lstm_predictor import LSTMPredictor
     from strategies.technical.harmonic import HarmonicStrategy
+    from strategies.technical.elliott_wave import ElliottWaveStrategy
     
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -185,6 +186,13 @@ class Phase2TradingSystem:
                     technical_config, self.core_system.mt5_manager
                 )
                 print("   • Harmonic Patterns Strategy")    
+            
+            # elliott Wave Strategy
+            if technical_config.get('active_strategies', {}).get('elliott_wave', True):
+                self.strategies['elliott_wave'] = ElliottWaveStrategy(
+                    technical_config, self.core_system.mt5_manager
+                )
+                print("   • Elliott Wave Strategy")    
         
         # Smart Money Concepts
         if strategy_config.get('smc', {}).get('enabled', True):

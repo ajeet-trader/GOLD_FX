@@ -137,10 +137,101 @@ python src/core/signal_engine.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
-2025-01-XX XX:XX:XX - SignalEngine - INFO - Initializing Signal Engine...
-2025-01-XX XX:XX:XX - SignalEngine - INFO - Registered strategies: []
-2025-01-XX XX:XX:XX - SignalEngine - INFO - Signal generation test...
+(venv) PS J:\Gold_FX> python .\src\core\signal_engine.py
+Testing Fixed Signal Engine...
+
+1. Testing initialization...
+INFO:signal_engine:Initializing Signal Engine...
+INFO:strategy_importer:Successfully imported technical strategy: IchimokuStrategy
+INFO:strategy_importer:Successfully imported technical strategy: HarmonicStrategy
+INFO:strategy_importer:Successfully imported technical strategy: ElliottWaveStrategy
+INFO:strategy_importer:Successfully imported smc strategy: OrderBlocksStrategy
+TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.
+INFO:strategy_importer:Successfully imported ml strategy: LSTMPredictor
+INFO:signal_engine:Loaded 5 available strategy classes
+INFO:signal_engine:Initialized technical strategy: ichimoku
+INFO:signal_engine:Initialized technical strategy: harmonic
+INFO:ElliottWaveStrategy:Elliott Wave Strategy initialized with min_wave_size=30, lookback=200
+INFO:signal_engine:Initialized technical strategy: elliott_wave
+INFO:signal_engine:Initialized SMC strategy: order_blocks
+WARNING:signal_engine:Failed to initialize ML strategy lstm: LSTMPredictor.__init__() got an unexpected keyword argument 'database'
+INFO:signal_engine:Signal Engine initialized successfully with 4 strategies:
+INFO:signal_engine:  Technical: 3 / 3 available
+INFO:signal_engine:  SMC: 1 / 1 available
+INFO:signal_engine:  ML: 0 / 1 available
+INFO:signal_engine:  Fusion: 0 / 0 available
+   Initialization: ✅ Success
+
+2. Available strategies:
+   TECHNICAL: ['ichimoku', 'harmonic', 'elliott_wave']
+   SMC: ['order_blocks']
+   ML: ['lstm']
+   FUSION: []
+
+3. Active strategies:
+   TECHNICAL: ['ichimoku', 'harmonic', 'elliott_wave']
+   SMC: ['order_blocks']
+   ML: []
+   FUSION: []
+
+4. Testing signal generation...
+INFO:ichimoku_strategy:Ichimoku generated 1 signals from 1 candidates
+INFO:harmonic_strategy:Harmonic generated 0 signals from 0 patterns
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.68
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.68
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.72
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.72
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.70
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.70
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.69
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.72
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.66
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.75
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.74
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.65
+INFO:order_blocks_strategy:Order Blocks generated 2 signals from 24 candidates
+  📊 Storing signal: order_blocks_fvg - SELL
+  📊 Storing signal: order_blocks_fvg - SELL
+  📊 Storing signal: ichimoku_tk_cross - BUY
+  📊 Storing signal: Elliott Wave - BUY
+INFO:signal_engine:Generated 4 quality signals from 4 raw signals
+   Generated 4 signals
+
+5. Signal details:
+   Signal 1: order_blocks_fvg - SELL (Confidence: 1.00, Grade: A)
+   Signal 2: order_blocks_fvg - SELL (Confidence: 0.89, Grade: A)
+   Signal 3: ichimoku_tk_cross - BUY (Confidence: 0.85, Grade: A)
+
+6. Signal summary:
+   Total signals: 4
+   A-grade: 75.0%
+   B-grade: 25.0%
+   C-grade: 0.0%
+   Active strategies: 4
+   Available strategies: 5
+
+7. Best performing strategies:
+   1. order_blocks: Win Rate 74.0%, Profit Factor 2.2
+   2. harmonic: Win Rate 72.0%, Profit Factor 2.1
+   3. lstm: Win Rate 69.0%, Profit Factor 1.9
+
+✅ Fixed Signal Engine test completed successfully!
+
+📋 Summary:
+   - Graceful import handling: Working
+   - Strategy loading: 5 available
+   - Signal generation: 4 signals generated
+   - Error handling: Robust
 ```
 
 #### Integration Points:
@@ -239,7 +330,17 @@ python src/core/risk_manager.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python src/core/risk_manager.py --test
+Position Sizing Result:
+Position Size: 0.01
+Allowed: True
+Risk Assessment: {'monetary_risk': 10.0, 'risk_percentage': 0.06666666666666667, 'reward_risk_ratio': 2.0, 'portfolio_risk_pct': 0.3, 'position_value': 1960.0000000000002, 'correlation_impact': 2, 'risk_level': 'EXTREME'}
+
+Risk Summary:
+Risk Level: MODERATE
+Account Status: {'balance': 150.0, 'equity': 145.0, 'equity_peak': 100.0, 'current_drawdown': 0, 'daily_pnl': 0, 'weekly_pnl': 0, 'monthly_pnl': 0}
+Position Metrics: {'open_positions': 2, 'max_positions': 3, 'total_exposure': 5875.0, 'unrealized_pnl': 15.0}
+Risk Manager test completed!
 ```
 
 #### Integration Points:
@@ -335,7 +436,23 @@ python src/core/execution_engine.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python src/core/execution_engine.py --test
+Execution Result:
+Status: EXECUTED
+Ticket: 12345678
+Executed Price: 1960.0
+Slippage: 0.0
+
+Execution Summary:
+Active Positions: 1
+Total Trades: 1
+Engine Active: True
+EMERGENCY CLOSE ALL POSITIONS INITIATED
+
+Emergency Close Result:
+Total Positions: 1
+Successful Closes: 1
+Execution Engine test completed!
 ```
 
 ---
@@ -422,7 +539,20 @@ python src/strategies/technical/ichimoku.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python src/strategies/technical/ichimoku.py --test
+Testing Ichimoku Strategy...
+Generated 1 Ichimoku signals
+Signal 1:
+  Type: BUY
+  Confidence: 0.85
+  Strategy: ichimoku_chikou_confirm
+  Price: 2057.17
+  Stop Loss: 2037.38
+  Take Profit: 2096.74
+  Metadata: {'chikou_span': np.float64(2057.1666801886718), 'chikou_compare_price': np.float64(2033.1216484579534), 'analysis_type': 'chikou_confirmation', 'htf_confirmed': True, 'htf_timeframe': 'H1'}
+
+Strategy Info: {'name': 'Ichimoku Cloud Strategy', 'type': 'Technical', 'version': '2.0.0', 'description': 'Advanced Ichimoku Kinko Hyo implementation with multi-timeframe analysis', 'parameters': {'tenkan_period': 9, 'kijun_period': 26, 'senkou_span_b_period': 52, 'displacement': 26, 'min_confidence': 0.65, 'min_cloud_thickness': 5.0}, 'performance': {'success_rate': 0.65, 'profit_factor': 1.8, 'recent_signals_count': 1}, 'signal_types': ['cloud_breakout', 'cloud_bounce', 'tenkan_kijun_cross', 'chikou_confirmation']}
+✅ Ichimoku strategy test completed successfully!
 ```
 
 ---
@@ -499,12 +629,16 @@ python src/strategies/technical/harmonic.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python src/strategies/technical/harmonic.py --test
+Generated 0 Harmonic signals
+
+Strategy Info: {'name': 'Harmonic Patterns Strategy', 'type': 'Technical', 'version': '2.0.0', 'description': 'Advanced harmonic pattern recognition with Fibonacci validation', 'patterns_supported': ['GARTLEY', 'BUTTERFLY', 'BAT', 'CRAB', 'CYPHER', 'ABCD', 'THREE_DRIVES'], 'min_confidence': 0.72, 'fib_tolerance': 0.05, 'min_pattern_score': 0.7, 'detected_patterns_count': 0, 'performance': {'success_rate': 0.72, 'profit_factor': 2.1}}
+Harmonic strategy test completed!
 ```
 
 ---
 
-## 2.2.3 Elliott Wave Strategy [PENDING]
+## 2.2.3 Elliott Wave Strategy
 
 ### File: `src/strategies/technical/elliott_wave.py`
 **Status**: ⏳ PENDING  
@@ -523,7 +657,7 @@ Elliott Wave pattern recognition and trading:
 - Fibonacci relationships
 - Wave alternation principle
 
-[TO BE IMPLEMENTED]
+[IMPLEMENTED]
 """
 
 class ElliottWaveStrategy:
@@ -552,6 +686,56 @@ class ElliottWaveStrategy:
     def generate_signal(self, symbol: str, timeframe: int) -> Dict:
         """Generate trading signal"""
         # TO BE IMPLEMENTED
+```
+
+#### Test Command:
+```bash
+python src/strategies/technical/elliott_wave.py --test
+```
+
+#### Expected Output:
+```
+(venv) PS J:\Gold_FX> python .\src\strategies\technical\elliott_wave.py --test
+================================================================================
+ELLIOTT WAVE STRATEGY TEST
+================================================================================
+INFO:ElliottWaveStrategy:Elliott Wave Strategy initialized with min_wave_size=10, lookback=200
+Strategy: Elliott Wave Analysis Strategy
+Version: 2.0.0
+Description: Advanced Elliott Wave pattern recognition with Fibonacci validation
+
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.71
+INFO:ElliottWaveStrategy:Found triangle corrective pattern with confidence 0.71
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.67
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.71
+Generated 1 signals
+
+Signal 1:
+  Type: SELL
+  Confidence: 71.15%
+  Grade: C
+  Price: 2075.48
+  Stop Loss: 2108.08
+  Take Profit: 2038.40
+  Pattern: corrective
+  Degree: MINOR
+  Current Wave: Wave C complete - Awaiting new impulse
+
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.69
+INFO:ElliottWaveStrategy:Found triangle corrective pattern with confidence 0.69
+INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.73
+INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.80
+Direct Analysis Results:
+  Direction: SELL
+  Confidence: 79.84%
+  Pattern: flat
+  Reason: ABC correction complete at 2117.98, expecting new impulse wave
+  Wave Labels: ['A', 'B', 'C']
+  Current Wave: Wave C complete - Awaiting new impulse
+
+================================================================================
+TEST COMPLETE - Elliott Wave Strategy Ready!
+================================================================================
 ```
 
 ---
@@ -703,7 +887,12 @@ python src/strategies/smc/order_blocks.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python src/strategies/smc/order_blocks.py --test
+Generated 1 Order Block signals
+Signal: BUY at 1995.7554459592122, Confidence: 1.00, Grade: B
+
+Strategy Info: {'name': 'Order Blocks Strategy', 'version': '2.0.0', 'type': 'Smart Money Concepts', 'timeframes': ['H4', 'H1', 'M15', 'M5'], 'active_order_blocks': 0, 'active_fvgs': 1, 'market_structure': 'RANGING', 'min_confidence': 0.7, 'success_rate': 0.78, 'profit_factor': 2.5, 'parameters': {'swing_length': 10, 'min_ob_strength': 2.0, 'fvg_min_size': 0.5, 'liquidity_sweep_tolerance': 1.2}}
+Order Blocks strategy test completed!
 ```
 
 ---
@@ -840,7 +1029,16 @@ python src/strategies/ml/lstm_predictor.py --test
 
 #### Expected Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python src/strategies/ml/lstm_predictor.py --test
+TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.
+ML libraries not available. Running in simulation mode.
+Generated 0 LSTM signals
+
+Strategy Info:
+ML Available: False
+Models Trained: False
+Performance: {'direction_accuracy': 0.0, 'magnitude_mae': 0.0, 'last_training': datetime.datetime(2025, 8, 15, 10, 34, 41, 462728), 'training_samples': 0}
+LSTM Predictor strategy test completed!
 ```
 
 ---
@@ -1198,35 +1396,172 @@ class Phase2System:
 
 #### Test Execution Output:
 ```
-[TO BE FILLED AFTER TESTING]
+(venv) PS J:\Gold_FX> python .\src\phase_2_core_integration.py
+TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.
+🚀 Initializing Phase 2 Trading System
 ============================================================
-PHASE 2 SYSTEM INITIALIZATION
+📋 Step 1: Initializing Core System (Phase 1)...
+Configuration loaded from: config\master_config.yaml
+============================================================
+🎯 XAUUSD MT5 Trading System - Phase 1 Initialization
+============================================================
+System ID: XAU_SYS_20250815_102706
+Start Time: 2025-08-15 10:27:06.175988
+Config Path: config\master_config.yaml
+
+📋 Step 1: Initializing Error Handler...
+2025-08-15 10:27:06,225 - xau_error_handler - INFO - Error handling system started
+✅ Error Handler initialized
+📋 Step 2: Initializing Logging System...
+10:27:06 - xau_system - INFO - Logging system initialized successfully
+2025-08-15 10:27:06,227 - xau_system - INFO - Logging system initialized successfully
+✅ Logging System initialized
+📋 Step 3: Initializing Database...
+2025-08-15 10:27:06,657 - xau_database - INFO - Database initialized successfully
+✅ Database initialized
+📋 Step 4: Initializing MT5 Manager...
+2025-08-15 10:27:06,667 - core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-15 10:27:06,667 - core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-15 10:27:06,667 - core.mt5_manager - INFO - Magic number: 123456
+✅ MT5 Manager initialized (connection will be established when needed)
+📋 Step 5: Performing System Health Check...
+   • Error Handler: ✅
+   • Logging System: ✅
+   • Database: ✅
+   • Configuration: ✅
+✅ System health check passed
+
+🎉 Phase 1 Core System Initialization Complete!
 ============================================================
 
-1. Initializing Phase 1 Core System...
-   ✅ Core system initialized
+📊 System Status:
+   • Error Handler: ✅ Active
+   • Logging System: ✅ Active
+   • Database: ✅ Active
+   • MT5 Manager: ✅ Ready
 
-2. Initializing Signal Engine...
-   ✅ Signal Engine initialized
-
-3. Initializing Risk Manager...
-   ✅ Risk Manager initialized
-
-4. Loading Trading Strategies...
+🚀 System is ready for Phase 2 development!
+============================================================
+10:27:06 - xau_system - INFO - Core system initialization completed successfully
+2025-08-15 10:27:06,993 - xau_system - INFO - Core system initialization completed successfully
+✅ Core system initialized
+📋 Step 2: Connecting to MT5...
+📡 Connecting to MT5...
+2025-08-15 10:27:06,995 - core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-15 10:27:07,033 - core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-15 10:27:07,048 - core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-15 10:27:07,049 - core.mt5_manager - INFO -    Account: 273949055
+2025-08-15 10:27:07,050 - core.mt5_manager - INFO -    Balance: $147.53
+2025-08-15 10:27:07,050 - core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-15 10:27:07,050 - core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ MT5 connection established
+10:27:07 - xau_system - INFO - MT5 connection established successfully
+2025-08-15 10:27:07,051 - xau_system - INFO - MT5 connection established successfully
+10:27:07 - xau_system - INFO - Account information stored with ID: 1
+2025-08-15 10:27:07,130 - xau_system - INFO - Account information stored with ID: 1
+✅ MT5 connected successfully
+📋 Step 3: Initializing Risk Manager...
+2025-08-15 10:27:07,134 - risk_manager - INFO - Loaded 0 historical trades
+2025-08-15 10:27:07,135 - risk_manager - INFO - Risk management system initialized
+2025-08-15 10:27:07,135 - risk_manager - INFO - Target: $100.0 → $1000.0 (10x)
+2025-08-15 10:27:07,135 - risk_manager - INFO - Max risk per trade: 5.0%
+2025-08-15 10:27:07,136 - risk_manager - INFO - Max portfolio risk: 15.0%
+2025-08-15 10:27:07,136 - risk_manager - INFO - Max drawdown: 25.0%
+✅ Risk Manager initialized
+📋 Step 4: Initializing Execution Engine...
+2025-08-15 10:27:07,136 - execution_engine - INFO - Loaded 1 existing positions
+2025-08-15 10:27:07,138 - core.mt5_manager - ERROR - Position close failed: AutoTrading disabled by client
+2025-08-15 10:27:07,138 - execution_engine - INFO - Position monitoring started
+2025-08-15 10:27:07,138 - execution_engine - ERROR - Failed to close position 2285983117: AutoTrading disabled by client
+2025-08-15 10:27:07,138 - execution_engine - INFO - Execution engine initialized successfully
+2025-08-15 10:27:07,138 - execution_engine - INFO - Active positions: 1
+2025-08-15 10:27:07,139 - execution_engine - INFO - Max slippage: 3 pips
+✅ Execution Engine initialized
+📋 Step 5: Initializing Trading Strategies...
    • Ichimoku Cloud Strategy
    • Harmonic Patterns Strategy
+2025-08-15 10:27:07,139 - ElliottWaveStrategy - INFO - Elliott Wave Strategy initialized with min_wave_size=30, lookback=200
+   • Elliott Wave Strategy
    • Order Blocks Strategy (SMC)
+2025-08-15 10:27:07,139 - lstm_predictor - WARNING - ML libraries not available. Running in simulation mode.
    • LSTM Predictor (ML)
+✅ 5 strategies initialized
+📋 Step 6: Initializing Signal Engine...
+✅ Signal Engine initialized
+📋 Step 7: Performing System Health Check...
 
-5. Initializing Execution Engine...
-   ✅ Execution Engine initialized
-
-6. Performing System Health Check...
-   ✅ All systems operational
+   Health Check Results:
+   ✅ Mt5 Connection
+   ✅ Strategies
+   ✅ Risk Manager
+   ✅ Execution Engine
+   ✅ Account Status
+✅ System health check passed
 
 ============================================================
-PHASE 2 INITIALIZATION COMPLETE
+🎉 PHASE 2 TRADING SYSTEM READY!
 ============================================================
+
+📊 System Configuration:
+   • Target: $147.53 → $1000 (10x returns)
+   • Strategies: 5 active
+   • Risk per trade: 3.0%
+   • Max drawdown: 25.0%
+
+🎯 Active Strategies:
+   • Ichimoku Cloud Strategy (Technical)
+   • Harmonic Patterns Strategy (Technical)
+   • Elliott Wave Analysis Strategy (Technical)
+   • Order Blocks Strategy (Smart Money Concepts)
+   • LSTM Predictor (Machine Learning)
+
+⚡ System Capabilities:
+   • Multi-strategy signal fusion
+   • Advanced risk management
+   • Real-time execution
+   • Performance monitoring
+   • Emergency controls
+
+🚀 Ready for aggressive 10x trading!
+============================================================
+
+🎯 Interactive Mode - Choose an option:
+1. Run trading system
+2. Test components
+3. Display status
+4. Exit
+
+Enter choice (1-4): 2025-08-15 10:27:12,140 - core.mt5_manager - ERROR - Position close failed: AutoTrading disabled by client
+2025-08-15 10:27:12,140 - execution_engine - ERROR - Failed to close position 2285983117: AutoTrading disabled by client
+2025-08-15 10:27:17,142 - core.mt5_manager - ERROR - Position close failed: AutoTrading disabled by client
+2025-08-15 10:27:17,143 - execution_engine - ERROR - Failed to close position 2285983117: AutoTrading disabled by client
+
+Exiting...
+
+🔄 Shutting down Phase 2 Trading System...
+2025-08-15 10:27:22,144 - execution_engine - INFO - Execution engine stopped
+✅ Execution engine stopped
+
+🔄 Shutting down Core System...
+10:27:22 - xau_system - INFO - System shutdown initiated
+2025-08-15 10:27:22,145 - xau_system - INFO - System shutdown initiated
+2025-08-15 10:27:22,146 - core.mt5_manager - INFO - Disconnected from MT5
+✅ MT5 disconnected
+2025-08-15 10:27:27,383 - xau_error_handler - INFO - Error handling system stopped
+✅ Error handler stopped
+10:27:27 - xau_system - INFO - System shutdown completed. Uptime: 21.2 seconds
+2025-08-15 10:27:27,384 - xau_system - INFO - System shutdown completed. Uptime: 21.2 seconds
+✅ Logging system finalized
+🎯 Core System shutdown complete
+✅ Core system shutdown
+
+📊 Final Statistics:
+   • Total Runtime: 0:00:21
+   • Signals Generated: 0
+   • Trades Executed: 0
+   • Target Achieved: No
+
+🎯 Phase 2 Trading System shutdown complete
 ```
 
 ---

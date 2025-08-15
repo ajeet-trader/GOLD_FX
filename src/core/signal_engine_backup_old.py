@@ -1,14 +1,23 @@
 """
-Signal Engine - Core Signal Generation System (Fixed Import Version)
-==================================================================
+Signal Engine - Core Signal Generation System
+============================================
 Author: XAUUSD Trading System
-Version: 2.1.0
-Date: 2025-08-14
+Version: 2.0.0
+Date: 2025-08-08
 
-This module handles all signal generation and coordination with
-graceful handling of missing strategy modules.
+This module handles all signal generation and coordination:
+- Strategy orchestration
+- Signal fusion and weighting
+- Market regime detection
+- Signal quality grading
+- Execution timing
+
+Dependencies:
+    - pandas
+    - numpy
+    - datetime
+    - typing
 """
-
 import sys
 import os
 from pathlib import Path
@@ -19,7 +28,6 @@ src_dir = current_dir.parent  # src/
 project_root = src_dir.parent  # project root
 sys.path.insert(0, str(project_root))
 
-import sys
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -29,6 +37,33 @@ from dataclasses import dataclass
 from enum import Enum
 import yaml
 from pathlib import Path
+
+# Import strategy modules (will be created)
+try:
+    from src.strategies.technical.ichimoku import IchimokuStrategy
+    from src.strategies.technical.harmonic import HarmonicStrategy
+    #from src.strategies.technical.volume_profile import VolumeProfileStrategy
+    #from src.strategies.technical.momentum_divergence import MomentumDivergenceStrategy
+    #from src.strategies.technical.fibonacci_advanced import FibonacciAdvancedStrategy
+    #from src.strategies.technical.order_flow import OrderFlowStrategy
+    #from src.strategies.technical.wyckoff import WyckoffStrategy
+    from src.strategies.technical.elliott_wave import ElliottWaveStrategy
+    
+    #from src.strategies.smc.market_structure import MarketStructureStrategy
+    from src.strategies.smc.order_blocks import OrderBlocksStrategy
+    #from src.strategies.smc.liquidity_pools import LiquidityPoolsStrategy
+    #from src.strategies.smc.manipulation import ManipulationStrategy
+    
+    from src.strategies.ml.lstm_predictor import LSTMPredictor
+    #from src.strategies.ml.xgboost_classifier import XGBoostStrategy
+    #from src.strategies.ml.ensemble_nn import EnsembleNNStrategy
+    
+    #from src.strategies.fusion.weighted_voting import WeightedVotingStrategy
+    #from src.strategies.fusion.confidence_sizing import ConfidenceSizingStrategy
+    #from src.strategies.fusion.regime_detection import RegimeDetectionStrategy
+except ImportError as e:
+    logging.warning(f"Some strategy modules not available: {e}")
+
 
 class SignalType(Enum):
     """Signal types"""
@@ -122,133 +157,34 @@ class MarketCondition:
             self.key_levels = []
 
 
-class StrategyImporter:
-    """Handles dynamic strategy imports with graceful error handling"""
-    
-    def __init__(self):
-        self.logger = logging.getLogger('strategy_importer')
-        self.available_strategies = {}
-    
-    def try_import_strategy(self, module_path: str, class_name: str, strategy_type: str) -> Optional[Any]:
-        """
-        Try to import a strategy class with error handling
-        
-        Args:
-            module_path: Full module path (e.g., 'strategies.technical.ichimoku')
-            class_name: Class name to import (e.g., 'IchimokuStrategy')
-            strategy_type: Type category (technical, smc, ml, fusion)
-        
-        Returns:
-            Strategy class if successful, None otherwise
-        """
-        try:
-            module = __import__(module_path, fromlist=[class_name])
-            strategy_class = getattr(module, class_name)
-            
-            self.logger.info(f"Successfully imported {strategy_type} strategy: {class_name}")
-            return strategy_class
-            
-        except ImportError as e:
-            self.logger.debug(f"Module {module_path} not available: {e}")
-            return None
-        except AttributeError as e:
-            self.logger.debug(f"Class {class_name} not found in {module_path}: {e}")
-            return None
-        except Exception as e:
-            self.logger.warning(f"Unexpected error importing {class_name}: {e}")
-            return None
-    
-    def load_technical_strategies(self) -> Dict[str, Any]:
-        """Load available technical strategies"""
-        strategies = {}
-        
-        technical_strategies = {
-            'ichimoku': ('src.strategies.technical.ichimoku', 'IchimokuStrategy'),
-            'harmonic': ('src.strategies.technical.harmonic', 'HarmonicStrategy'),
-            'elliott_wave': ('src.strategies.technical.elliott_wave', 'ElliottWaveStrategy'),
-            'volume_profile': ('src.strategies.technical.volume_profile', 'VolumeProfileStrategy'),
-            'momentum_divergence': ('src.strategies.technical.momentum_divergence', 'MomentumDivergenceStrategy'),
-            'fibonacci_advanced': ('src.strategies.technical.fibonacci_advanced', 'FibonacciAdvancedStrategy'),
-            'order_flow': ('src.strategies.technical.order_flow', 'OrderFlowStrategy'),
-            'wyckoff': ('src.strategies.technical.wyckoff', 'WyckoffStrategy'),
-            'gann': ('src.strategies.technical.gann', 'GannStrategy'),
-            'market_profile': ('src.strategies.technical.market_profile', 'MarketProfileStrategy')
-        }
-        
-        for strategy_name, (module_path, class_name) in technical_strategies.items():
-            strategy_class = self.try_import_strategy(module_path, class_name, 'technical')
-            if strategy_class:
-                strategies[strategy_name] = strategy_class
-        
-        return strategies
-    
-    def load_smc_strategies(self) -> Dict[str, Any]:
-        """Load available SMC strategies"""
-        strategies = {}
-        
-        smc_strategies = {
-            'market_structure': ('src.strategies.smc.market_structure', 'MarketStructureStrategy'),
-            'order_blocks': ('src.strategies.smc.order_blocks', 'OrderBlocksStrategy'),
-            'liquidity_pools': ('src.strategies.smc.liquidity_pools', 'LiquidityPoolsStrategy'),
-            'manipulation': ('src.strategies.smc.manipulation', 'ManipulationStrategy')
-        }
-        
-        for strategy_name, (module_path, class_name) in smc_strategies.items():
-            strategy_class = self.try_import_strategy(module_path, class_name, 'smc')
-            if strategy_class:
-                strategies[strategy_name] = strategy_class
-        
-        return strategies
-    
-    def load_ml_strategies(self) -> Dict[str, Any]:
-        """Load available ML strategies"""
-        strategies = {}
-        
-        ml_strategies = {
-            'lstm': ('src.strategies.ml.lstm_predictor', 'LSTMPredictor'),
-            'xgboost': ('src.strategies.ml.xgboost_classifier', 'XGBoostStrategy'),
-            'ensemble': ('src.strategies.ml.ensemble_nn', 'EnsembleNNStrategy'),
-            'rl_agent': ('src.strategies.ml.rl_agent', 'RLAgentStrategy')
-        }
-        
-        for strategy_name, (module_path, class_name) in ml_strategies.items():
-            strategy_class = self.try_import_strategy(module_path, class_name, 'ml')
-            if strategy_class:
-                strategies[strategy_name] = strategy_class
-        
-        return strategies
-    
-    def load_fusion_strategies(self) -> Dict[str, Any]:
-        """Load available fusion strategies"""
-        strategies = {}
-        
-        fusion_strategies = {
-            'weighted_voting': ('src.strategies.fusion.weighted_voting', 'WeightedVotingStrategy'),
-            'confidence_sizing': ('src.strategies.fusion.confidence_sizing', 'ConfidenceSizingStrategy'),
-            'regime_detection': ('src.strategies.fusion.regime_detection', 'RegimeDetectionStrategy')
-        }
-        
-        for strategy_name, (module_path, class_name) in fusion_strategies.items():
-            strategy_class = self.try_import_strategy(module_path, class_name, 'fusion')
-            if strategy_class:
-                strategies[strategy_name] = strategy_class
-        
-        return strategies
-
-
 class SignalEngine:
     """
-    Core signal generation and coordination engine with graceful error handling
+    Core signal generation and coordination engine
+    
+    This class orchestrates all trading strategies and generates
+    high-quality trading signals for the XAUUSD system.
+    
+    Key Features:
+    - Multi-strategy signal generation
+    - Signal fusion and weighting
+    - Market regime detection
+    - Quality grading system
+    - Risk-reward optimization
+    
+    Example:
+        >>> signal_engine = SignalEngine(config, mt5_manager, database)
+        >>> signal_engine.initialize()
+        >>> signals = signal_engine.generate_signals("XAUUSDm", "M15")
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None):
+    def __init__(self, config: Dict[str, Any], mt5_manager, database_manager):
         """
         Initialize the signal engine
         
         Args:
             config: System configuration
-            mt5_manager: MT5 connection manager (optional for testing)
-            database_manager: Database manager (optional for testing)
+            mt5_manager: MT5 connection manager
+            database_manager: Database manager
         """
         self.config = config
         self.mt5_manager = mt5_manager
@@ -259,20 +195,11 @@ class SignalEngine:
         self.signal_config = config.get('signals', {})
         self.trading_config = config.get('trading', {})
         
-        # Initialize strategy importer
-        self.strategy_importer = StrategyImporter()
-        
         # Initialize strategy components
         self.technical_strategies = {}
         self.smc_strategies = {}
         self.ml_strategies = {}
         self.fusion_strategies = {}
-        
-        # Available strategy classes
-        self.available_technical = {}
-        self.available_smc = {}
-        self.available_ml = {}
-        self.available_fusion = {}
         
         # Market analysis
         self.regime_detector = None
@@ -309,9 +236,6 @@ class SignalEngine:
         try:
             self.logger.info("Initializing Signal Engine...")
             
-            # Load available strategy classes
-            self._load_available_strategies()
-            
             # Initialize technical strategies
             if self.strategy_config.get('technical', {}).get('enabled', False):
                 self._initialize_technical_strategies()
@@ -335,6 +259,7 @@ class SignalEngine:
             self._load_strategy_performance()
             
             self.initialized = True
+            self.logger.info("Signal Engine initialized successfully")
             
             # Log strategy summary
             total_strategies = (len(self.technical_strategies) + 
@@ -342,15 +267,11 @@ class SignalEngine:
                               len(self.ml_strategies) + 
                               len(self.fusion_strategies))
             
-            self.logger.info(f"Signal Engine initialized successfully with {total_strategies} strategies:")
-            self.logger.info(f"  Technical: {len(self.technical_strategies)} / {len(self.available_technical)} available")
-            self.logger.info(f"  SMC: {len(self.smc_strategies)} / {len(self.available_smc)} available")
-            self.logger.info(f"  ML: {len(self.ml_strategies)} / {len(self.available_ml)} available")
-            self.logger.info(f"  Fusion: {len(self.fusion_strategies)} / {len(self.available_fusion)} available")
-            
-            if total_strategies == 0:
-                self.logger.warning("No strategies were successfully loaded!")
-                return False
+            self.logger.info(f"Loaded {total_strategies} strategies:")
+            self.logger.info(f"  Technical: {len(self.technical_strategies)}")
+            self.logger.info(f"  SMC: {len(self.smc_strategies)}")
+            self.logger.info(f"  ML: {len(self.ml_strategies)}")
+            self.logger.info(f"  Fusion: {len(self.fusion_strategies)}")
             
             return True
             
@@ -358,106 +279,103 @@ class SignalEngine:
             self.logger.error(f"Signal Engine initialization failed: {str(e)}")
             return False
     
-    def _load_available_strategies(self) -> None:
-        """Load all available strategy classes"""
-        self.available_technical = self.strategy_importer.load_technical_strategies()
-        self.available_smc = self.strategy_importer.load_smc_strategies()
-        self.available_ml = self.strategy_importer.load_ml_strategies()
-        self.available_fusion = self.strategy_importer.load_fusion_strategies()
-        
-        total_available = (len(self.available_technical) + len(self.available_smc) + 
-                          len(self.available_ml) + len(self.available_fusion))
-        
-        self.logger.info(f"Loaded {total_available} available strategy classes")
-    
     def _initialize_technical_strategies(self) -> None:
         """Initialize technical analysis strategies"""
-        tech_config = self.strategy_config.get('technical', {})
+        tech_config = self.strategy_config['technical']
         active_strategies = tech_config.get('active_strategies', {})
         
-        for strategy_name, strategy_class in self.available_technical.items():
+        strategy_classes = {
+            'ichimoku': IchimokuStrategy,
+            'harmonic': HarmonicStrategy,
+            'elliott_wave': ElliottWaveStrategy,
+            #'volume_profile': VolumeProfileStrategy,
+            #'momentum_divergence': MomentumDivergenceStrategy,
+            #'fibonacci_advanced': FibonacciAdvancedStrategy,
+            #'order_flow': OrderFlowStrategy,
+            #'wyckoff': WyckoffStrategy
+        }
+        
+        for strategy_name, strategy_class in strategy_classes.items():
             if active_strategies.get(strategy_name, False):
                 try:
-                    if self.mt5_manager:
-                        strategy_instance = strategy_class(
-                            config=tech_config,
-                            mt5_manager=self.mt5_manager
-                        )
-                    else:
-                        # For testing without MT5
-                        strategy_instance = strategy_class(config=tech_config)
-                    
+                    strategy_instance = strategy_class(
+                        config=tech_config,
+                        mt5_manager=self.mt5_manager
+                    )
                     self.technical_strategies[strategy_name] = strategy_instance
                     self.logger.info(f"Initialized technical strategy: {strategy_name}")
-                    
                 except Exception as e:
-                    self.logger.warning(f"Failed to initialize technical strategy {strategy_name}: {e}")
+                    self.logger.warning(f"Failed to initialize {strategy_name}: {e}")
     
     def _initialize_smc_strategies(self) -> None:
         """Initialize Smart Money Concepts strategies"""
-        smc_config = self.strategy_config.get('smc', {})
+        smc_config = self.strategy_config['smc']
         active_components = smc_config.get('active_components', {})
         
-        for strategy_name, strategy_class in self.available_smc.items():
+        strategy_classes = {
+            #'market_structure': MarketStructureStrategy,
+            'order_blocks': OrderBlocksStrategy,
+            #'liquidity_pools': LiquidityPoolsStrategy,
+            #'manipulation': ManipulationStrategy
+        }
+        
+        for strategy_name, strategy_class in strategy_classes.items():
             if active_components.get(strategy_name, False):
                 try:
-                    if self.mt5_manager:
-                        strategy_instance = strategy_class(
-                            config=smc_config,
-                            mt5_manager=self.mt5_manager
-                        )
-                    else:
-                        strategy_instance = strategy_class(config=smc_config)
-                    
+                    strategy_instance = strategy_class(
+                        config=smc_config,
+                        mt5_manager=self.mt5_manager
+                    )
                     self.smc_strategies[strategy_name] = strategy_instance
                     self.logger.info(f"Initialized SMC strategy: {strategy_name}")
-                    
                 except Exception as e:
-                    self.logger.warning(f"Failed to initialize SMC strategy {strategy_name}: {e}")
+                    self.logger.warning(f"Failed to initialize {strategy_name}: {e}")
     
     def _initialize_ml_strategies(self) -> None:
         """Initialize machine learning strategies"""
-        ml_config = self.strategy_config.get('ml', {})
+        ml_config = self.strategy_config['ml']
         active_models = ml_config.get('active_models', {})
         
-        for strategy_name, strategy_class in self.available_ml.items():
+        strategy_classes = {
+            'lstm': LSTMPredictor,
+            #'xgboost': XGBoostStrategy,
+            #'ensemble': EnsembleNNStrategy
+        }
+        
+        for strategy_name, strategy_class in strategy_classes.items():
             if active_models.get(strategy_name, False):
                 try:
-                    if self.mt5_manager and self.database:
-                        strategy_instance = strategy_class(
-                            config=ml_config,
-                            mt5_manager=self.mt5_manager,
-                            database=self.database
-                        )
-                    else:
-                        strategy_instance = strategy_class(config=ml_config)
-                    
+                    strategy_instance = strategy_class(
+                        config=ml_config,
+                        mt5_manager=self.mt5_manager,
+                        database=self.database
+                    )
                     self.ml_strategies[strategy_name] = strategy_instance
                     self.logger.info(f"Initialized ML strategy: {strategy_name}")
-                    
                 except Exception as e:
-                    self.logger.warning(f"Failed to initialize ML strategy {strategy_name}: {e}")
+                    self.logger.warning(f"Failed to initialize {strategy_name}: {e}")
     
     def _initialize_fusion_strategies(self) -> None:
         """Initialize signal fusion strategies"""
-        fusion_config = self.strategy_config.get('fusion', {})
+        fusion_config = self.strategy_config['fusion']
         
-        for strategy_name, strategy_class in self.available_fusion.items():
+        strategy_classes = {
+            #'weighted_voting': WeightedVotingStrategy,
+            #'confidence_sizing': ConfidenceSizingStrategy,
+            #'regime_detection': RegimeDetectionStrategy
+        }
+        
+        for strategy_name, strategy_class in strategy_classes.items():
             try:
-                if self.mt5_manager:
-                    strategy_instance = strategy_class(
-                        config=fusion_config,
-                        mt5_manager=self.mt5_manager
-                    )
-                else:
-                    strategy_instance = strategy_class(config=fusion_config)
-                
+                strategy_instance = strategy_class(
+                    config=fusion_config,
+                    mt5_manager=self.mt5_manager
+                )
                 self.fusion_strategies[strategy_name] = strategy_instance
                 self.logger.info(f"Initialized fusion strategy: {strategy_name}")
-                
             except Exception as e:
-                self.logger.warning(f"Failed to initialize fusion strategy {strategy_name}: {e}")
-    
+                self.logger.warning(f"Failed to initialize {strategy_name}: {e}")
+                
     def _initialize_regime_detection(self) -> None:
         """Initialize market regime detection"""
         try:
@@ -468,7 +386,25 @@ class SignalEngine:
                 self.logger.debug("No regime detection strategy available")
             
         except Exception as e:
-            self.logger.warning(f"Failed to initialize regime detection: {e}")
+            self.logger.warning(f"Failed to initialize regime detection: {e}")            
+    
+    # def _initialize_regime_detection(self) -> None:
+    #     """Initialize market regime detection"""
+    #     try:
+    #         if 'regime_detection' in self.fusion_strategies:
+    #             self.regime_detector = self.fusion_strategies['regime_detection']
+    #         else:
+    #             # Create standalone regime detector if fusion not available
+    #             #from strategies.fusion.regime_detection import RegimeDetectionStrategy
+    #             self.regime_detector = RegimeDetectionStrategy(
+    #                 config=self.strategy_config.get('fusion', {}),
+    #                 mt5_manager=self.mt5_manager
+    #             )
+            
+    #         self.logger.info("Market regime detection initialized")
+            
+    #     except Exception as e:
+    #         self.logger.warning(f"Failed to initialize regime detection: {e}")
     
     def generate_signals(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """
@@ -486,14 +422,13 @@ class SignalEngine:
             return []
         
         try:
-            # Update market condition if possible
-            if self.mt5_manager:
-                self._update_market_condition(symbol, timeframe)
+            # Update market condition
+            self._update_market_condition(symbol, timeframe)
             
-                # Check if market conditions are suitable for trading
-                if not self._is_trading_suitable():
-                    self.logger.debug("Market conditions not suitable for signal generation")
-                    return []
+            # Check if market conditions are suitable for trading
+            if not self._is_trading_suitable():
+                self.logger.debug("Market conditions not suitable for signal generation")
+                return []
             
             all_signals = []
             
@@ -509,13 +444,11 @@ class SignalEngine:
             ml_signals = self._generate_ml_signals(symbol, timeframe)
             all_signals.extend(ml_signals)
             
-            # Apply signal fusion if available
-            if self.fusion_strategies:
-                fused_signals = self._apply_signal_fusion(all_signals, symbol, timeframe)
-                all_signals = fused_signals
+            # Apply signal fusion
+            fused_signals = self._apply_signal_fusion(all_signals, symbol, timeframe)
             
             # Filter and grade signals
-            quality_signals = self._filter_and_grade_signals(all_signals)
+            quality_signals = self._filter_and_grade_signals(fused_signals)
             
             # Update signal statistics
             self._update_signal_stats(quality_signals)
@@ -523,10 +456,9 @@ class SignalEngine:
             # Store signals in history
             self.signal_history.extend(quality_signals)
             
-            # Store in database if available
-            if self.database:
-                for signal in quality_signals:
-                    self._store_signal_in_database(signal)
+            # Store in database
+            for signal in quality_signals:
+                self._store_signal_in_database(signal)
             
             self.logger.info(f"Generated {len(quality_signals)} quality signals from {len(all_signals)} raw signals")
             
@@ -542,26 +474,10 @@ class SignalEngine:
         
         for strategy_name, strategy in self.technical_strategies.items():
             try:
-                if hasattr(strategy, 'generate_signals'):
-                    strategy_signals = strategy.generate_signals(symbol, timeframe)
-                    if strategy_signals:
-                        signals.extend(strategy_signals)
-                        self.logger.debug(f"Technical {strategy_name}: {len(strategy_signals)} signals")
-                else:
-                    # Create a mock signal for testing
-                    mock_signal = Signal(
-                        timestamp=datetime.now(),
-                        symbol=symbol,
-                        strategy_name=strategy_name,
-                        signal_type=SignalType.BUY,
-                        confidence=0.75,
-                        price=2000.0,
-                        timeframe=timeframe,
-                        metadata={'mock': True}
-                    )
-                    signals.append(mock_signal)
-                    self.logger.debug(f"Technical {strategy_name}: Generated mock signal for testing")
-                    
+                strategy_signals = strategy.generate_signals(symbol, timeframe)
+                if strategy_signals:
+                    signals.extend(strategy_signals)
+                    self.logger.debug(f"Technical {strategy_name}: {len(strategy_signals)} signals")
             except Exception as e:
                 self.logger.warning(f"Technical strategy {strategy_name} failed: {e}")
         
@@ -573,26 +489,10 @@ class SignalEngine:
         
         for strategy_name, strategy in self.smc_strategies.items():
             try:
-                if hasattr(strategy, 'generate_signals'):
-                    strategy_signals = strategy.generate_signals(symbol, timeframe)
-                    if strategy_signals:
-                        signals.extend(strategy_signals)
-                        self.logger.debug(f"SMC {strategy_name}: {len(strategy_signals)} signals")
-                else:
-                    # Create a mock signal for testing
-                    mock_signal = Signal(
-                        timestamp=datetime.now(),
-                        symbol=symbol,
-                        strategy_name=strategy_name,
-                        signal_type=SignalType.SELL,
-                        confidence=0.80,
-                        price=2000.0,
-                        timeframe=timeframe,
-                        metadata={'mock': True}
-                    )
-                    signals.append(mock_signal)
-                    self.logger.debug(f"SMC {strategy_name}: Generated mock signal for testing")
-                    
+                strategy_signals = strategy.generate_signals(symbol, timeframe)
+                if strategy_signals:
+                    signals.extend(strategy_signals)
+                    self.logger.debug(f"SMC {strategy_name}: {len(strategy_signals)} signals")
             except Exception as e:
                 self.logger.warning(f"SMC strategy {strategy_name} failed: {e}")
         
@@ -604,26 +504,10 @@ class SignalEngine:
         
         for strategy_name, strategy in self.ml_strategies.items():
             try:
-                if hasattr(strategy, 'generate_signals'):
-                    strategy_signals = strategy.generate_signals(symbol, timeframe)
-                    if strategy_signals:
-                        signals.extend(strategy_signals)
-                        self.logger.debug(f"ML {strategy_name}: {len(strategy_signals)} signals")
-                else:
-                    # Create a mock signal for testing
-                    mock_signal = Signal(
-                        timestamp=datetime.now(),
-                        symbol=symbol,
-                        strategy_name=strategy_name,
-                        signal_type=SignalType.BUY,
-                        confidence=0.85,
-                        price=2000.0,
-                        timeframe=timeframe,
-                        metadata={'mock': True}
-                    )
-                    signals.append(mock_signal)
-                    self.logger.debug(f"ML {strategy_name}: Generated mock signal for testing")
-                    
+                strategy_signals = strategy.generate_signals(symbol, timeframe)
+                if strategy_signals:
+                    signals.extend(strategy_signals)
+                    self.logger.debug(f"ML {strategy_name}: {len(strategy_signals)} signals")
             except Exception as e:
                 self.logger.warning(f"ML strategy {strategy_name} failed: {e}")
         
@@ -638,9 +522,8 @@ class SignalEngine:
             # Apply weighted voting if available
             if 'weighted_voting' in self.fusion_strategies:
                 voting_strategy = self.fusion_strategies['weighted_voting']
-                if hasattr(voting_strategy, 'fuse_signals'):
-                    fused_signals = voting_strategy.fuse_signals(signals, symbol, timeframe)
-                    return fused_signals
+                fused_signals = voting_strategy.fuse_signals(signals, symbol, timeframe)
+                return fused_signals
             
             return signals
             
@@ -670,18 +553,13 @@ class SignalEngine:
         # Sort by confidence
         quality_signals.sort(key=lambda s: s.confidence, reverse=True)
         
-        # Apply daily limits if configuration is available
-        if grading_config:
-            quality_signals = self._apply_daily_limits(quality_signals, grading_config)
+        # Apply daily limits
+        quality_signals = self._apply_daily_limits(quality_signals, grading_config)
         
         return quality_signals
     
     def _signal_passes_filters(self, signal: Signal, filters_config: Dict) -> bool:
         """Check if signal passes quality filters"""
-        
-        # Skip filtering if no MT5 manager available (testing mode)
-        if not self.mt5_manager:
-            return True
         
         # Spread filter
         spread_filter = filters_config.get('spread_filter', {})
@@ -690,6 +568,15 @@ class SignalEngine:
             max_spread = spread_filter.get('max_spread', 15)
             if current_spread > max_spread:
                 return False
+        
+        # Volatility filter
+        volatility_filter = filters_config.get('volatility_filter', {})
+        if volatility_filter.get('enabled', False):
+            if signal.atr:
+                min_atr = volatility_filter.get('min_atr', 5)
+                max_atr = volatility_filter.get('max_atr', 50)
+                if signal.atr < min_atr or signal.atr > max_atr:
+                    return False
         
         # Time filter
         time_filter = filters_config.get('time_filter', {})
@@ -702,6 +589,13 @@ class SignalEngine:
             
             if signal_hour in blocked_hours or signal_day in blocked_days:
                 return False
+        
+        # News filter (basic implementation)
+        news_filter = filters_config.get('news_filter', {})
+        if news_filter.get('enabled', False):
+            # Skip signals during high-impact news (simplified)
+            # This would need integration with news calendar API
+            pass
         
         return True
     
@@ -745,19 +639,37 @@ class SignalEngine:
     
     def _update_market_condition(self, symbol: str, timeframe: str) -> None:
         """Update current market condition assessment"""
-        if not self.regime_detector or not self.mt5_manager:
+        if not self.regime_detector:
             return
         
         try:
-            # This would need actual implementation when MT5 is available
+            # Detect current market regime
+            regime = self.regime_detector.detect_regime(symbol, timeframe)
+            
+            # Get market data for analysis
+            data = self.mt5_manager.get_historical_data(symbol, timeframe, 100)
+            if data.empty:
+                return
+            
+            # Calculate market metrics
+            current_price = data['Close'].iloc[-1]
+            volatility = self._calculate_volatility(data)
+            trend_strength = self._calculate_trend_strength(data)
+            volume_profile = self._analyze_volume_profile(data)
+            session = self._get_current_session()
+            
+            # Create market condition
             self.market_condition = MarketCondition(
                 timestamp=datetime.now(),
-                regime=MarketRegime.TRENDING_UP,
-                volatility=0.5,
-                trend_strength=0.7,
-                volume_profile="normal",
-                session="london",
-                confidence=0.75
+                regime=regime,
+                volatility=volatility,
+                trend_strength=trend_strength,
+                volume_profile=volume_profile,
+                session=session,
+                confidence=0.75,  # Would be calculated based on various factors
+                support_level=self._find_support_level(data),
+                resistance_level=self._find_resistance_level(data),
+                key_levels=self._find_key_levels(data)
             )
             
         except Exception as e:
@@ -772,16 +684,110 @@ class SignalEngine:
         if self.market_condition.volatility < 0.2:
             return False
         
+        # Be cautious during uncertain market regimes
+        if (self.market_condition.regime == MarketRegime.UNCERTAIN and 
+            self.market_condition.confidence < 0.6):
+            return False
+        
         return True
+    
+    def _calculate_volatility(self, data: pd.DataFrame) -> float:
+        """Calculate current market volatility"""
+        returns = data['Close'].pct_change().dropna()
+        volatility = returns.std() * np.sqrt(252)  # Annualized volatility
+        return min(volatility, 1.0)  # Cap at 1.0
+    
+    def _calculate_trend_strength(self, data: pd.DataFrame) -> float:
+        """Calculate trend strength (0-1)"""
+        if len(data) < 20:
+            return 0.5
+        
+        # Simple trend strength based on price position relative to moving averages
+        sma_20 = data['Close'].rolling(20).mean()
+        current_price = data['Close'].iloc[-1]
+        sma_current = sma_20.iloc[-1]
+        
+        # Normalize trend strength
+        price_ratio = current_price / sma_current
+        if price_ratio > 1:
+            trend_strength = min((price_ratio - 1) * 10, 1.0)
+        else:
+            trend_strength = max((price_ratio - 1) * 10, -1.0)
+        
+        return abs(trend_strength)
+    
+    def _analyze_volume_profile(self, data: pd.DataFrame) -> str:
+        """Analyze volume profile"""
+        if 'Volume' not in data.columns:
+            return "unknown"
+        
+        recent_volume = data['Volume'].tail(10).mean()
+        average_volume = data['Volume'].mean()
+        
+        if recent_volume > average_volume * 1.2:
+            return "high"
+        elif recent_volume < average_volume * 0.8:
+            return "low"
+        else:
+            return "normal"
+    
+    def _get_current_session(self) -> str:
+        """Get current trading session"""
+        current_hour = datetime.now().hour
+        
+        if 0 <= current_hour < 9:
+            return "asian"
+        elif 9 <= current_hour < 17:
+            return "london"
+        elif 17 <= current_hour < 24:
+            return "newyork"
+        else:
+            return "overlap"
+    
+    def _find_support_level(self, data: pd.DataFrame) -> Optional[float]:
+        """Find nearest support level"""
+        try:
+            lows = data['Low'].tail(50)
+            # Simple support: recent significant low
+            support = lows.min()
+            return support
+        except:
+            return None
+    
+    def _find_resistance_level(self, data: pd.DataFrame) -> Optional[float]:
+        """Find nearest resistance level"""
+        try:
+            highs = data['High'].tail(50)
+            # Simple resistance: recent significant high
+            resistance = highs.max()
+            return resistance
+        except:
+            return None
+    
+    def _find_key_levels(self, data: pd.DataFrame) -> List[float]:
+        """Find key support/resistance levels"""
+        levels = []
+        try:
+            # Add psychological levels (round numbers)
+            current_price = data['Close'].iloc[-1]
+            base_level = int(current_price / 10) * 10
+            
+            for i in range(-5, 6):
+                level = base_level + (i * 10)
+                if abs(level - current_price) <= 50:  # Within 50 points
+                    levels.append(float(level))
+        except:
+            pass
+        
+        return levels
     
     def _get_current_spread(self, symbol: str) -> float:
         """Get current spread for symbol"""
         try:
-            if self.mt5_manager and hasattr(self.mt5_manager, 'get_realtime_data'):
-                tick_data = self.mt5_manager.get_realtime_data(symbol)
-                if tick_data and 'bid' in tick_data and 'ask' in tick_data:
-                    spread = (tick_data['ask'] - tick_data['bid']) * 10000
-                    return spread
+            tick_data = self.mt5_manager.get_realtime_data(symbol)
+            if tick_data and 'bid' in tick_data and 'ask' in tick_data:
+                spread = (tick_data['ask'] - tick_data['bid']) * 10000  # In points
+                return spread
         except:
             pass
         return 15.0  # Default spread
@@ -797,13 +803,18 @@ class SignalEngine:
                 'confidence': signal.confidence,
                 'price': signal.price,
                 'timeframe': signal.timeframe,
+                'rsi': signal.rsi,
+                'macd': signal.macd,
+                'atr': signal.atr,
+                'volume': signal.volume,
+                'strength': signal.strength,
                 'quality_grade': signal.grade.value if signal.grade else 'D',
+                'risk_reward_ratio': signal.risk_reward_ratio,
                 'executed': False,
                 'signal_metadata': signal.metadata
             }
             
-            if hasattr(self.database, 'store_signal'):
-                self.database.store_signal(signal_data)
+            self.database.store_signal(signal_data)
             
         except Exception as e:
             self.logger.warning(f"Failed to store signal in database: {e}")
@@ -823,13 +834,24 @@ class SignalEngine:
     def _load_strategy_performance(self) -> None:
         """Load historical strategy performance data"""
         try:
-            # Default performance data - would be loaded from database in production
+            # Load from database if available
+            # This would load win rates, profit factors, etc. for each strategy
             self.strategy_performance = {
                 'ichimoku': {'win_rate': 0.65, 'profit_factor': 1.8, 'weight': 1.0},
                 'harmonic': {'win_rate': 0.72, 'profit_factor': 2.1, 'weight': 1.2},
-                'elliott_wave': {'win_rate': 0.68, 'profit_factor': 1.9, 'weight': 1.1},
+                'elliott_wave': {'win_rate': 0.67, 'profit_factor': 1.6, 'weight': 1.0},
+                'volume_profile': {'win_rate': 0.68, 'profit_factor': 1.9, 'weight': 1.1},
+                'momentum_divergence': {'win_rate': 0.63, 'profit_factor': 1.7, 'weight': 0.9},
+                'fibonacci_advanced': {'win_rate': 0.70, 'profit_factor': 2.0, 'weight': 1.1},
+                'order_flow': {'win_rate': 0.75, 'profit_factor': 2.3, 'weight': 1.3},
+                'wyckoff': {'win_rate': 0.66, 'profit_factor': 1.8, 'weight': 1.0},
+                'market_structure': {'win_rate': 0.78, 'profit_factor': 2.5, 'weight': 1.4},
                 'order_blocks': {'win_rate': 0.74, 'profit_factor': 2.2, 'weight': 1.3},
-                'lstm': {'win_rate': 0.69, 'profit_factor': 1.9, 'weight': 1.1}
+                'liquidity_pools': {'win_rate': 0.76, 'profit_factor': 2.4, 'weight': 1.3},
+                'manipulation': {'win_rate': 0.71, 'profit_factor': 2.0, 'weight': 1.2},
+                'lstm': {'win_rate': 0.69, 'profit_factor': 1.9, 'weight': 1.1},
+                'xgboost': {'win_rate': 0.73, 'profit_factor': 2.1, 'weight': 1.2},
+                'ensemble': {'win_rate': 0.77, 'profit_factor': 2.4, 'weight': 1.4}
             }
             
         except Exception as e:
@@ -853,12 +875,6 @@ class SignalEngine:
                 'ml': len(self.ml_strategies),
                 'fusion': len(self.fusion_strategies)
             },
-            'available_strategies': {
-                'technical': len(self.available_technical),
-                'smc': len(self.available_smc),
-                'ml': len(self.available_ml),
-                'fusion': len(self.available_fusion)
-            },
             'current_market_regime': self.market_condition.regime.value if self.market_condition else 'UNKNOWN',
             'market_volatility': self.market_condition.volatility if self.market_condition else 0.0
         }
@@ -869,6 +885,10 @@ class SignalEngine:
             self.signal_stats['executed_signals'] += 1
             if success:
                 self.signal_stats['successful_signals'] += 1
+            
+            # Update strategy performance
+            # This would update the performance metrics for the strategy that generated the signal
+            # Implementation would depend on how signals are tracked
             
         except Exception as e:
             self.logger.warning(f"Failed to update signal performance: {e}")
@@ -907,35 +927,14 @@ class SignalEngine:
         ]
         
         self.logger.info(f"Cleaned up signals older than {days} days")
-    
-    def get_available_strategies(self) -> Dict[str, List[str]]:
-        """Get list of all available strategy names by category"""
-        return {
-            'technical': list(self.available_technical.keys()),
-            'smc': list(self.available_smc.keys()),
-            'ml': list(self.available_ml.keys()),
-            'fusion': list(self.available_fusion.keys())
-        }
-    
-    def get_active_strategies(self) -> Dict[str, List[str]]:
-        """Get list of currently active strategy names by category"""
-        return {
-            'technical': list(self.technical_strategies.keys()),
-            'smc': list(self.smc_strategies.keys()),
-            'ml': list(self.ml_strategies.keys()),
-            'fusion': list(self.fusion_strategies.keys())
-        }
 
 
 # Testing and utility functions
 def test_signal_engine():
-    """Test signal engine functionality with your current setup"""
-    print("Testing Fixed Signal Engine...")
+    """Test signal engine functionality"""
+    print("Testing Signal Engine...")
     
-    # Configure logging to see what's happening
-    logging.basicConfig(level=logging.INFO)
-    
-    # Mock config that matches your current setup
+    # Mock config
     test_config = {
         'strategies': {
             'technical': {
@@ -943,36 +942,26 @@ def test_signal_engine():
                 'active_strategies': {
                     'ichimoku': True,
                     'harmonic': True,
-                    'elliott_wave': True,
-                    'volume_profile': False,  # Empty file
-                    'momentum_divergence': False,  # Empty file
-                    'fibonacci_advanced': False,  # Empty file
-                    'order_flow': False,  # Empty file
-                    'wyckoff': False,  # Empty file
-                    'gann': False,  # Empty file
-                    'market_profile': False  # Empty file
+                    'volume_profile': True,
+                    'elliott_wave': True
                 }
             },
             'smc': {
                 'enabled': True,
                 'active_components': {
-                    'order_blocks': True,  # You mentioned this exists
-                    'market_structure': False,  # Empty file
-                    'liquidity_pools': False,  # Empty file
-                    'manipulation': False  # Empty file
+                    'market_structure': False,
+                    'order_blocks': True
                 }
             },
             'ml': {
                 'enabled': True,
                 'active_models': {
-                    'lstm': True,  # You mentioned this exists
-                    'xgboost': False,  # Empty file
-                    'ensemble': False,  # Empty file
-                    'rl_agent': False  # Empty file
+                    'lstm': True,
+                    'xgboost': False
                 }
             },
             'fusion': {
-                'enabled': False  # Disable since files might be empty
+                'enabled': False
             }
         },
         'signals': {
@@ -982,16 +971,16 @@ def test_signal_engine():
                 'C_grade': {'min_confidence': 0.60, 'max_daily': 7}
             },
             'filters': {
-                'spread_filter': {'enabled': False},  # Disable for testing
-                'volatility_filter': {'enabled': False},  # Disable for testing
-                'time_filter': {'enabled': False}  # Disable for testing
+                'spread_filter': {'enabled': True, 'max_spread': 15},
+                'volatility_filter': {'enabled': True, 'min_atr': 5, 'max_atr': 50}
             }
         }
     }
     
-    # Create mock objects for testing
+    # Create mock objects
     class MockMT5Manager:
         def get_historical_data(self, symbol, timeframe, bars):
+            # Return mock data
             import pandas as pd
             dates = pd.date_range(start='2025-01-01', periods=bars, freq='15T')
             data = pd.DataFrame({
@@ -1008,7 +997,7 @@ def test_signal_engine():
     
     class MockDatabase:
         def store_signal(self, signal_data):
-            print(f"  📊 Storing signal: {signal_data['strategy']} - {signal_data['signal_type']}")
+            print(f"Storing signal: {signal_data['strategy']} - {signal_data['signal_type']}")
     
     try:
         # Create signal engine
@@ -1018,59 +1007,25 @@ def test_signal_engine():
             database_manager=MockDatabase()
         )
         
-        print("\n1. Testing initialization...")
+        # Initialize (will fail due to missing strategy modules, but tests structure)
         initialized = signal_engine.initialize()
-        print(f"   Initialization: {'✅ Success' if initialized else '❌ Failed'}")
+        print(f"Initialization: {'✅ Success' if initialized else '⚠️ Partial (missing strategy modules)'}")
         
-        print("\n2. Available strategies:")
-        available = signal_engine.get_available_strategies()
-        for category, strategies in available.items():
-            print(f"   {category.upper()}: {strategies}")
-        
-        print("\n3. Active strategies:")
-        active = signal_engine.get_active_strategies()
-        for category, strategies in active.items():
-            print(f"   {category.upper()}: {strategies}")
-        
-        print("\n4. Testing signal generation...")
+        # Test signal generation (will return empty list due to missing strategies)
         signals = signal_engine.generate_signals("XAUUSDm", "M15")
-        print(f"   Generated {len(signals)} signals")
+        print(f"Generated signals: {len(signals)}")
         
-        if signals:
-            print("\n5. Signal details:")
-            for i, signal in enumerate(signals[:3], 1):  # Show first 3 signals
-                print(f"   Signal {i}: {signal.strategy_name} - {signal.signal_type.value} "
-                      f"(Confidence: {signal.confidence:.2f}, Grade: {signal.grade.value})")
-        
-        print("\n6. Signal summary:")
+        # Test summary
         summary = signal_engine.get_signal_summary()
-        print(f"   Total signals: {summary['total_signals_generated']}")
-        print(f"   A-grade: {summary['a_grade_percentage']:.1f}%")
-        print(f"   B-grade: {summary['b_grade_percentage']:.1f}%")
-        print(f"   C-grade: {summary['c_grade_percentage']:.1f}%")
-        print(f"   Active strategies: {sum(summary['active_strategies'].values())}")
-        print(f"   Available strategies: {sum(summary['available_strategies'].values())}")
+        print(f"Signal summary: {summary}")
         
-        print("\n7. Best performing strategies:")
-        best_strategies = signal_engine.get_best_strategies(3)
-        for i, strategy in enumerate(best_strategies, 1):
-            print(f"   {i}. {strategy['name']}: Win Rate {strategy['win_rate']:.1%}, "
-                  f"Profit Factor {strategy['profit_factor']:.1f}")
-        
-        print("\n✅ Fixed Signal Engine test completed successfully!")
-        print("\n📋 Summary:")
-        print(f"   - Graceful import handling: Working")
-        print(f"   - Strategy loading: {sum(summary['available_strategies'].values())} available")
-        print(f"   - Signal generation: {len(signals)} signals generated")
-        print(f"   - Error handling: Robust")
-        
+        print("✅ Signal Engine structure test completed successfully!")
         return True
         
     except Exception as e:
-        print(f"❌ Fixed Signal Engine test failed: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Signal Engine test failed: {e}")
         return False
+
 
 if __name__ == "__main__":
     test_signal_engine()
