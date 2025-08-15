@@ -3,7 +3,7 @@ LSTM Predictor - Advanced Machine Learning Strategy
 ==================================================
 Author: XAUUSD Trading System
 Version: 2.0.0
-Date: 2025-08-08
+Date: 2025-08-08 (Modified for base.py integration: 2025-08-15)
 
 Advanced LSTM neural network for price prediction and signal generation:
 - Multi-layer LSTM architecture
@@ -19,6 +19,13 @@ Features:
 - Adaptive learning rate
 - Early stopping and regularization
 """
+
+import sys
+import os
+from pathlib import Path
+
+# Add src to path for module resolution when run as script
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pandas as pd
 import numpy as np
@@ -44,50 +51,17 @@ except ImportError:
     ML_AVAILABLE = False
     print("TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.")
 
-from enum import Enum
-from dataclasses import dataclass
-from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
-
-# Import base classes
-try:
-    from ..signal_engine import Signal, SignalType, SignalGrade
-except ImportError:
-    # Fallback for testing
-    class SignalType(Enum):
-        BUY = "BUY"
-        SELL = "SELL"
-        HOLD = "HOLD"
-    
-    class SignalGrade(Enum):
-        A = "A"
-        B = "B" 
-        C = "C"
-        D = "D"
-    
-    @dataclass
-    class Signal:
-        timestamp: datetime
-        symbol: str
-        strategy_name: str
-        signal_type: SignalType
-        confidence: float
-        price: float
-        timeframe: str
-        strength: float = 0.0
-        grade: Optional[SignalGrade] = None
-        stop_loss: Optional[float] = None
-        take_profit: Optional[float] = None
-        metadata: Dict[str, Any] = None
+# Import base classes directly
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
 
 # Fallback classes when ML libraries are not available
 if not ML_AVAILABLE:
     class Sequential:
         pass
-    
     class Model:
         pass
     
-class LSTMPredictor:
+class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
     """
     Advanced LSTM Neural Network for Gold Price Prediction
     
@@ -105,21 +79,21 @@ class LSTMPredictor:
     - Risk-adjusted signals
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager):
+    # Modified __init__ signature to match AbstractStrategy
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         """Initialize LSTM Predictor"""
-        self.config = config
-        self.mt5_manager = mt5_manager
+        super().__init__(config, mt5_manager, database) # Call parent __init__
         
-        # Strategy parameters
-        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.75)
-        self.prediction_horizon = config.get('parameters', {}).get('prediction_horizon', 12)
-        self.feature_lookback = config.get('parameters', {}).get('feature_lookback', 50)
-        self.retrain_frequency = config.get('parameters', {}).get('retrain_frequency', 'weekly')
-        self.min_training_samples = config.get('parameters', {}).get('min_training_samples', 1000)
+        # Strategy parameters - access from self.config (which is the passed 'config')
+        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.75)
+        self.prediction_horizon = self.config.get('parameters', {}).get('prediction_horizon', 12)
+        self.feature_lookback = self.config.get('parameters', {}).get('feature_lookback', 50)
+        self.retrain_frequency = self.config.get('parameters', {}).get('retrain_frequency', 'weekly')
+        self.min_training_samples = self.config.get('parameters', {}).get('min_training_samples', 1000)
         
         # Model architecture parameters
-        self.sequence_length = 60  # 60 bars for LSTM input
-        self.lstm_units = [128, 64, 32]  # Multi-layer LSTM
+        self.sequence_length = 60
+        self.lstm_units = [128, 64, 32]
         self.dropout_rate = 0.3
         self.learning_rate = 0.001
         
@@ -128,9 +102,9 @@ class LSTMPredictor:
         self.feature_scaler = StandardScaler() if ML_AVAILABLE else None
         
         # Models
-        self.direction_model = None  # Predicts price direction
-        self.magnitude_model = None  # Predicts price magnitude
-        self.volatility_model = None  # Predicts volatility
+        self.direction_model = None
+        self.magnitude_model = None
+        self.volatility_model = None
         
         # Training data storage
         self.training_data = {
@@ -140,7 +114,7 @@ class LSTMPredictor:
             'volatility_targets': []
         }
         
-        # Performance tracking
+        # Performance tracking (ML-specific)
         self.model_performance = {
             'direction_accuracy': 0.0,
             'magnitude_mae': 0.0,
@@ -151,16 +125,22 @@ class LSTMPredictor:
         # Feature importance
         self.feature_names = []
         
-        # Logger
-        self.logger = logging.getLogger('lstm_predictor')
+        # Logger is handled by AbstractStrategy
+        # self.logger = logging.getLogger('lstm_predictor')
         
         if not ML_AVAILABLE:
             self.logger.warning("ML libraries not available. Running in simulation mode.")
     
-    def generate_signals(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
+    # Renamed from generate_signals to generate_signal to match AbstractStrategy
+    def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """Generate ML-based trading signals"""
+        signals = [] # Initialize signals list
         try:
             # Get market data
+            if not self.mt5_manager: # Added check for mt5_manager
+                self.logger.warning("MT5 manager not available for signal generation.")
+                return []
+            
             data = self.mt5_manager.get_historical_data(symbol, timeframe, 1000)
             if data is None or len(data) < self.sequence_length + 50:
                 self.logger.warning(f"Insufficient data for LSTM analysis: {len(data) if data is not None else 0}")
@@ -181,20 +161,93 @@ class LSTMPredictor:
             if predictions is None:
                 return []
             
-            # Convert predictions to signals
-            signals = self._predictions_to_signals(predictions, data, symbol, timeframe)
+            # Convert predictions to signals (raw signals from LSTM logic)
+            raw_signals = self._predictions_to_signals(predictions, data, symbol, timeframe)
             
             # Update training data for future retraining
             self._update_training_data(features, data)
             
-            self.logger.info(f"LSTM generated {len(signals)} signals with avg confidence {np.mean([s.confidence for s in signals]):.2f}")
+            # Filter and validate signals using base class validation
+            validated_signals = []
+            for signal in raw_signals:
+                if self.validate_signal(signal): # Apply base class validation
+                    validated_signals.append(signal)
             
-            return signals
+            self.logger.info(f"LSTM generated {len(validated_signals)} valid signals with avg confidence {np.mean([s.confidence for s in validated_signals]):.2f}" if validated_signals else "LSTM generated 0 valid signals.")
+            
+            return validated_signals
             
         except Exception as e:
-            self.logger.error(f"LSTM signal generation failed: {str(e)}")
+            self.logger.error(f"LSTM signal generation failed: {str(e)}", exc_info=True)
             return []
     
+    def analyze(self, data: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
+        """
+        Performs detailed analysis of the LSTM model's state and performance.
+        Does not generate trading signals.
+        
+        Args:
+            data: Historical price data.
+            symbol: Trading symbol.
+            timeframe: Analysis timeframe.
+            
+        Returns:
+            Dictionary containing detailed analysis results.
+        """
+        try:
+            analysis_output = {
+                'strategy': self.strategy_name,
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'analysis_time': datetime.now().isoformat(),
+                'ml_available': ML_AVAILABLE,
+                'models_trained': all([
+                    self.direction_model is not None,
+                    self.magnitude_model is not None,
+                    self.volatility_model is not None
+                ]),
+                'model_performance_metrics': self.model_performance,
+                'training_data_size': len(self.training_data['features']),
+                'feature_count': len(self.feature_names),
+                'prediction_horizon': self.prediction_horizon,
+                'sequence_length': self.sequence_length,
+                'retrain_frequency': self.retrain_frequency,
+                'min_training_samples': self.min_training_samples,
+                'last_training_date': self.model_performance.get('last_training', 'N/A').isoformat() if self.model_performance.get('last_training') else 'N/A'
+            }
+
+            if not ML_AVAILABLE:
+                analysis_output['status'] = "ML libraries not available, running in simulation mode."
+            elif not analysis_output['models_trained']:
+                analysis_output['status'] = "Models are not yet trained."
+            else:
+                # Optionally, re-run a small prediction for diagnostic purposes
+                if data is not None and len(data) > self.sequence_length + 50:
+                    features = self._prepare_features(data, symbol, timeframe)
+                    if features is not None and len(features) > 0:
+                        predictions = self._generate_predictions(features)
+                        if predictions:
+                            analysis_output['latest_prediction_snapshot'] = {
+                                'direction_class': int(predictions['direction_class'][-1]),
+                                'confidence': float(predictions['confidence'][-1]),
+                                'magnitude': float(predictions['magnitude'][-1]),
+                                'volatility': float(predictions['volatility'][-1]),
+                                'direction_probs': predictions['direction_probs'][-1].tolist()
+                            }
+                            analysis_output['status'] = "Models trained, latest prediction snapshot available."
+                        else:
+                            analysis_output['status'] = "Models trained, but could not generate latest prediction snapshot."
+                    else:
+                        analysis_output['status'] = "Models trained, but insufficient data for latest prediction snapshot."
+                else:
+                    analysis_output['status'] = "Models trained, but insufficient data for features/prediction snapshot."
+
+            return analysis_output
+
+        except Exception as e:
+            self.logger.error(f"Error during LSTM analysis method: {str(e)}", exc_info=True)
+            return {'error': str(e)}
+
     def _prepare_features(self, data: pd.DataFrame, symbol: str, timeframe: str) -> Optional[np.ndarray]:
         """Prepare comprehensive feature set for LSTM"""
         try:
@@ -280,10 +333,8 @@ class LSTMPredictor:
             features_df['momentum'] = data['Close'] - data['Close'].shift(10)
             
             # Clean and prepare data
-            #features_df = features_df.fillna(method='ffill').fillna(method='bfill')
-            features_df = features_df.ffill().bfill()
-
-            features_df = features_df.replace([np.inf, -np.inf], np.nan).fillna(0)
+            features_df = features_df.ffill().bfill() # fillna (ffill then bfill)
+            features_df = features_df.replace([np.inf, -np.inf], np.nan).fillna(0) # Handle inf and nan
             
             # Store feature names for later reference
             self.feature_names = features_df.columns.tolist()
@@ -305,7 +356,7 @@ class LSTMPredictor:
             return None
             
         except Exception as e:
-            self.logger.error(f"Feature preparation failed: {str(e)}")
+            self.logger.error(f"Feature preparation failed: {str(e)}", exc_info=True)
             return None
     
     def _should_retrain(self) -> bool:
@@ -337,7 +388,7 @@ class LSTMPredictor:
             return False
             
         except Exception as e:
-            self.logger.error(f"Retrain check failed: {str(e)}")
+            self.logger.error(f"Retrain check failed: {str(e)}", exc_info=True)
             return False
     
     def _train_models(self, data: pd.DataFrame, symbol: str, timeframe: str) -> bool:
@@ -428,7 +479,7 @@ class LSTMPredictor:
             return True
             
         except Exception as e:
-            self.logger.error(f"Model training failed: {str(e)}")
+            self.logger.error(f"Model training failed: {str(e)}", exc_info=True)
             return False
     
     def _prepare_targets(self, data: pd.DataFrame) -> Optional[Dict[str, np.ndarray]]:
@@ -482,7 +533,7 @@ class LSTMPredictor:
             }
             
         except Exception as e:
-            self.logger.error(f"Target preparation failed: {str(e)}")
+            self.logger.error(f"Target preparation failed: {str(e)}", exc_info=True)
             return None
     
     def _build_direction_model(self, input_shape: Tuple) -> Sequential:
@@ -638,7 +689,7 @@ class LSTMPredictor:
             }
             
         except Exception as e:
-            self.logger.error(f"Prediction generation failed: {str(e)}")
+            self.logger.error(f"Prediction generation failed: {str(e)}", exc_info=True)
             return None
     
     def _calculate_prediction_confidence(self, direction_probs: np.ndarray, 
@@ -672,7 +723,7 @@ class LSTMPredictor:
             return np.array(confidence_scores)
             
         except Exception as e:
-            self.logger.error(f"Confidence calculation failed: {str(e)}")
+            self.logger.error(f"Confidence calculation failed: {str(e)}", exc_info=True)
             return np.array([0.5] * len(direction_probs))
     
     def _predictions_to_signals(self, predictions: Dict[str, np.ndarray], 
@@ -704,6 +755,11 @@ class LSTMPredictor:
             
             # Calculate stop loss and take profit based on predictions
             atr = self._calculate_atr(data, 14)
+            # Ensure atr is not None for calculations
+            if atr is None:
+                self.logger.warning("ATR is None, cannot calculate stop loss/take profit for LSTM signal.")
+                return []
+
             volatility_factor = max(latest_volatility * 100, 0.01)  # Convert to percentage
             
             if signal_type == SignalType.BUY:
@@ -725,21 +781,21 @@ class LSTMPredictor:
                 risk = stop_loss - current_price
                 reward = current_price - take_profit
             
-            if risk > 0 and (reward / risk) >= 1.5:  # Minimum 1.5:1 RR
+            if risk > 0 and reward > 0 and (reward / risk) >= 1.5:  # Minimum 1.5:1 RR, ensure reward > 0
                 
-                # Determine signal grade
-                grade = self._determine_signal_grade(latest_confidence, latest_magnitude)
+                # Grade is now automatically determined by Signal's __post_init__
+                # grade = self._determine_signal_grade(latest_confidence, latest_magnitude)
                 
                 signal = Signal(
                     timestamp=current_time,
                     symbol=symbol,
-                    strategy_name="lstm_predictor",
+                    strategy_name=self.strategy_name, # Use self.strategy_name from base class
                     signal_type=signal_type,
                     confidence=latest_confidence,
                     price=current_price,
                     timeframe=timeframe,
                     strength=latest_magnitude,
-                    grade=grade,
+                    # grade=grade, # Removed, as it's automatically calculated
                     stop_loss=stop_loss,
                     take_profit=take_profit,
                     metadata={
@@ -756,11 +812,11 @@ class LSTMPredictor:
                 signals.append(signal)
                 
         except Exception as e:
-            self.logger.error(f"Signal conversion failed: {str(e)}")
+            self.logger.error(f"Signal conversion failed: {str(e)}", exc_info=True)
         
         return signals
     
-    def _calculate_atr(self, data: pd.DataFrame, period: int = 14) -> float:
+    def _calculate_atr(self, data: pd.DataFrame, period: int = 14) -> Optional[float]: # Changed return type to Optional[float]
         """Calculate Average True Range"""
         try:
             if len(data) < period + 1:
@@ -771,36 +827,36 @@ class LSTMPredictor:
             close = data['Close']
             
             tr1 = high - low
-            tr2 = abs(high - close.shift())
-            tr3 = abs(low - close.shift())
+            tr2 = np.abs(high - close.shift())
+            tr3 = np.abs(low - close.shift())
             
             true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
             atr = true_range.rolling(period).mean().iloc[-1]
             
-            return atr if not pd.isna(atr) else data['Close'].iloc[-1] * 0.01
+            return float(atr) if not pd.isna(atr) else data['Close'].iloc[-1] * 0.01 # Ensure float return
             
         except Exception as e:
-            self.logger.error(f"ATR calculation failed: {str(e)}")
-            return data['Close'].iloc[-1] * 0.01
+            self.logger.error(f"ATR calculation failed: {str(e)}", exc_info=True)
+            return None # Return None on failure
     
-    def _determine_signal_grade(self, confidence: float, magnitude: float) -> SignalGrade:
-        """Determine signal grade based on confidence and predicted magnitude"""
-        try:
-            # Combine confidence and magnitude for grading
-            combined_score = (confidence * 0.7) + (min(magnitude * 50, 1.0) * 0.3)
+    # Removed _determine_signal_grade as it's now handled by base.Signal's __post_init__
+    # def _determine_signal_grade(self, confidence: float, magnitude: float) -> SignalGrade:
+    #     """Determine signal grade based on confidence and predicted magnitude"""
+    #     try:
+    #         combined_score = (confidence * 0.7) + (min(magnitude * 50, 1.0) * 0.3)
             
-            if combined_score >= 0.85:
-                return SignalGrade.A
-            elif combined_score >= 0.75:
-                return SignalGrade.B
-            elif combined_score >= 0.65:
-                return SignalGrade.C
-            else:
-                return SignalGrade.D
+    #         if combined_score >= 0.85:
+    #             return SignalGrade.A
+    #         elif combined_score >= 0.75:
+    #             return SignalGrade.B
+    #         elif combined_score >= 0.65:
+    #             return SignalGrade.C
+    #         else:
+    #             return SignalGrade.D
                 
-        except Exception as e:
-            self.logger.error(f"Signal grade determination failed: {str(e)}")
-            return SignalGrade.C
+    #     except Exception as e:
+    #         self.logger.error(f"Signal grade determination failed: {str(e)}")
+    #         return SignalGrade.C
     
     def _update_training_data(self, features: np.ndarray, data: pd.DataFrame) -> None:
         """Update training data for future retraining"""
@@ -809,7 +865,11 @@ class LSTMPredictor:
                 return
             
             # Add recent features to training data storage
-            self.training_data['features'].extend(features[-10:].tolist())
+            # Ensure features[-10:] are converted to list if they are numpy arrays
+            if isinstance(features, np.ndarray):
+                self.training_data['features'].extend(features[-10:].tolist())
+            else:
+                self.training_data['features'].extend(features[-10:])
             
             # Prepare corresponding targets for the recent data
             targets = self._prepare_targets(data)
@@ -828,10 +888,13 @@ class LSTMPredictor:
                 self.training_data['volatility_targets'] = self.training_data['volatility_targets'][-max_storage:]
                 
         except Exception as e:
-            self.logger.error(f"Training data update failed: {str(e)}")
+            self.logger.error(f"Training data update failed: {str(e)}", exc_info=True)
     
     def get_strategy_info(self) -> Dict[str, Any]:
         """Get strategy information and performance metrics"""
+        # Get overall trading performance from AbstractStrategy base class
+        base_performance = self.get_performance_summary()
+
         return {
             'name': 'LSTM Predictor',
             'version': '2.0.0',
@@ -842,7 +905,7 @@ class LSTMPredictor:
                 self.magnitude_model is not None,
                 self.volatility_model is not None
             ]),
-            'model_performance': self.model_performance,
+            'model_performance': self.model_performance, # ML-specific metrics
             'min_confidence': self.min_confidence,
             'prediction_horizon': self.prediction_horizon,
             'sequence_length': self.sequence_length,
@@ -853,6 +916,13 @@ class LSTMPredictor:
                 'dropout_rate': self.dropout_rate,
                 'learning_rate': self.learning_rate,
                 'retrain_frequency': self.retrain_frequency
+            },
+            # Add general trading performance metrics from base class
+            'trading_performance_summary': {
+                'total_signals_generated': base_performance['total_signals'],
+                'win_rate': base_performance['win_rate'],
+                'profit_factor': base_performance['profit_factor'],
+                'last_training_date': self.model_performance.get('last_training', 'N/A').isoformat() if self.model_performance.get('last_training') else 'N/A'
             }
         }
     
@@ -860,6 +930,7 @@ class LSTMPredictor:
         """Save trained models to disk"""
         try:
             if not ML_AVAILABLE:
+                self.logger.warning("ML libraries not available, cannot save models.")
                 return False
             
             model_data = {
@@ -879,13 +950,14 @@ class LSTMPredictor:
             return True
             
         except Exception as e:
-            self.logger.error(f"Model saving failed: {str(e)}")
+            self.logger.error(f"Model saving failed: {str(e)}", exc_info=True)
             return False
     
     def load_models(self, filepath: str) -> bool:
         """Load trained models from disk"""
         try:
             if not ML_AVAILABLE:
+                self.logger.warning("ML libraries not available, cannot load models.")
                 return False
             
             with open(filepath, 'rb') as f:
@@ -903,7 +975,7 @@ class LSTMPredictor:
             return True
             
         except Exception as e:
-            self.logger.error(f"Model loading failed: {str(e)}")
+            self.logger.error(f"Model loading failed: {str(e)}", exc_info=True)
             return False
 
 
@@ -954,21 +1026,64 @@ if __name__ == "__main__":
     
     # Create strategy instance
     mock_mt5 = MockMT5Manager()
-    strategy = LSTMPredictor(test_config, mock_mt5)
+    strategy = LSTMPredictor(test_config, mock_mt5, database=None) # Added database=None
     
-    # Generate signals
-    signals = strategy.generate_signals("XAUUSDm", "M15")
-    
-    print(f"Generated {len(signals)} LSTM signals")
+    # Output header matching other strategy files
+    print("============================================================")
+    print("TESTING MODIFIED LSTM PREDICTOR STRATEGY")
+    print("============================================================")
+
+    # 1. Testing signal generation
+    print("\n1. Testing signal generation:")
+    signals = strategy.generate_signal("XAUUSDm", "M15") # Renamed method call
+    print(f"   Generated {len(signals)} signals")
     for signal in signals:
-        print(f"Signal: {signal.signal_type.value} at {signal.price:.2f}, "
+        print(f"   - Signal: {signal.signal_type.value} at {signal.price:.2f}, "
               f"Confidence: {signal.confidence:.3f}, Grade: {signal.grade.value}")
+        if signal.metadata:
+            print(f"     Predicted Direction: {signal.metadata.get('predicted_direction', 'N/A')}")
+            print(f"     Model Accuracy: {signal.metadata.get('model_accuracy', 'N/A'):.2f}")
     
-    # Get strategy info
+    # 2. Testing analysis method
+    print("\n2. Testing analysis method:")
+    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
+    print(f"   Analysis results keys: {analysis_results.keys()}")
+    print(f"   ML Available: {analysis_results.get('ml_available')}")
+    print(f"   Models Trained: {analysis_results.get('models_trained')}")
+    print(f"   Model Performance (Direction Accuracy): {analysis_results.get('model_performance_metrics', {}).get('direction_accuracy', 'N/A'):.2f}")
+    if 'latest_prediction_snapshot' in analysis_results:
+        print(f"   Latest Prediction Snapshot: {analysis_results['latest_prediction_snapshot']}")
+
+    # 3. Testing performance tracking
+    print("\n3. Testing performance tracking:")
+    summary = strategy.get_performance_summary()
+    print(f"   {summary}")
+    
+    # 4. Strategy Information
+    print("\n4. Strategy Information:")
     info = strategy.get_strategy_info()
-    print(f"\nStrategy Info:")
-    print(f"ML Available: {info['ml_available']}")
-    print(f"Models Trained: {info['models_trained']}")
-    print(f"Performance: {info['model_performance']}")
-    
-    print("LSTM Predictor strategy test completed!")
+    print(f"   Name: {info['name']}")
+    print(f"   Version: {info['version']}")
+    print(f"   Type: {info['type']}")
+    print(f"   ML Available: {info['ml_available']}")
+    print(f"   Models Trained: {info['models_trained']}")
+    print(f"   Min Confidence: {info['min_confidence']:.2f}")
+    print(f"   Prediction Horizon: {info['prediction_horizon']}")
+    print(f"   Sequence Length: {info['sequence_length']}")
+    print(f"   Feature Count: {info['feature_count']}")
+    print(f"   Training Data Size: {info['training_data_size']}")
+    print(f"   Parameters: {info['parameters']}")
+    print(f"   ML Model Performance (Direction Accuracy): {info['model_performance'].get('direction_accuracy', 'N/A'):.2f}")
+    print(f"   ML Model Performance (Magnitude MAE): {info['model_performance'].get('magnitude_mae', 'N/A'):.4f}")
+    print(f"   Trading Performance Summary:")
+    print(f"     Total Signals Generated: {info['trading_performance_summary']['total_signals_generated']}")
+    print(f"     Win Rate: {info['trading_performance_summary']['win_rate']:.2%}")
+    print(f"     Profit Factor: {info['trading_performance_summary']['profit_factor']:.2f}")
+    print(f"     Last Training Date: {info['trading_performance_summary']['last_training_date']}")
+
+
+    # Footer matching other strategy files
+    print("\n============================================================")
+    print("LSTM PREDICTOR STRATEGY TEST COMPLETED!")
+    print("============================================================")

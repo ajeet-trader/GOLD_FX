@@ -3,7 +3,7 @@ Order Blocks Strategy - Smart Money Concepts (SMC) - COMPLETE
 ============================================================
 Author: XAUUSD Trading System
 Version: 2.0.0
-Date: 2025-08-08
+Date: 2025-08-08 (Modified for base.py integration: 2025-08-15)
 
 Advanced Order Block detection and trading for XAUUSD:
 - Institutional order block identification
@@ -29,6 +29,13 @@ Dependencies:
     - datetime
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add src to path for module resolution when run as script
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -36,38 +43,9 @@ from typing import Dict, List, Any, Optional, Tuple
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
-# Import base classes
-try:
-    from ..signal_engine import Signal, SignalType, SignalGrade
-except ImportError:
-    # Fallback for testing
-    class SignalType(Enum):
-        BUY = "BUY"
-        SELL = "SELL"
-        HOLD = "HOLD"
-    
-    class SignalGrade(Enum):
-        A = "A"
-        B = "B" 
-        C = "C"
-        D = "D"
-    
-    @dataclass
-    class Signal:
-        timestamp: datetime
-        symbol: str
-        strategy_name: str
-        signal_type: SignalType
-        confidence: float
-        price: float
-        timeframe: str
-        strength: float = 0.0
-        grade: Optional[SignalGrade] = None
-        stop_loss: Optional[float] = None
-        take_profit: Optional[float] = None
-        metadata: Dict[str, Any] = None
+# Import base classes from src.core.base
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
 
 
 class OrderBlockType(Enum):
@@ -143,7 +121,7 @@ class FairValueGap:
         self.mid_point = (self.top + self.bottom) / 2
 
 
-class OrderBlocksStrategy:
+class OrderBlocksStrategy(AbstractStrategy): # Inherit from AbstractStrategy
     """
     Advanced Order Blocks Strategy using Smart Money Concepts
     
@@ -155,39 +133,46 @@ class OrderBlocksStrategy:
     - Managing risk with proper stop losses
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager):
+    # Modified __init__ signature to match AbstractStrategy
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         """Initialize Order Blocks strategy"""
-        self.config = config
-        self.mt5_manager = mt5_manager
+        super().__init__(config, mt5_manager, database) # Call parent __init__
         
-        # Strategy parameters
-        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.70)
-        self.swing_length = config.get('parameters', {}).get('swing_length', 10)
-        self.min_ob_strength = config.get('parameters', {}).get('order_block_min_strength', 2.0)
-        self.fvg_min_size = config.get('parameters', {}).get('fvg_min_size', 0.5)
-        self.liquidity_sweep_tolerance = config.get('parameters', {}).get('liquidity_sweep_tolerance', 1.2)
+        # Strategy parameters - use self.config from AbstractStrategy
+        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.70)
+        self.swing_length = self.config.get('parameters', {}).get('swing_length', 10)
+        self.min_ob_strength = self.config.get('parameters', {}).get('order_block_min_strength', 2.0)
+        self.fvg_min_size = self.config.get('parameters', {}).get('fvg_min_size', 0.5)
+        self.liquidity_sweep_tolerance = self.config.get('parameters', {}).get('liquidity_sweep_tolerance', 1.2)
         
         # Timeframe settings
-        self.structure_tf = config.get('timeframes', {}).get('structure', 'H4')
-        self.intermediate_tf = config.get('timeframes', {}).get('intermediate', 'H1') 
-        self.entry_tf = config.get('timeframes', {}).get('entry', 'M15')
-        self.execution_tf = config.get('timeframes', {}).get('execution', 'M5')
+        # Access timeframes from the 'timeframes' key in the config dict
+        self.structure_tf = self.config.get('timeframes', {}).get('structure', 'H4')
+        self.intermediate_tf = self.config.get('timeframes', {}).get('intermediate', 'H1') 
+        self.entry_tf = self.config.get('timeframes', {}).get('entry', 'M15')
+        self.execution_tf = self.config.get('timeframes', {}).get('execution', 'M5')
         
         # Order block storage
         self.active_order_blocks = []
         self.active_fvgs = []
         self.market_structure = MarketStructure.UNCERTAIN
         
-        # Performance tracking
-        self.success_rate = 0.78
-        self.profit_factor = 2.5
+        # Performance tracking is now handled by AbstractStrategy base class
+        # self.success_rate = 0.78
+        # self.profit_factor = 2.5
         
-        # Logger
-        self.logger = logging.getLogger('order_blocks_strategy')
+        # Logger is now handled by parent class
+        # self.logger = logging.getLogger('order_blocks_strategy')
     
-    def generate_signals(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
+    # Renamed from generate_signals to generate_signal to match AbstractStrategy
+    def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """Generate Order Block trading signals"""
+        signals = []
         try:
+            if not self.mt5_manager:
+                self.logger.warning("MT5 manager not available for signal generation.")
+                return []
+
             # Get market data for multiple timeframes
             data = self.mt5_manager.get_historical_data(symbol, timeframe, 500)
             if data is None or len(data) < 100:
@@ -203,35 +188,100 @@ class OrderBlocksStrategy:
             # Find Fair Value Gaps
             self._identify_fair_value_gaps(data, symbol, timeframe)
             
-            # Generate signals
-            signals = []
+            # Generate raw signals from internal logic
+            raw_signals = []
+            raw_signals.extend(self._generate_order_block_signals(data, symbol, timeframe))
+            raw_signals.extend(self._generate_fvg_signals(data, symbol, timeframe))
+            raw_signals.extend(self._generate_bos_signals(data, symbol, timeframe))
             
-            # Order block retest signals
-            ob_signals = self._generate_order_block_signals(data, symbol, timeframe)
-            signals.extend(ob_signals)
-            
-            # Fair Value Gap signals
-            fvg_signals = self._generate_fvg_signals(data, symbol, timeframe)
-            signals.extend(fvg_signals)
-            
-            # Break of Structure signals
-            bos_signals = self._generate_bos_signals(data, symbol, timeframe)
-            signals.extend(bos_signals)
-            
-            # Filter and validate signals
-            validated_signals = self._validate_signals(signals, data)
+            # Filter and validate signals using internal logic first
+            filtered_signals_internal = self._validate_signals(raw_signals, data)
             
             # Clean up old order blocks and FVGs
             self._cleanup_old_structures()
             
-            self.logger.info(f"Order Blocks generated {len(validated_signals)} signals from {len(signals)} candidates")
+            self.logger.info(f"Order Blocks generated {len(filtered_signals_internal)} signals from {len(raw_signals)} candidates")
             
-            return validated_signals
+            # Final validation using base class method
+            validated_signals_final = []
+            for signal in filtered_signals_internal:
+                if self.validate_signal(signal):
+                    validated_signals_final.append(signal)
+
+            return validated_signals_final
             
         except Exception as e:
-            self.logger.error(f"Order Blocks signal generation failed: {str(e)}")
+            self.logger.error(f"Order Blocks signal generation failed: {str(e)}", exc_info=True)
             return []
     
+    # New method: analyze, required by AbstractStrategy
+    def analyze(self, data: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
+        """
+        Performs detailed Order Block and SMC analysis without generating executable signals.
+        
+        Args:
+            data: Historical price data.
+            symbol: Trading symbol.
+            timeframe: Analysis timeframe.
+            
+        Returns:
+            Dictionary containing detailed analysis results.
+        """
+        try:
+            if data is None or len(data) < 100:
+                return {
+                    'status': 'Insufficient data for analysis',
+                    'required_bars': 100,
+                    'available_bars': len(data) if data is not None else 0
+                }
+            
+            self._update_market_structure(data, symbol, timeframe)
+            self._identify_order_blocks(data, symbol, timeframe)
+            self._identify_fair_value_gaps(data, symbol, timeframe)
+
+            analysis_output = {
+                'strategy': self.strategy_name,
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'analysis_time': datetime.now().isoformat(),
+                'data_points': len(data),
+                'current_market_structure': self.market_structure.value,
+                'active_order_blocks_count': len(self.active_order_blocks),
+                'active_fair_value_gaps_count': len(self.active_fvgs),
+                'recent_order_blocks': [],
+                'recent_fair_value_gaps': []
+            }
+
+            for ob in self.active_order_blocks[-5:]: # Show up to 5 most recent OBs
+                analysis_output['recent_order_blocks'].append({
+                    'id': ob.id,
+                    'type': ob.block_type.value,
+                    'range': (ob.low, ob.high),
+                    'timestamp': ob.timestamp.isoformat(),
+                    'strength': round(ob.strength, 2),
+                    'tested': ob.tested,
+                    'age_hours': round(ob.age_hours, 2)
+                })
+
+            for fvg in self.active_fvgs[-5:]: # Show up to 5 most recent FVGs
+                analysis_output['recent_fair_value_gaps'].append({
+                    'id': fvg.id,
+                    'type': fvg.gap_type.value,
+                    'range': (fvg.bottom, fvg.top),
+                    'size': round(fvg.size, 2),
+                    'timestamp': fvg.timestamp.isoformat(),
+                    'filled': fvg.filled
+                })
+            
+            self._cleanup_old_structures() # Clean up after analysis
+            
+            return analysis_output
+
+        except Exception as e:
+            self.logger.error(f"Error during Order Blocks analysis method: {str(e)}", exc_info=True)
+            return {'error': str(e)}
+
+
     def _update_market_structure(self, data: pd.DataFrame, symbol: str, timeframe: str) -> None:
         """Update current market structure analysis"""
         try:
@@ -267,7 +317,7 @@ class OrderBlocksStrategy:
                 self.market_structure = MarketStructure.UNCERTAIN
                 
         except Exception as e:
-            self.logger.error(f"Market structure update failed: {str(e)}")
+            self.logger.error(f"Market structure update failed: {str(e)}", exc_info=True)
             self.market_structure = MarketStructure.UNCERTAIN
     
     def _find_swing_points(self, data: pd.DataFrame) -> Tuple[List[float], List[float]]:
@@ -304,7 +354,7 @@ class OrderBlocksStrategy:
             return highs, lows
             
         except Exception as e:
-            self.logger.error(f"Swing point detection failed: {str(e)}")
+            self.logger.error(f"Swing point detection failed: {str(e)}", exc_info=True)
             return [], []
     
     def _identify_order_blocks(self, data: pd.DataFrame, symbol: str, timeframe: str) -> None:
@@ -365,7 +415,7 @@ class OrderBlocksStrategy:
                     self.logger.debug(f"Identified order block: {block_type.value} at {high}-{low} with strength {strength}")
                     
         except Exception as e:
-            self.logger.error(f"Order block identification failed: {str(e)}")
+            self.logger.error(f"Order block identification failed: {str(e)}", exc_info=True)
     
     def _find_impulse_moves(self, data: pd.DataFrame) -> List[Dict]:
         """Find significant impulse moves in price"""
@@ -423,7 +473,7 @@ class OrderBlocksStrategy:
             return impulses
             
         except Exception as e:
-            self.logger.error(f"Impulse move detection failed: {str(e)}")
+            self.logger.error(f"Impulse move detection failed: {str(e)}", exc_info=True)
             return []
     
     def _calculate_atr(self, data: pd.DataFrame, period: int = 14) -> Optional[float]:
@@ -448,10 +498,11 @@ class OrderBlocksStrategy:
             if len(tr_values) >= period:
                 return sum(tr_values[-period:]) / period
             else:
-                return sum(tr_values) / len(tr_values)
+                # Handle cases where data length is less than period, return average TR
+                return sum(tr_values) / len(tr_values) if tr_values else 0.0
                 
         except Exception as e:
-            self.logger.error(f"ATR calculation failed: {str(e)}")
+            self.logger.error(f"ATR calculation failed: {str(e)}", exc_info=True)
             return None
     
     def _check_break_of_structure(self, data: pd.DataFrame, start_idx: int, direction: str) -> bool:
@@ -477,7 +528,7 @@ class OrderBlocksStrategy:
                 return current_low < support_level
                 
         except Exception as e:
-            self.logger.error(f"BOS check failed: {str(e)}")
+            self.logger.error(f"BOS check failed: {str(e)}", exc_info=True)
             return False
     
     def _calculate_ob_strength(self, impulse: Dict, ob_candle: pd.Series, data: pd.DataFrame) -> float:
@@ -492,7 +543,7 @@ class OrderBlocksStrategy:
             # Factor 2: Volume (20% weight)
             if 'Volume' in ob_candle and ob_candle['Volume'] > 0:
                 avg_volume = data['Volume'].tail(20).mean()
-                volume_ratio = min(ob_candle['Volume'] / avg_volume, 3.0) / 3.0
+                volume_ratio = min(ob_candle['Volume'] / avg_volume, 3.0) / 3.0 if avg_volume > 0 else 0.1
                 strength += volume_ratio * 0.2
             else:
                 strength += 0.1  # Default if no volume data
@@ -518,7 +569,7 @@ class OrderBlocksStrategy:
             return min(strength, 1.0)  # Cap at 1.0
             
         except Exception as e:
-            self.logger.error(f"OB strength calculation failed: {str(e)}")
+            self.logger.error(f"OB strength calculation failed: {str(e)}", exc_info=True)
             return 0.5  # Default strength
     
     def _identify_fair_value_gaps(self, data: pd.DataFrame, symbol: str, timeframe: str) -> None:
@@ -570,7 +621,7 @@ class OrderBlocksStrategy:
                         self.active_fvgs.append(fvg)
                         
         except Exception as e:
-            self.logger.error(f"FVG identification failed: {str(e)}")
+            self.logger.error(f"FVG identification failed: {str(e)}", exc_info=True)
     
     def _generate_order_block_signals(self, data: pd.DataFrame, symbol: str, timeframe: str) -> List[Signal]:
         """Generate signals based on order block retests"""
@@ -605,19 +656,19 @@ class OrderBlocksStrategy:
                     confidence = self._calculate_ob_signal_confidence(ob, retest_signal, data)
                     
                     if confidence >= self.min_confidence:
-                        # Determine signal grade
-                        grade = self._determine_signal_grade(confidence, ob.strength)
+                        # Grade is now automatically determined by Signal's __post_init__
+                        # grade = self._determine_signal_grade(confidence, ob.strength)
                         
                         signal = Signal(
                             timestamp=current_time,
                             symbol=symbol,
-                            strategy_name="order_blocks",
+                            strategy_name=self.strategy_name, # Use self.strategy_name from base class
                             signal_type=signal_type,
                             confidence=confidence,
                             price=current_price,
                             timeframe=timeframe,
                             strength=ob.strength,
-                            grade=grade,
+                            # grade=grade, # Removed, as it's automatically calculated
                             stop_loss=stop_loss,
                             take_profit=take_profit,
                             metadata={
@@ -634,7 +685,7 @@ class OrderBlocksStrategy:
                         ob.tested = True  # Mark as tested
                         
         except Exception as e:
-            self.logger.error(f"OB signal generation failed: {str(e)}")
+            self.logger.error(f"OB signal generation failed: {str(e)}", exc_info=True)
         
         return signals
     
@@ -666,7 +717,7 @@ class OrderBlocksStrategy:
             return None
             
         except Exception as e:
-            self.logger.error(f"OB retest check failed: {str(e)}")
+            self.logger.error(f"OB retest check failed: {str(e)}", exc_info=True)
             return None
     
     def _calculate_ob_signal_confidence(self, ob: OrderBlock, retest_signal: Dict, data: pd.DataFrame) -> float:
@@ -702,7 +753,7 @@ class OrderBlocksStrategy:
             return min(confidence, 1.0)
             
         except Exception as e:
-            self.logger.error(f"OB signal confidence calculation failed: {str(e)}")
+            self.logger.error(f"OB signal confidence calculation failed: {str(e)}", exc_info=True)
             return 0.5
     
     def _generate_fvg_signals(self, data: pd.DataFrame, symbol: str, timeframe: str) -> List[Signal]:
@@ -728,18 +779,18 @@ class OrderBlocksStrategy:
                         confidence = self._calculate_fvg_confidence(fvg, current_price, data)
                         
                         if confidence >= self.min_confidence:
-                            grade = self._determine_signal_grade(confidence, 0.7)
+                            # grade = self._determine_signal_grade(confidence, 0.7) # Removed
                             
                             signal = Signal(
                                 timestamp=current_time,
                                 symbol=symbol,
-                                strategy_name="order_blocks_fvg",
+                                strategy_name=self.strategy_name, # Use self.strategy_name
                                 signal_type=signal_type,
                                 confidence=confidence,
                                 price=current_price,
                                 timeframe=timeframe,
                                 strength=0.7,
-                                grade=grade,
+                                # grade=grade, # Removed
                                 stop_loss=stop_loss,
                                 take_profit=take_profit,
                                 metadata={
@@ -761,18 +812,18 @@ class OrderBlocksStrategy:
                         confidence = self._calculate_fvg_confidence(fvg, current_price, data)
                         
                         if confidence >= self.min_confidence:
-                            grade = self._determine_signal_grade(confidence, 0.7)
+                            # grade = self._determine_signal_grade(confidence, 0.7) # Removed
                             
                             signal = Signal(
                                 timestamp=current_time,
                                 symbol=symbol,
-                                strategy_name="order_blocks_fvg",
+                                strategy_name=self.strategy_name, # Use self.strategy_name
                                 signal_type=signal_type,
                                 confidence=confidence,
                                 price=current_price,
                                 timeframe=timeframe,
                                 strength=0.7,
-                                grade=grade,
+                                # grade=grade, # Removed
                                 stop_loss=stop_loss,
                                 take_profit=take_profit,
                                 metadata={
@@ -786,7 +837,7 @@ class OrderBlocksStrategy:
                             signals.append(signal)
                             
         except Exception as e:
-            self.logger.error(f"FVG signal generation failed: {str(e)}")
+            self.logger.error(f"FVG signal generation failed: {str(e)}", exc_info=True)
         
         return signals
     
@@ -809,7 +860,9 @@ class OrderBlocksStrategy:
                 confidence += 0.15
             
             # Factor 3: Distance from gap (20%)
-            if fvg.gap_type == OrderBlockType.BULLISH:
+            if fvg.size == 0: # Avoid division by zero
+                distance = 1.0 # Max distance if no size
+            elif fvg.gap_type == OrderBlockType.BULLISH:
                 distance = abs(current_price - fvg.bottom) / fvg.size
             else:
                 distance = abs(current_price - fvg.top) / fvg.size
@@ -818,11 +871,14 @@ class OrderBlocksStrategy:
             confidence += distance_score
             
             # Factor 4: Volume context (15%)
-            recent_volume = data['Volume'].tail(5).mean()
-            avg_volume = data['Volume'].tail(20).mean()
-            if avg_volume > 0:
-                volume_ratio = min(recent_volume / avg_volume, 2.0) / 2.0
-                confidence += volume_ratio * 0.15
+            if 'Volume' in data.columns and not data['Volume'].empty:
+                recent_volume = data['Volume'].tail(5).mean()
+                avg_volume = data['Volume'].tail(20).mean()
+                if avg_volume > 0:
+                    volume_ratio = min(recent_volume / avg_volume, 2.0) / 2.0
+                    confidence += volume_ratio * 0.15
+            else:
+                confidence += 0.05 # Small credit if no volume data
             
             # Factor 5: Age of FVG (10%)
             age_hours = (datetime.now() - fvg.timestamp).total_seconds() / 3600
@@ -834,7 +890,7 @@ class OrderBlocksStrategy:
             return min(confidence, 1.0)
             
         except Exception as e:
-            self.logger.error(f"FVG confidence calculation failed: {str(e)}")
+            self.logger.error(f"FVG confidence calculation failed: {str(e)}", exc_info=True)
             return 0.6
     
     def _generate_bos_signals(self, data: pd.DataFrame, symbol: str, timeframe: str) -> List[Signal]:
@@ -863,18 +919,18 @@ class OrderBlocksStrategy:
                 confidence = self._calculate_bos_confidence(bos_detection, data)
                 
                 if confidence >= self.min_confidence:
-                    grade = self._determine_signal_grade(confidence, bos_detection['strength'])
+                    # grade = self._determine_signal_grade(confidence, bos_detection['strength']) # Removed
                     
                     signal = Signal(
                         timestamp=current_time,
                         symbol=symbol,
-                        strategy_name="order_blocks_bos",
+                        strategy_name=self.strategy_name, # Use self.strategy_name
                         signal_type=signal_type,
                         confidence=confidence,
                         price=current_price,
                         timeframe=timeframe,
                         strength=bos_detection['strength'],
-                        grade=grade,
+                        # grade=grade, # Removed
                         stop_loss=stop_loss,
                         take_profit=take_profit,
                         metadata={
@@ -887,7 +943,7 @@ class OrderBlocksStrategy:
                     signals.append(signal)
                     
         except Exception as e:
-            self.logger.error(f"BOS signal generation failed: {str(e)}")
+            self.logger.error(f"BOS signal generation failed: {str(e)}", exc_info=True)
         
         return signals
     
@@ -909,37 +965,37 @@ class OrderBlocksStrategy:
             if recent_high > prev_high:
                 # Confirm with volume if available
                 volume_surge = False
-                if 'Volume' in data.columns:
+                if 'Volume' in data.columns and not data['Volume'].empty:
                     recent_volume = data['Volume'].tail(5).mean()
                     avg_volume = data['Volume'].tail(20).mean()
-                    volume_surge = recent_volume > avg_volume * 1.5
+                    volume_surge = recent_volume > avg_volume * 1.5 if avg_volume > 0 else False
                 
                 return {
                     'direction': 'bullish',
                     'break_level': prev_high,
-                    'strength': min((recent_high - prev_high) / prev_high * 100, 1.0),
+                    'strength': min((recent_high - prev_high) / prev_high * 100, 1.0) if prev_high > 0 else 0.0,
                     'volume_surge': volume_surge
                 }
             
             # Check for bearish BOS
             elif recent_low < prev_low:
                 volume_surge = False
-                if 'Volume' in data.columns:
+                if 'Volume' in data.columns and not data['Volume'].empty:
                     recent_volume = data['Volume'].tail(5).mean()
                     avg_volume = data['Volume'].tail(20).mean()
-                    volume_surge = recent_volume > avg_volume * 1.5
+                    volume_surge = recent_volume > avg_volume * 1.5 if avg_volume > 0 else False
                 
                 return {
                     'direction': 'bearish',
                     'break_level': prev_low,
-                    'strength': min((prev_low - recent_low) / prev_low * 100, 1.0),
+                    'strength': min((prev_low - recent_low) / prev_low * 100, 1.0) if prev_low > 0 else 0.0,
                     'volume_surge': volume_surge
                 }
             
             return None
             
         except Exception as e:
-            self.logger.error(f"BOS detection failed: {str(e)}")
+            self.logger.error(f"BOS detection failed: {str(e)}", exc_info=True)
             return None
     
     def _calculate_bos_confidence(self, bos_detection: Dict, data: pd.DataFrame) -> float:
@@ -964,35 +1020,37 @@ class OrderBlocksStrategy:
                 confidence += 0.15  # BOS in ranging market can be significant
             
             # Factor 4: Timing (20%)
-            # Recent BOS is more reliable
+            # Recent BOS is more reliable - current logic doesn't explicitly factor timing.
+            # Assuming if a BOS is detected, it's recent enough to add confidence.
             confidence += 0.2
             
             return min(confidence, 1.0)
             
         except Exception as e:
-            self.logger.error(f"BOS confidence calculation failed: {str(e)}")
+            self.logger.error(f"BOS confidence calculation failed: {str(e)}", exc_info=True)
             return 0.6
     
-    def _determine_signal_grade(self, confidence: float, strength: float) -> SignalGrade:
-        """Determine signal grade based on confidence and strength"""
-        try:
-            combined_score = (confidence * 0.7) + (strength * 0.3)
+    # Removed _determine_signal_grade as it's now handled by base.Signal's __post_init__
+    # def _determine_signal_grade(self, confidence: float, strength: float) -> SignalGrade:
+    #     """Determine signal grade based on confidence and strength"""
+    #     try:
+    #         combined_score = (confidence * 0.7) + (strength * 0.3)
             
-            if combined_score >= 0.85:
-                return SignalGrade.A
-            elif combined_score >= 0.75:
-                return SignalGrade.B
-            elif combined_score >= 0.65:
-                return SignalGrade.C
-            else:
-                return SignalGrade.D
+    #         if combined_score >= 0.85:
+    #             return SignalGrade.A
+    #         elif combined_score >= 0.75:
+    #             return SignalGrade.B
+    #         elif combined_score >= 0.65:
+    #             return SignalGrade.C
+    #         else:
+    #             return SignalGrade.D
                 
-        except Exception as e:
-            self.logger.error(f"Signal grade determination failed: {str(e)}")
-            return SignalGrade.C
+    #     except Exception as e:
+    #         self.logger.error(f"Signal grade determination failed: {str(e)}")
+    #         return SignalGrade.C
     
     def _validate_signals(self, signals: List[Signal], data: pd.DataFrame) -> List[Signal]:
-        """Validate and filter signals"""
+        """Validate and filter signals (Order Blocks Strategy's specific validation)"""
         validated_signals = []
         
         try:
@@ -1017,12 +1075,13 @@ class OrderBlocksStrategy:
                     
                     if risk > 0 and (reward / risk) >= 1.5:  # Minimum 1.5:1 RR
                         validated_signals.append(signal)
-                else:
+                else: # If SL/TP not set, skip RR check but still consider valid
                     validated_signals.append(signal)
                     
         except Exception as e:
-            self.logger.error(f"Signal validation failed: {str(e)}")
-            return signals  # Return original signals if validation fails
+            self.logger.error(f"Order Blocks internal signal validation failed: {str(e)}", exc_info=True)
+            # If internal validation fails, return original signals to allow base class to try
+            return signals  
         
         return validated_signals
     
@@ -1044,10 +1103,13 @@ class OrderBlocksStrategy:
             ]
             
         except Exception as e:
-            self.logger.error(f"Structure cleanup failed: {str(e)}")
+            self.logger.error(f"Structure cleanup failed: {str(e)}", exc_info=True)
     
     def get_strategy_info(self) -> Dict[str, Any]:
         """Get strategy information and statistics"""
+        # Get performance summary from base class
+        base_performance = self.get_performance_summary()
+
         return {
             'name': 'Order Blocks Strategy',
             'version': '2.0.0',
@@ -1057,9 +1119,11 @@ class OrderBlocksStrategy:
             'active_fvgs': len(self.active_fvgs),
             'market_structure': self.market_structure.value,
             'min_confidence': self.min_confidence,
-            'success_rate': self.success_rate,
-            'profit_factor': self.profit_factor,
-            'parameters': {
+            'performance': { # This structure matches the original request
+                'success_rate': base_performance['win_rate'],
+                'profit_factor': base_performance['profit_factor']
+            },
+            'parameters': { # Parameters pulled from config.parameters directly
                 'swing_length': self.swing_length,
                 'min_ob_strength': self.min_ob_strength,
                 'fvg_min_size': self.fvg_min_size,
@@ -1092,7 +1156,6 @@ if __name__ == "__main__":
     # Mock MT5 manager for testing
     class MockMT5Manager:
         def get_historical_data(self, symbol, timeframe, bars):
-            # Return sample data for testing
             import pandas as pd
             import numpy as np
             from datetime import datetime, timedelta
@@ -1120,18 +1183,56 @@ if __name__ == "__main__":
     
     # Create strategy instance
     mock_mt5 = MockMT5Manager()
-    strategy = OrderBlocksStrategy(test_config, mock_mt5)
+    strategy = OrderBlocksStrategy(test_config, mock_mt5, database=None)
     
-    # Generate signals
-    signals = strategy.generate_signals("XAUUSDm", "M15")
-    
-    print(f"Generated {len(signals)} Order Block signals")
+    # Output header matching other strategy files
+    print("============================================================")
+    print("TESTING MODIFIED ORDER BLOCKS STRATEGY")
+    print("============================================================")
+
+    # 1. Testing signal generation
+    print("\n1. Testing signal generation:")
+    signals = strategy.generate_signal("XAUUSDm", "M15") # Renamed method call
+    print(f"   Generated {len(signals)} signals")
     for signal in signals:
-        print(f"Signal: {signal.signal_type.value} at {signal.price}, "
+        print(f"   - Signal: {signal.signal_type.value} at {signal.price:.2f}, "
               f"Confidence: {signal.confidence:.2f}, Grade: {signal.grade.value}")
+        if signal.metadata:
+            print(f"     Type: {signal.metadata.get('order_block_type', signal.metadata.get('fvg_type', signal.metadata.get('bos_direction', 'N/A')))}")
+            print(f"     Market Structure: {signal.metadata.get('market_structure', 'N/A')}")
     
-    # Get strategy info
-    info = strategy.get_strategy_info()
-    print(f"\nStrategy Info: {info}")
+    # 2. Testing analysis method
+    print("\n2. Testing analysis method:")
+    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
+    print(f"   Analysis results keys: {analysis_results.keys()}")
+    print(f"   Current Market Structure: {analysis_results.get('current_market_structure', 'N/A')}")
+    print(f"   Active Order Blocks: {analysis_results.get('active_order_blocks_count', 0)}")
+    print(f"   Active FVGs: {analysis_results.get('active_fair_value_gaps_count', 0)}")
+    if analysis_results.get('recent_order_blocks'):
+        print("   Recent Order Block Example:", analysis_results['recent_order_blocks'][0])
     
-    print("Order Blocks strategy test completed!")
+    # 3. Testing performance tracking
+    print("\n3. Testing performance tracking:")
+    summary = strategy.get_performance_summary()
+    print(f"   {summary}")
+    
+    # 4. Strategy Information
+    print("\n4. Strategy Information:")
+    strategy_info = strategy.get_strategy_info()
+    print(f"   Name: {strategy_info['name']}")
+    print(f"   Version: {strategy_info['version']}")
+    print(f"   Type: {strategy_info['type']}")
+    print(f"   Timeframes: {', '.join(strategy_info['timeframes'])}")
+    print(f"   Min Confidence: {strategy_info['min_confidence']:.2f}")
+    print(f"   Performance:")
+    print(f"     Success Rate: {strategy_info['performance']['success_rate']:.2%}")
+    print(f"     Profit Factor: {strategy_info['performance']['profit_factor']:.2f}")
+    print(f"   Parameters:")
+    for param, value in strategy_info['parameters'].items():
+        print(f"     - {param}: {value}")
+
+    # Footer matching other strategy files
+    print("\n============================================================")
+    print("ORDER BLOCKS STRATEGY TEST COMPLETED!")
+    print("============================================================")

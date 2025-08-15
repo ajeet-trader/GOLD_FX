@@ -3,7 +3,7 @@ Harmonic Pattern Strategy - Advanced Pattern Recognition
 ======================================================
 Author: XAUUSD Trading System
 Version: 2.0.0
-Date: 2025-08-09
+Date: 2025-08-09 (Modified for base.py integration: 2025-08-15)
 
 Advanced harmonic pattern recognition for XAUUSD:
 - Gartley patterns (bullish/bearish)
@@ -20,6 +20,12 @@ Features:
 - Risk/reward optimization
 """
 
+import sys
+import os
+from pathlib import Path
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -27,38 +33,8 @@ from typing import Dict, List, Any, Optional, Tuple
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
-# Import base classes
-try:
-    from ..signal_engine import Signal, SignalType, SignalGrade
-except ImportError:
-    # Fallback for testing
-    class SignalType(Enum):
-        BUY = "BUY"
-        SELL = "SELL"
-        HOLD = "HOLD"
-    
-    class SignalGrade(Enum):
-        A = "A"
-        B = "B" 
-        C = "C"
-        D = "D"
-    
-    @dataclass
-    class Signal:
-        timestamp: datetime
-        symbol: str
-        strategy_name: str
-        signal_type: SignalType
-        confidence: float
-        price: float
-        timeframe: str
-        strength: float = 0.0
-        grade: Optional[SignalGrade] = None
-        stop_loss: Optional[float] = None
-        take_profit: Optional[float] = None
-        metadata: Dict[str, Any] = None
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
 
 class PatternType(Enum):
@@ -99,7 +75,7 @@ class HarmonicPattern:
         self.prz_midpoint = (self.completion_zone[0] + self.completion_zone[1]) / 2
 
 
-class HarmonicStrategy:
+class HarmonicStrategy(AbstractStrategy):
     """
     Advanced Harmonic Pattern Recognition Strategy
     
@@ -111,21 +87,18 @@ class HarmonicStrategy:
     - Cypher: XA=.382/.618, AB=1.13/1.414, BC=.382/.886, CD=1.272/2.0, XD=.786
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager):
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         """Initialize Harmonic strategy"""
-        self.config = config
-        self.mt5_manager = mt5_manager
+        super().__init__(config, mt5_manager, database)
         
-        # Strategy parameters
-        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.72)
-        self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
-        self.fib_tolerance = 0.05  # 5% tolerance for Fibonacci ratios
+        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.72)
+        self.lookback_period = self.config.get('parameters', {}).get('lookback_period', 200)
+        self.fib_tolerance = 0.05
         self.min_pattern_score = 0.7
         
-        # Pattern definitions with Fibonacci ratios
         self.pattern_ratios = {
             PatternType.GARTLEY: {
-                'xab': (0.618, 0.05),  # (target, tolerance)
+                'xab': (0.618, 0.05),
                 'abc': (0.382, 0.886),
                 'bcd': (1.13, 1.618),
                 'xad': (0.786, 0.05)
@@ -156,56 +129,97 @@ class HarmonicStrategy:
             }
         }
         
-        # Performance tracking
-        self.detected_patterns = []
-        self.success_rate = 0.72
-        self.profit_factor = 2.1
-        
-        # Logger
-        self.logger = logging.getLogger('harmonic_strategy')
+        self.detected_patterns_count = 0
     
-    def generate_signals(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
+    def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """Generate harmonic pattern trading signals"""
+        signals = []
         try:
-            # Get market data
+            if not self.mt5_manager:
+                self.logger.warning("MT5 manager not available for signal generation.")
+                return []
+
             data = self.mt5_manager.get_historical_data(symbol, timeframe, self.lookback_period)
             if data is None or len(data) < 50:
                 self.logger.warning(f"Insufficient data for harmonic analysis: {len(data) if data is not None else 0}")
                 return []
             
-            # Find pivot points
             pivots = self._find_pivot_points(data)
             if len(pivots) < 5:
                 return []
             
-            # Detect harmonic patterns
             patterns = self._detect_harmonic_patterns(data, pivots)
+            self.detected_patterns_count = len(patterns)
             
-            # Generate signals from patterns
-            signals = []
             for pattern in patterns:
                 signal = self._pattern_to_signal(pattern, data, symbol, timeframe)
                 if signal:
                     signals.append(signal)
             
-            # Filter overlapping patterns
             filtered_signals = self._filter_overlapping_patterns(signals)
             
             self.logger.info(f"Harmonic generated {len(filtered_signals)} signals from {len(patterns)} patterns")
             
-            return filtered_signals
+            validated_signals = []
+            for signal in filtered_signals:
+                if self.validate_signal(signal):
+                    validated_signals.append(signal)
+            
+            return validated_signals
             
         except Exception as e:
-            self.logger.error(f"Harmonic signal generation failed: {str(e)}")
+            self.logger.error(f"Harmonic signal generation failed: {str(e)}", exc_info=True)
             return []
     
+    def analyze(self, data: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
+        """
+        Perform detailed harmonic pattern analysis without generating signals.
+        """
+        try:
+            if data is None or len(data) < 50:
+                return {
+                    'error': 'Insufficient data for analysis',
+                    'required_bars': 50,
+                    'available_bars': len(data) if data is not None else 0
+                }
+            
+            pivots = self._find_pivot_points(data)
+            patterns = self._detect_harmonic_patterns(data, pivots)
+
+            analysis_results = {
+                'strategy': self.strategy_name,
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'analysis_time': datetime.now().isoformat(),
+                'data_points': len(data),
+                'pivots_detected': len(pivots),
+                'harmonic_patterns_detected_count': len(patterns),
+                'patterns': []
+            }
+
+            for pattern in patterns:
+                analysis_results['patterns'].append({
+                    'type': pattern.pattern_type.value,
+                    'direction': pattern.direction,
+                    'x_point': pattern.x_point,
+                    'd_point': pattern.d_point,
+                    'pattern_score': round(pattern.pattern_score, 3),
+                    'confidence': round(pattern.confidence, 3),
+                    'completion_zone': pattern.completion_zone
+                })
+            
+            return analysis_results
+
+        except Exception as e:
+            self.logger.error(f"Error during Harmonic analysis: {str(e)}", exc_info=True)
+            return {'error': str(e)}
+
     def _find_pivot_points(self, data: pd.DataFrame) -> List[Tuple[int, float, str]]:
         """Find significant pivot points (swing highs and lows)"""
         pivots = []
-        window = 5  # Look for pivots in 5-bar window
+        window = 5
         
         for i in range(window, len(data) - window):
-            # Check for swing high
             is_high = True
             current_high = data['High'].iloc[i]
             for j in range(i - window, i + window + 1):
@@ -216,7 +230,6 @@ class HarmonicStrategy:
             if is_high:
                 pivots.append((i, current_high, 'high'))
             
-            # Check for swing low
             is_low = True
             current_low = data['Low'].iloc[i]
             for j in range(i - window, i + window + 1):
@@ -227,7 +240,6 @@ class HarmonicStrategy:
             if is_low:
                 pivots.append((i, current_low, 'low'))
         
-        # Sort by index
         pivots.sort(key=lambda x: x[0])
         
         return pivots
@@ -236,44 +248,41 @@ class HarmonicStrategy:
         """Detect harmonic patterns from pivot points"""
         patterns = []
         
-        # Need at least 5 pivots for a pattern
         for i in range(len(pivots) - 4):
-            # Get potential XABCD points
             points = pivots[i:i+5]
             
-            # Check for valid pattern structure (alternating high/low)
             if not self._is_valid_structure(points):
                 continue
             
-            # Extract points
             x_point = (points[0][0], points[0][1])
             a_point = (points[1][0], points[1][1])
             b_point = (points[2][0], points[2][1])
             c_point = (points[3][0], points[3][1])
             d_point = (points[4][0], points[4][1])
             
-            # Determine direction
             direction = 'bullish' if points[0][2] == 'high' else 'bearish'
             
-            # Calculate Fibonacci ratios
-            xab_ratio = abs((b_point[1] - a_point[1]) / (a_point[1] - x_point[1]))
-            abc_ratio = abs((c_point[1] - b_point[1]) / (b_point[1] - a_point[1]))
-            bcd_ratio = abs((d_point[1] - c_point[1]) / (c_point[1] - b_point[1]))
-            xad_ratio = abs((d_point[1] - a_point[1]) / (a_point[1] - x_point[1]))
+            xab_denom = (a_point[1] - x_point[1])
+            xab_ratio = abs((b_point[1] - a_point[1]) / xab_denom) if xab_denom != 0 else 0.0
+
+            abc_denom = (b_point[1] - a_point[1])
+            abc_ratio = abs((c_point[1] - b_point[1]) / abc_denom) if abc_denom != 0 else 0.0
+
+            bcd_denom = (c_point[1] - b_point[1])
+            bcd_ratio = abs((d_point[1] - c_point[1]) / bcd_denom) if bcd_denom != 0 else 0.0
             
-            # Check each pattern type
+            xad_denom = (a_point[1] - x_point[1])
+            xad_ratio = abs((d_point[1] - a_point[1]) / xad_denom) if xad_denom != 0 else 0.0
+            
             for pattern_type, ratios in self.pattern_ratios.items():
                 if self._check_pattern_ratios(xab_ratio, abc_ratio, bcd_ratio, xad_ratio, ratios):
-                    # Calculate pattern score
                     pattern_score = self._calculate_pattern_score(
                         xab_ratio, abc_ratio, bcd_ratio, xad_ratio, ratios
                     )
                     
                     if pattern_score >= self.min_pattern_score:
-                        # Calculate PRZ (Potential Reversal Zone)
                         prz = self._calculate_prz(x_point, a_point, b_point, c_point, pattern_type)
                         
-                        # Create pattern
                         pattern = HarmonicPattern(
                             pattern_type=pattern_type,
                             direction=direction,
@@ -297,7 +306,6 @@ class HarmonicStrategy:
     
     def _is_valid_structure(self, points: List[Tuple[int, float, str]]) -> bool:
         """Check if points form valid pattern structure"""
-        # Should alternate between high and low
         expected_sequence = ['high', 'low', 'high', 'low', 'high']
         alt_sequence = ['low', 'high', 'low', 'high', 'low']
         
@@ -308,27 +316,20 @@ class HarmonicStrategy:
     def _check_pattern_ratios(self, xab: float, abc: float, bcd: float, xad: float, 
                              expected_ratios: Dict) -> bool:
         """Check if ratios match expected pattern ratios"""
-        # Check XAB ratio
         xab_range = expected_ratios['xab']
         if isinstance(xab_range[1], float) and xab_range[1] < 1:
-            # It's a tolerance value
             if not (xab_range[0] * (1 - xab_range[1]) <= xab <= xab_range[0] * (1 + xab_range[1])):
                 return False
         else:
-            # It's a range
             if not (xab_range[0] <= xab <= xab_range[1]):
                 return False
         
-        # Similar checks for other ratios
-        # ABC ratio
         if not (expected_ratios['abc'][0] <= abc <= expected_ratios['abc'][1]):
             return False
         
-        # BCD ratio
         if not (expected_ratios['bcd'][0] <= bcd <= expected_ratios['bcd'][1]):
             return False
         
-        # XAD ratio
         xad_range = expected_ratios['xad']
         if isinstance(xad_range[1], float) and xad_range[1] < 1:
             if not (xad_range[0] * (1 - xad_range[1]) <= xad <= xad_range[0] * (1 + xad_range[1])):
@@ -344,22 +345,18 @@ class HarmonicStrategy:
         """Calculate pattern accuracy score"""
         score = 0.0
         
-        # Score XAB ratio
         xab_target = expected_ratios['xab'][0]
         xab_score = 1.0 - min(abs(xab - xab_target) / xab_target, 1.0)
         score += xab_score * 0.25
         
-        # Score ABC ratio
         abc_mid = (expected_ratios['abc'][0] + expected_ratios['abc'][1]) / 2
         abc_score = 1.0 - min(abs(abc - abc_mid) / abc_mid, 1.0)
         score += abc_score * 0.25
         
-        # Score BCD ratio
         bcd_mid = (expected_ratios['bcd'][0] + expected_ratios['bcd'][1]) / 2
         bcd_score = 1.0 - min(abs(bcd - bcd_mid) / bcd_mid, 1.0)
         score += bcd_score * 0.25
         
-        # Score XAD ratio
         xad_target = expected_ratios['xad'][0]
         xad_score = 1.0 - min(abs(xad - xad_target) / xad_target, 1.0)
         score += xad_score * 0.25
@@ -369,12 +366,11 @@ class HarmonicStrategy:
     def _calculate_prz(self, x_point: Tuple, a_point: Tuple, b_point: Tuple, 
                       c_point: Tuple, pattern_type: PatternType) -> Tuple[float, float]:
         """Calculate Potential Reversal Zone"""
-        # Different calculations based on pattern type
         xa_distance = abs(a_point[1] - x_point[1])
         
         if pattern_type == PatternType.GARTLEY:
             prz_center = a_point[1] + (xa_distance * 0.786)
-            prz_range = xa_distance * 0.03  # 3% of XA
+            prz_range = xa_distance * 0.03
         elif pattern_type == PatternType.BUTTERFLY:
             prz_center = a_point[1] + (xa_distance * 1.27)
             prz_range = xa_distance * 0.05
@@ -384,7 +380,7 @@ class HarmonicStrategy:
         elif pattern_type == PatternType.CRAB:
             prz_center = a_point[1] + (xa_distance * 1.618)
             prz_range = xa_distance * 0.05
-        else:  # CYPHER
+        else:
             prz_center = a_point[1] + (xa_distance * 0.786)
             prz_range = xa_distance * 0.03
         
@@ -393,31 +389,23 @@ class HarmonicStrategy:
     def _calculate_pattern_confidence(self, pattern_score: float, data: pd.DataFrame, 
                                     d_index: int) -> float:
         """Calculate confidence based on pattern quality and market context"""
-        confidence = pattern_score * 0.5  # Base confidence from pattern score
+        confidence = pattern_score * 0.5
         
-        # Add confidence for pattern completion
-        current_price = data['Close'].iloc[-1]
-        d_price = data['Close'].iloc[d_index]
-        
-        # Check if pattern is recently completed
-        if len(data) - d_index < 10:  # Within last 10 bars
+        if len(data) - d_index < 10:
             confidence += 0.2
         
-        # Check volume confirmation (if available)
         if 'Volume' in data.columns and d_index > 20:
             recent_volume = data['Volume'].iloc[d_index-5:d_index+5].mean()
             avg_volume = data['Volume'].iloc[d_index-20:d_index].mean()
             if recent_volume > avg_volume * 1.2:
                 confidence += 0.1
         
-        # Add trend alignment bonus
         sma_20 = data['Close'].rolling(20).mean().iloc[d_index]
         sma_50 = data['Close'].rolling(50).mean().iloc[d_index] if len(data) > 50 else sma_20
         
-        if sma_20 > sma_50:  # Uptrend
+        if sma_20 > sma_50:
             confidence += 0.1
         
-        # Cap confidence
         return min(confidence, 0.95)
     
     def _pattern_to_signal(self, pattern: HarmonicPattern, data: pd.DataFrame, 
@@ -427,54 +415,47 @@ class HarmonicStrategy:
             current_price = data['Close'].iloc[-1]
             current_time = data.index[-1]
             
-            # Check if price is in PRZ
             if not (pattern.completion_zone[0] <= current_price <= pattern.completion_zone[1]):
-                # Check if pattern is still valid (not too far from PRZ)
                 distance_from_prz = min(
                     abs(current_price - pattern.completion_zone[0]),
                     abs(current_price - pattern.completion_zone[1])
                 )
                 
                 prz_width = pattern.completion_zone[1] - pattern.completion_zone[0]
+                if prz_width == 0:
+                    return None
                 if distance_from_prz > prz_width * 2:
-                    return None  # Pattern invalidated
+                    return None
             
-            # Determine signal type
             if pattern.direction == 'bullish':
                 signal_type = SignalType.BUY
-                stop_loss = pattern.x_point[1] * 0.995  # Below X point
+                stop_loss = pattern.x_point[1] * 0.995
                 
-                # Target based on pattern type
                 if pattern.pattern_type in [PatternType.BUTTERFLY, PatternType.CRAB]:
-                    take_profit = pattern.a_point[1]  # Conservative target at A
+                    take_profit = pattern.a_point[1]
                 else:
-                    take_profit = pattern.b_point[1]  # Target at B point
+                    take_profit = pattern.b_point[1]
             else:
                 signal_type = SignalType.SELL
-                stop_loss = pattern.x_point[1] * 1.005  # Above X point
+                stop_loss = pattern.x_point[1] * 1.005
                 
                 if pattern.pattern_type in [PatternType.BUTTERFLY, PatternType.CRAB]:
                     take_profit = pattern.a_point[1]
                 else:
                     take_profit = pattern.b_point[1]
             
-            # Calculate confidence
             if pattern.confidence < self.min_confidence:
                 return None
-            
-            # Determine signal grade
-            grade = self._determine_signal_grade(pattern.confidence, pattern.pattern_score)
             
             return Signal(
                 timestamp=current_time,
                 symbol=symbol,
-                strategy_name="harmonic_patterns",
+                strategy_name=self.strategy_name,
                 signal_type=signal_type,
                 confidence=pattern.confidence,
                 price=current_price,
                 timeframe=timeframe,
                 strength=pattern.pattern_score,
-                grade=grade,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
                 metadata={
@@ -490,7 +471,7 @@ class HarmonicStrategy:
             )
             
         except Exception as e:
-            self.logger.error(f"Pattern to signal conversion failed: {str(e)}")
+            self.logger.error(f"Pattern to signal conversion failed: {str(e)}", exc_info=True)
             return None
     
     def _filter_overlapping_patterns(self, signals: List[Signal]) -> List[Signal]:
@@ -498,11 +479,9 @@ class HarmonicStrategy:
         if len(signals) <= 1:
             return signals
         
-        # Group by signal type
         buy_signals = [s for s in signals if s.signal_type == SignalType.BUY]
         sell_signals = [s for s in signals if s.signal_type == SignalType.SELL]
         
-        # Keep best signal for each type
         filtered = []
         
         if buy_signals:
@@ -515,21 +494,16 @@ class HarmonicStrategy:
         
         return filtered
     
-    def _determine_signal_grade(self, confidence: float, pattern_score: float) -> SignalGrade:
-        """Determine signal grade based on confidence and pattern score"""
-        combined_score = (confidence * 0.6) + (pattern_score * 0.4)
-        
-        if combined_score >= 0.85:
-            return SignalGrade.A
-        elif combined_score >= 0.75:
-            return SignalGrade.B
-        elif combined_score >= 0.65:
-            return SignalGrade.C
-        else:
-            return SignalGrade.D
-    
     def get_strategy_info(self) -> Dict[str, Any]:
-        """Get strategy information and performance"""
+        """
+        Get strategy information and performance.
+        """
+        # Ensure self.performance is initialized; it's part of AbstractStrategy
+        # For test cases where __init__ might not run fully (e.g., direct script execution),
+        # ensure a default is available.
+        if not hasattr(self, 'performance'):
+            self.performance = self._create_empty_performance_metrics()
+
         return {
             'name': 'Harmonic Patterns Strategy',
             'type': 'Technical',
@@ -539,19 +513,26 @@ class HarmonicStrategy:
             'min_confidence': self.min_confidence,
             'fib_tolerance': self.fib_tolerance,
             'min_pattern_score': self.min_pattern_score,
-            'detected_patterns_count': len(self.detected_patterns),
-            'performance': {
-                'success_rate': self.success_rate,
-                'profit_factor': self.profit_factor
+            'detected_patterns_count': self.detected_patterns_count,
+            'performance': { # This structure matches the original request
+                'success_rate': self.performance.win_rate,
+                'profit_factor': self.performance.profit_factor
             }
         }
 
+    # Helper for get_strategy_info to handle uninitialized performance in direct script runs
+    def _create_empty_performance_metrics(self):
+        from src.core.base import StrategyPerformance
+        return StrategyPerformance(
+            strategy_name=self.strategy_name,
+            win_rate=0.0,
+            profit_factor=0.0
+        )
 
-# Testing function
+
 if __name__ == "__main__":
     """Test the Harmonic strategy"""
     
-    # Test configuration
     test_config = {
         'parameters': {
             'confidence_threshold': 0.72,
@@ -559,7 +540,6 @@ if __name__ == "__main__":
         }
     }
     
-    # Mock MT5 manager for testing
     class MockMT5Manager:
         def get_historical_data(self, symbol, timeframe, bars):
             import pandas as pd
@@ -569,13 +549,11 @@ if __name__ == "__main__":
             dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
                                  end=datetime.now(), freq='15Min')
             
-            # Generate pattern-like data
             np.random.seed(42)
             x = 0
             prices = []
             
             for i in range(len(dates)):
-                # Create wave patterns
                 x += 0.1
                 if i % 50 < 10:
                     price = 1950 + 10 * np.sin(x) + np.random.normal(0, 0.5)
@@ -600,22 +578,50 @@ if __name__ == "__main__":
             
             return data
     
-    # Create strategy instance
     mock_mt5 = MockMT5Manager()
-    strategy = HarmonicStrategy(test_config, mock_mt5)
+    strategy = HarmonicStrategy(test_config, mock_mt5, database=None)
     
-    # Generate signals
-    signals = strategy.generate_signals("XAUUSDm", "M15")
-    
-    print(f"Generated {len(signals)} Harmonic signals")
+    print("============================================================")
+    print("TESTING MODIFIED HARMONIC STRATEGY")
+    print("============================================================")
+
+    print("\n1. Testing signal generation:")
+    signals = strategy.generate_signal("XAUUSDm", "M15")
+    print(f"   Generated {len(signals)} signals")
     for signal in signals:
-        print(f"Signal: {signal.signal_type.value} at {signal.price:.2f}, "
+        print(f"   - {signal.signal_type.value} at {signal.price:.2f}, "
               f"Confidence: {signal.confidence:.3f}, Grade: {signal.grade.value}")
-        print(f"  Pattern: {signal.metadata.get('pattern_type', 'Unknown')}")
-        print(f"  Pattern Score: {signal.metadata.get('pattern_score', 0)}")
+        print(f"     Pattern: {signal.metadata.get('pattern_type', 'Unknown')}")
+        print(f"     Pattern Score: {signal.metadata.get('pattern_score', 0)}")
     
-    # Get strategy info
-    info = strategy.get_strategy_info()
-    print(f"\nStrategy Info: {info}")
+    print("\n2. Testing analysis method:")
+    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
+    print(f"   Analysis results keys: {analysis_results.keys()}")
+    if 'patterns' in analysis_results:
+        print(f"   Detected patterns in analysis: {len(analysis_results['patterns'])}")
+
+    print("\n3. Testing performance tracking:")
+    summary = strategy.get_performance_summary()
+    print(f"   {summary}")
+
+    # --- New section to display strategy info and important details ---
+    print("\n4. Strategy Information:")
+    strategy_info = strategy.get_strategy_info()
+    print(f"   Name: {strategy_info['name']}")
+    print(f"   Version: {strategy_info['version']}")
+    print(f"   Description: {strategy_info['description']}")
+    print(f"   Type: {strategy_info['type']}")
+    print(f"   Patterns Supported: {', '.join(strategy_info['patterns_supported'])}")
+    print(f"   Minimum Confidence: {strategy_info['min_confidence']:.2f}")
+    print(f"   Fibonacci Tolerance: {strategy_info['fib_tolerance']:.2f}")
+    print(f"   Minimum Pattern Score: {strategy_info['min_pattern_score']:.2f}")
+    print(f"   Detected Patterns Count (Last Run): {strategy_info['detected_patterns_count']}")
+    print(f"   Performance Summary:")
+    print(f"     Success Rate: {strategy_info['performance']['success_rate']:.2%}")
+    print(f"     Profit Factor: {strategy_info['performance']['profit_factor']:.2f}")
+    # --- End of new section ---
     
-    print("Harmonic strategy test completed!")
+    print("\n============================================================")
+    print("HARMONIC STRATEGY TEST COMPLETED!")
+    print("============================================================")
