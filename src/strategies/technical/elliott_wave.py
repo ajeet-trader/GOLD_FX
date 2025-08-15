@@ -36,6 +36,7 @@ from datetime import datetime, timedelta
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
 # Import base classes from signal_engine
 try:

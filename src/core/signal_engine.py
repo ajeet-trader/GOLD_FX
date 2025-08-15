@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from enum import Enum
 import yaml
 from pathlib import Path
+from src.core.base import Signal, SignalType, SignalGrade, MarketRegime, MarketCondition
 
 class SignalType(Enum):
     """Signal types"""

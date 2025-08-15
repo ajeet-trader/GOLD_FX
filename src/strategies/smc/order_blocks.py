@@ -36,6 +36,7 @@ from typing import Dict, List, Any, Optional, Tuple
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
 # Import base classes
 try:

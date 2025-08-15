@@ -1,10 +1,9 @@
-
 """
 Ichimoku Cloud Strategy - Advanced Technical Analysis
 ===================================================
 Author: XAUUSD Trading System
-Version: 2.0.0
-Date: 2025-08-08
+Version: 3.0.0
+Date: 2025-08-08 (Modified: 2025-01-15)
 
 Advanced Ichimoku Kinko Hyo implementation for XAUUSD trading:
 - Multi-timeframe analysis
@@ -26,6 +25,15 @@ Dependencies:
     - datetime
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add src to path
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -33,40 +41,9 @@ from typing import Dict, List, Any, Optional, Tuple
 import logging
 from dataclasses import dataclass
 
-# Import base strategy class and signal structure
-try:
-    from ..signal_engine import Signal, SignalType, SignalGrade
-    #from src.core.signal_engine import Signal, SignalType, SignalGrade
-except ImportError:
-    # Fallback for testing
-    from enum import Enum
-    
-    class SignalType(Enum):
-        BUY = "BUY"
-        SELL = "SELL"
-        HOLD = "HOLD"
-    
-    class SignalGrade(Enum):
-        A = "A"
-        B = "B" 
-        C = "C"
-        D = "D"
-    
-    @dataclass
-    class Signal:
-        timestamp: datetime
-        symbol: str
-        strategy_name: str
-        signal_type: SignalType
-        confidence: float
-        price: float
-        timeframe: str
-        strength: float = 0.0
-        grade: Optional[SignalGrade] = None
-        stop_loss: Optional[float] = None
-        take_profit: Optional[float] = None
-        metadata: Dict[str, Any] = None
-
+# Import from base module instead of local definitions
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+print("sys.path:", sys.path)
 
 @dataclass
 class IchimokuComponents:
@@ -83,7 +60,7 @@ class IchimokuComponents:
     cloud_thickness: float
 
 
-class IchimokuStrategy:
+class IchimokuStrategy(AbstractStrategy):
     """
     Advanced Ichimoku Cloud Strategy
     
@@ -102,19 +79,20 @@ class IchimokuStrategy:
     
     Example:
         >>> strategy = IchimokuStrategy(config, mt5_manager)
-        >>> signals = strategy.generate_signals("XAUUSDm", "M15")
+        >>> signals = strategy.generate_signal("XAUUSDm", "M15")
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager):
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         """
         Initialize Ichimoku strategy
         
         Args:
             config: Strategy configuration
-            mt5_manager: MT5 connection manager
+            mt5_manager: MT5 connection manager (optional)
+            database: Database manager (optional)
         """
-        self.config = config
-        self.mt5_manager = mt5_manager
+        # Call parent class initialization
+        super().__init__(config, mt5_manager, database)
         
         # Ichimoku parameters
         self.tenkan_period = 9
@@ -122,7 +100,7 @@ class IchimokuStrategy:
         self.senkou_span_b_period = 52
         self.displacement = 26
         
-        # Strategy parameters
+        # Strategy parameters (these can override parent class defaults)
         self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.65)
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
         self.primary_timeframe = config.get('parameters', {}).get('timeframe_primary', 'M15')
@@ -133,15 +111,15 @@ class IchimokuStrategy:
         self.min_momentum_bars = 3      # Minimum bars for momentum confirmation
         self.max_signals_per_hour = 2   # Maximum signals per hour
         
-        # Performance tracking
-        self.recent_signals = []
+        # Performance tracking (now handled by parent class)
+        # self.recent_signals = []  # Remove - parent class handles this
         self.success_rate = 0.65
         self.profit_factor = 1.8
         
-        # Logger
-        self.logger = logging.getLogger('ichimoku_strategy')
+        # Logger is already set up by parent class
+        # self.logger = logging.getLogger('ichimoku_strategy')
     
-    def generate_signals(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
+    def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """
         Generate Ichimoku-based trading signals
         
@@ -154,6 +132,10 @@ class IchimokuStrategy:
         """
         try:
             # Get market data
+            if not self.mt5_manager:
+                self.logger.warning("MT5 manager not available")
+                return []
+                
             data = self.mt5_manager.get_historical_data(symbol, timeframe, self.lookback_period)
             if data is None or len(data) < self.senkou_span_b_period + self.displacement:
                 self.logger.warning(f"Insufficient data for Ichimoku analysis: {len(data) if data is not None else 0} bars")
@@ -172,72 +154,150 @@ class IchimokuStrategy:
             # Generate signals based on Ichimoku analysis
             signals = []
             
-            # Primary signal: Cloud breakout/bounce
-            cloud_signal = self._analyze_cloud_interaction(data, ichimoku_data, current_components, symbol, timeframe)
-            if cloud_signal:
-                signals.append(cloud_signal)
+            # Check for cloud breakout
+            breakout_signal = self._check_cloud_breakout(ichimoku_data, current_components, symbol, timeframe)
+            if breakout_signal:
+                signals.append(breakout_signal)
             
-            # Secondary signal: Tenkan-Kijun cross
-            tk_cross_signal = self._analyze_tenkan_kijun_cross(data, ichimoku_data, current_components, symbol, timeframe)
-            if tk_cross_signal:
-                signals.append(tk_cross_signal)
+            # Check for TK cross
+            tk_signal = self._check_tk_cross(ichimoku_data, current_components, symbol, timeframe)
+            if tk_signal:
+                signals.append(tk_signal)
             
-            # Tertiary signal: Chikou span confirmation
-            chikou_signal = self._analyze_chikou_confirmation(data, ichimoku_data, current_components, symbol, timeframe)
+            # Check for Chikou span confirmation
+            chikou_signal = self._check_chikou_span(ichimoku_data, current_components, symbol, timeframe)
             if chikou_signal:
                 signals.append(chikou_signal)
             
-            # Multi-timeframe confirmation
-            if signals and timeframe != self.secondary_timeframe:
-                signals = self._apply_mtf_confirmation(signals, symbol, self.secondary_timeframe)
+            # Multi-timeframe confirmation if available
+            if self.secondary_timeframe and timeframe != self.secondary_timeframe:
+                htf_signals = self._get_higher_timeframe_confirmation(symbol, self.secondary_timeframe)
+                signals.extend(htf_signals)
             
-            # Filter signals
-            filtered_signals = self._filter_signals(signals, current_components)
+            # Validate all signals using parent class validation
+            validated_signals = []
+            for signal in signals:
+                if self.validate_signal(signal):
+                    validated_signals.append(signal)
+                    # Update performance tracking (handled by parent)
+                    self.signal_history.append(signal)
             
-            # Update recent signals tracking
-            self._update_signal_tracking(filtered_signals)
+            self.logger.info(f"Ichimoku generated {len(validated_signals)} valid signals out of {len(signals)} total")
             
-            self.logger.info(f"Ichimoku generated {len(filtered_signals)} signals from {len(signals)} candidates")
-            
-            return filtered_signals
+            return validated_signals
             
         except Exception as e:
-            self.logger.error(f"Ichimoku signal generation failed: {str(e)}")
+            self.logger.error(f"Error generating Ichimoku signals: {str(e)}")
             return []
+    
+    def analyze(self, data: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
+        """
+        Perform detailed Ichimoku analysis without generating signals
+        
+        Args:
+            data: Historical price data
+            symbol: Trading symbol
+            timeframe: Analysis timeframe
+            
+        Returns:
+            Dictionary containing analysis results
+        """
+        try:
+            if data is None or len(data) < self.senkou_span_b_period:
+                return {
+                    'error': 'Insufficient data for analysis',
+                    'required_bars': self.senkou_span_b_period,
+                    'available_bars': len(data) if data is not None else 0
+                }
+            
+            # Calculate Ichimoku components
+            ichimoku_data = self._calculate_ichimoku(data)
+            if ichimoku_data is None:
+                return {'error': 'Failed to calculate Ichimoku indicators'}
+            
+            # Get current state
+            current = self._get_current_ichimoku_state(ichimoku_data)
+            
+            # Perform analysis
+            analysis = {
+                'strategy': self.strategy_name,
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'analysis_time': datetime.now().isoformat(),
+                'data_points': len(data),
+                
+                'current_values': {
+                    'tenkan_sen': current.tenkan_sen,
+                    'kijun_sen': current.kijun_sen,
+                    'senkou_span_a': current.senkou_span_a,
+                    'senkou_span_b': current.senkou_span_b,
+                    'chikou_span': current.chikou_span,
+                    'cloud_top': current.cloud_top,
+                    'cloud_bottom': current.cloud_bottom
+                },
+                
+                'market_position': {
+                    'price_vs_cloud': current.price_vs_cloud,
+                    'cloud_color': current.cloud_color,
+                    'cloud_thickness': current.cloud_thickness,
+                    'tk_relationship': 'bullish' if current.tenkan_sen > current.kijun_sen else 'bearish'
+                },
+                
+                'signals': {
+                    'cloud_breakout': self._detect_cloud_breakout_potential(ichimoku_data),
+                    'tk_cross': self._detect_tk_cross_potential(ichimoku_data),
+                    'kumo_twist': self._detect_kumo_twist(ichimoku_data),
+                    'chikou_confirmation': self._check_chikou_confirmation(ichimoku_data)
+                },
+                
+                'support_resistance': {
+                    'immediate_support': current.cloud_bottom if current.price_vs_cloud == 'above' else current.cloud_top,
+                    'immediate_resistance': current.cloud_top if current.price_vs_cloud == 'below' else current.cloud_bottom,
+                    'kijun_level': current.kijun_sen,
+                    'tenkan_level': current.tenkan_sen
+                },
+                
+                'trend_strength': self._calculate_trend_strength(ichimoku_data, current),
+                'recommendation': self._generate_recommendation(current)
+            }
+            
+            return analysis
+            
+        except Exception as e:
+            self.logger.error(f"Error in Ichimoku analysis: {str(e)}")
+            return {'error': str(e)}
     
     def _calculate_ichimoku(self, data: pd.DataFrame) -> Optional[pd.DataFrame]:
         """Calculate all Ichimoku components"""
         try:
             df = data.copy()
             
-            # Tenkan-sen (Conversion Line): (9-period high + 9-period low) / 2
+            # Tenkan-sen (Conversion Line)
             high_9 = df['High'].rolling(window=self.tenkan_period).max()
             low_9 = df['Low'].rolling(window=self.tenkan_period).min()
             df['tenkan_sen'] = (high_9 + low_9) / 2
             
-            # Kijun-sen (Base Line): (26-period high + 26-period low) / 2
+            # Kijun-sen (Base Line)
             high_26 = df['High'].rolling(window=self.kijun_period).max()
             low_26 = df['Low'].rolling(window=self.kijun_period).min()
             df['kijun_sen'] = (high_26 + low_26) / 2
             
-            # Senkou Span A (Leading Span A): (Tenkan-sen + Kijun-sen) / 2, shifted forward 26 periods
+            # Senkou Span A (Leading Span A)
             df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(self.displacement)
             
-            # Senkou Span B (Leading Span B): (52-period high + 52-period low) / 2, shifted forward 26 periods
+            # Senkou Span B (Leading Span B)
             high_52 = df['High'].rolling(window=self.senkou_span_b_period).max()
             low_52 = df['Low'].rolling(window=self.senkou_span_b_period).min()
             df['senkou_span_b'] = ((high_52 + low_52) / 2).shift(self.displacement)
             
-            # Chikou Span (Lagging Span): Current close shifted back 26 periods
+            # Chikou Span (Lagging Span)
             df['chikou_span'] = df['Close'].shift(-self.displacement)
             
             # Cloud calculations
-            df['cloud_top'] = np.maximum(df['senkou_span_a'], df['senkou_span_b'])
-            df['cloud_bottom'] = np.minimum(df['senkou_span_a'], df['senkou_span_b'])
+            df['cloud_top'] = df[['senkou_span_a', 'senkou_span_b']].max(axis=1)
+            df['cloud_bottom'] = df[['senkou_span_a', 'senkou_span_b']].min(axis=1)
             df['cloud_thickness'] = df['cloud_top'] - df['cloud_bottom']
-            
-            # Cloud color (bullish when Senkou A > Senkou B)
-            df['cloud_bullish'] = df['senkou_span_a'] > df['senkou_span_b']
+            df['cloud_color'] = np.where(df['senkou_span_a'] > df['senkou_span_b'], 'bullish', 'bearish')
             
             # Price position relative to cloud
             df['price_vs_cloud'] = np.where(
@@ -248,546 +308,320 @@ class IchimokuStrategy:
             return df
             
         except Exception as e:
-            self.logger.error(f"Ichimoku calculation failed: {str(e)}")
+            self.logger.error(f"Error calculating Ichimoku: {str(e)}")
             return None
     
     def _get_current_ichimoku_state(self, data: pd.DataFrame) -> Optional[IchimokuComponents]:
-        """Get current Ichimoku state"""
+        """Get current Ichimoku component values"""
         try:
-            latest = data.iloc[-1]
-            
-            # Handle NaN values
-            if pd.isna(latest['tenkan_sen']) or pd.isna(latest['kijun_sen']):
-                return None
-            
-            # Determine cloud color
-            cloud_color = "bullish" if latest['cloud_bullish'] else "bearish"
+            current_idx = len(data) - 1
             
             return IchimokuComponents(
-                tenkan_sen=latest['tenkan_sen'],
-                kijun_sen=latest['kijun_sen'],
-                senkou_span_a=latest['senkou_span_a'] if not pd.isna(latest['senkou_span_a']) else latest['Close'],
-                senkou_span_b=latest['senkou_span_b'] if not pd.isna(latest['senkou_span_b']) else latest['Close'],
-                chikou_span=latest['chikou_span'] if not pd.isna(latest['chikou_span']) else latest['Close'],
-                cloud_top=latest['cloud_top'] if not pd.isna(latest['cloud_top']) else latest['Close'],
-                cloud_bottom=latest['cloud_bottom'] if not pd.isna(latest['cloud_bottom']) else latest['Close'],
-                price_vs_cloud=latest['price_vs_cloud'],
-                cloud_color=cloud_color,
-                cloud_thickness=latest['cloud_thickness'] if not pd.isna(latest['cloud_thickness']) else 0.0
+                tenkan_sen=data['tenkan_sen'].iloc[current_idx],
+                kijun_sen=data['kijun_sen'].iloc[current_idx],
+                senkou_span_a=data['senkou_span_a'].iloc[current_idx],
+                senkou_span_b=data['senkou_span_b'].iloc[current_idx],
+                chikou_span=data['chikou_span'].iloc[current_idx - self.displacement] if current_idx >= self.displacement else 0,
+                cloud_top=data['cloud_top'].iloc[current_idx],
+                cloud_bottom=data['cloud_bottom'].iloc[current_idx],
+                price_vs_cloud=data['price_vs_cloud'].iloc[current_idx],
+                cloud_color=data['cloud_color'].iloc[current_idx],
+                cloud_thickness=data['cloud_thickness'].iloc[current_idx]
             )
-            
         except Exception as e:
-            self.logger.error(f"Failed to get current Ichimoku state: {str(e)}")
+            self.logger.error(f"Error getting current state: {str(e)}")
             return None
     
-    def _analyze_cloud_interaction(self, data: pd.DataFrame, ichimoku_data: pd.DataFrame, 
-                                  current: IchimokuComponents, symbol: str, timeframe: str) -> Optional[Signal]:
-        """Analyze price interaction with Ichimoku cloud"""
+    def _check_cloud_breakout(self, data: pd.DataFrame, current: IchimokuComponents, 
+                             symbol: str, timeframe: str) -> Optional[Signal]:
+        """Check for cloud breakout signals"""
         try:
             current_price = data['Close'].iloc[-1]
+            prev_position = data['price_vs_cloud'].iloc[-2]
             
-            # Cloud breakout signals
-            if self._is_cloud_breakout(ichimoku_data, current):
-                signal_type = SignalType.BUY if current.price_vs_cloud == 'above' else SignalType.SELL
-                
-                # Calculate confidence based on cloud characteristics
-                confidence = self._calculate_cloud_confidence(current, data)
-                
-                if confidence >= self.min_confidence:
-                    # Calculate stop loss and take profit
-                    if signal_type == SignalType.BUY:
-                        stop_loss = current.cloud_top * 0.999  # Just below cloud
-                        take_profit = current_price + (current_price - stop_loss) * 2  # 1:2 RR
-                    else:
-                        stop_loss = current.cloud_bottom * 1.001  # Just above cloud
-                        take_profit = current_price - (stop_loss - current_price) * 2  # 1:2 RR
+            # Bullish breakout
+            if prev_position != 'above' and current.price_vs_cloud == 'above':
+                if current.cloud_color == 'bullish' and current.cloud_thickness >= self.min_cloud_thickness:
+                    confidence = min(0.85, 0.65 + (current.cloud_thickness / 100))
                     
                     return Signal(
                         timestamp=datetime.now(),
                         symbol=symbol,
-                        strategy_name="ichimoku_cloud_breakout",
-                        signal_type=signal_type,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
                         confidence=confidence,
                         price=current_price,
                         timeframe=timeframe,
-                        strength=confidence * 0.9,  # Cloud breakouts are strong
-                        stop_loss=stop_loss,
-                        take_profit=take_profit,
+                        strength=0.8,
+                        stop_loss=current.cloud_bottom - 5,
+                        take_profit=current_price + (current_price - current.cloud_bottom) * 2,
                         metadata={
-                            'cloud_color': current.cloud_color,
+                            'signal_reason': 'cloud_breakout_bullish',
                             'cloud_thickness': current.cloud_thickness,
-                            'tenkan_sen': current.tenkan_sen,
-                            'kijun_sen': current.kijun_sen,
-                            'analysis_type': 'cloud_breakout'
+                            'tenkan_position': current.tenkan_sen
                         }
                     )
             
-            # Cloud bounce signals
-            elif self._is_cloud_bounce(ichimoku_data, current):
-                signal_type = SignalType.BUY if current.price_vs_cloud == 'above' else SignalType.SELL
-                
-                confidence = self._calculate_bounce_confidence(current, data)
-                
-                if confidence >= self.min_confidence:
-                    # Tighter stops for bounces
-                    if signal_type == SignalType.BUY:
-                        stop_loss = current.cloud_bottom * 0.9995
-                        take_profit = current_price + (current_price - stop_loss) * 1.5
-                    else:
-                        stop_loss = current.cloud_top * 1.0005
-                        take_profit = current_price - (stop_loss - current_price) * 1.5
+            # Bearish breakout
+            elif prev_position != 'below' and current.price_vs_cloud == 'below':
+                if current.cloud_color == 'bearish' and current.cloud_thickness >= self.min_cloud_thickness:
+                    confidence = min(0.85, 0.65 + (current.cloud_thickness / 100))
                     
                     return Signal(
                         timestamp=datetime.now(),
                         symbol=symbol,
-                        strategy_name="ichimoku_cloud_bounce",
-                        signal_type=signal_type,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
                         confidence=confidence,
                         price=current_price,
                         timeframe=timeframe,
-                        strength=confidence * 0.7,  # Bounces are medium strength
-                        stop_loss=stop_loss,
-                        take_profit=take_profit,
+                        strength=0.8,
+                        stop_loss=current.cloud_top + 5,
+                        take_profit=current_price - (current.cloud_top - current_price) * 2,
                         metadata={
-                            'cloud_color': current.cloud_color,
+                            'signal_reason': 'cloud_breakout_bearish',
                             'cloud_thickness': current.cloud_thickness,
-                            'analysis_type': 'cloud_bounce'
+                            'tenkan_position': current.tenkan_sen
                         }
                     )
             
             return None
             
         except Exception as e:
-            self.logger.error(f"Cloud interaction analysis failed: {str(e)}")
+            self.logger.error(f"Error checking cloud breakout: {str(e)}")
             return None
     
-    def _analyze_tenkan_kijun_cross(self, data: pd.DataFrame, ichimoku_data: pd.DataFrame,
-                                   current: IchimokuComponents, symbol: str, timeframe: str) -> Optional[Signal]:
-        """Analyze Tenkan-sen and Kijun-sen crossover"""
+    def _check_tk_cross(self, data: pd.DataFrame, current: IchimokuComponents,
+                       symbol: str, timeframe: str) -> Optional[Signal]:
+        """Check for Tenkan-Kijun cross signals"""
         try:
-            # Check for recent crossover
-            if len(ichimoku_data) < 5:
+            current_price = data['Close'].iloc[-1]
+            prev_tenkan = data['tenkan_sen'].iloc[-2]
+            prev_kijun = data['kijun_sen'].iloc[-2]
+            
+            # Bullish TK Cross
+            if prev_tenkan <= prev_kijun and current.tenkan_sen > current.kijun_sen:
+                if current.price_vs_cloud == 'above':
+                    confidence = 0.75
+                    
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=confidence,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.7,
+                        stop_loss=current.kijun_sen - 5,
+                        take_profit=current_price + (current_price - current.kijun_sen) * 2.5,
+                        metadata={
+                            'signal_reason': 'tk_cross_bullish',
+                            'price_position': current.price_vs_cloud
+                        }
+                    )
+            
+            # Bearish TK Cross
+            elif prev_tenkan >= prev_kijun and current.tenkan_sen < current.kijun_sen:
+                if current.price_vs_cloud == 'below':
+                    confidence = 0.75
+                    
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=confidence,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.7,
+                        stop_loss=current.kijun_sen + 5,
+                        take_profit=current_price - (current.kijun_sen - current_price) * 2.5,
+                        metadata={
+                            'signal_reason': 'tk_cross_bearish',
+                            'price_position': current.price_vs_cloud
+                        }
+                    )
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error checking TK cross: {str(e)}")
+            return None
+    
+    def _check_chikou_span(self, data: pd.DataFrame, current: IchimokuComponents,
+                          symbol: str, timeframe: str) -> Optional[Signal]:
+        """Check Chikou Span confirmation"""
+        try:
+            if len(data) < self.displacement + 5:
                 return None
             
-            tenkan_values = ichimoku_data['tenkan_sen'].tail(5)
-            kijun_values = ichimoku_data['kijun_sen'].tail(5)
+            current_price = data['Close'].iloc[-1]
+            chikou_idx = len(data) - self.displacement - 1
             
-            # Detect crossover
-            cross_up = (tenkan_values.iloc[-1] > kijun_values.iloc[-1] and 
-                       tenkan_values.iloc[-2] <= kijun_values.iloc[-2])
+            if chikou_idx >= 0:
+                chikou_price = data['Close'].iloc[-1]
+                historical_price = data['Close'].iloc[chikou_idx]
+                historical_cloud_top = data['cloud_top'].iloc[chikou_idx]
+                historical_cloud_bottom = data['cloud_bottom'].iloc[chikou_idx]
+                
+                # Bullish Chikou confirmation
+                if chikou_price > historical_cloud_top and current.price_vs_cloud == 'above':
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=0.70,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.65,
+                        stop_loss=current.cloud_bottom - 3,
+                        take_profit=current_price + (current_price - current.cloud_bottom) * 2,
+                        metadata={'signal_reason': 'chikou_confirmation_bullish'}
+                    )
+                
+                # Bearish Chikou confirmation
+                elif chikou_price < historical_cloud_bottom and current.price_vs_cloud == 'below':
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=0.70,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.65,
+                        stop_loss=current.cloud_top + 3,
+                        take_profit=current_price - (current.cloud_top - current_price) * 2,
+                        metadata={'signal_reason': 'chikou_confirmation_bearish'}
+                    )
             
-            cross_down = (tenkan_values.iloc[-1] < kijun_values.iloc[-1] and 
-                         tenkan_values.iloc[-2] >= kijun_values.iloc[-2])
+            return None
             
-            if cross_up or cross_down:
-                signal_type = SignalType.BUY if cross_up else SignalType.SELL
-                
-                # Calculate confidence based on position relative to cloud
-                base_confidence = 0.6
-                
-                # Boost confidence if aligned with cloud
-                if cross_up and current.cloud_color == "bullish":
-                    base_confidence += 0.15
-                elif cross_down and current.cloud_color == "bearish":
-                    base_confidence += 0.15
-                
-                # Boost confidence if price is on correct side of cloud
-                if ((cross_up and current.price_vs_cloud == 'above') or 
-                    (cross_down and current.price_vs_cloud == 'below')):
-                    base_confidence += 0.1
-                
+        except Exception as e:
+            self.logger.error(f"Error checking Chikou span: {str(e)}")
+            return None
+    
+    def _get_higher_timeframe_confirmation(self, symbol: str, timeframe: str) -> List[Signal]:
+        """Get confirmation from higher timeframe"""
+        # Implementation for multi-timeframe analysis
+        return []
+    
+    def _detect_cloud_breakout_potential(self, data: pd.DataFrame) -> str:
+        """Detect potential for cloud breakout"""
+        try:
+            current_position = data['price_vs_cloud'].iloc[-1]
+            recent_positions = data['price_vs_cloud'].iloc[-5:].value_counts()
+            
+            if current_position == 'inside':
+                if 'above' in recent_positions:
+                    return 'potential_bullish_breakout'
+                elif 'below' in recent_positions:
+                    return 'potential_bearish_breakout'
+            return 'no_breakout_detected'
+        except:
+            return 'unknown'
+    
+    def _detect_tk_cross_potential(self, data: pd.DataFrame) -> str:
+        """Detect potential for TK cross"""
+        try:
+            tenkan = data['tenkan_sen'].iloc[-1]
+            kijun = data['kijun_sen'].iloc[-1]
+            distance = abs(tenkan - kijun)
+            
+            if distance < 2:
+                if tenkan > kijun:
+                    return 'potential_bearish_cross'
+                else:
+                    return 'potential_bullish_cross'
+            return 'no_cross_imminent'
+        except:
+            return 'unknown'
+    
+    def _detect_kumo_twist(self, data: pd.DataFrame) -> str:
+        """Detect Kumo twist (cloud color change)"""
+        try:
+            current_color = data['cloud_color'].iloc[-1]
+            future_colors = data['cloud_color'].iloc[-5:]
+            
+            if len(future_colors.unique()) > 1:
+                return f'kumo_twist_detected_{current_color}'
+            return 'no_kumo_twist'
+        except:
+            return 'unknown'
+    
+    def _check_chikou_confirmation(self, data: pd.DataFrame) -> bool:
+        """Check if Chikou span confirms the trend"""
+        try:
+            if len(data) < self.displacement + 1:
+                return False
+            
+            chikou_idx = len(data) - self.displacement - 1
+            if chikou_idx >= 0:
                 current_price = data['Close'].iloc[-1]
-                
-                if signal_type == SignalType.BUY:
-                    stop_loss = current.kijun_sen * 0.998
-                    take_profit = current_price + (current_price - stop_loss) * 1.8
-                else:
-                    stop_loss = current.kijun_sen * 1.002
-                    take_profit = current_price - (stop_loss - current_price) * 1.8
-                
-                return Signal(
-                    timestamp=datetime.now(),
-                    symbol=symbol,
-                    strategy_name="ichimoku_tk_cross",
-                    signal_type=signal_type,
-                    confidence=min(base_confidence, 0.85),
-                    price=current_price,
-                    timeframe=timeframe,
-                    strength=base_confidence * 0.8,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    metadata={
-                        'tenkan_sen': current.tenkan_sen,
-                        'kijun_sen': current.kijun_sen,
-                        'cross_direction': 'up' if cross_up else 'down',
-                        'analysis_type': 'tk_cross'
-                    }
-                )
-            
-            return None
-            
-        except Exception as e:
-            self.logger.error(f"TK cross analysis failed: {str(e)}")
-            return None
+                historical_price = data['Close'].iloc[chikou_idx]
+                return current_price > historical_price
+            return False
+        except:
+            return False
     
-    def _analyze_chikou_confirmation(self, data: pd.DataFrame, ichimoku_data: pd.DataFrame,
-                                   current: IchimokuComponents, symbol: str, timeframe: str) -> Optional[Signal]:
-        """Analyze Chikou span for trade confirmation"""
+    def _calculate_trend_strength(self, data: pd.DataFrame, current: IchimokuComponents) -> float:
+        """Calculate overall trend strength (0-1)"""
         try:
-            if len(ichimoku_data) < self.displacement + 5:
-                return None
+            strength_factors = []
             
-            current_price = data['Close'].iloc[-1]
-            
-            # Get historical price 26 periods ago for Chikou comparison
-            chikou_compare_price = data['Close'].iloc[-self.displacement-1] if len(data) > self.displacement else current_price
-            
-            # Chikou signals
-            chikou_bullish = current.chikou_span > chikou_compare_price
-            chikou_bearish = current.chikou_span < chikou_compare_price
-            
-            # Only generate signal if Chikou confirms trend
-            if chikou_bullish and current.tenkan_sen > current.kijun_sen:
-                signal_type = SignalType.BUY
-                confidence = 0.65
-            elif chikou_bearish and current.tenkan_sen < current.kijun_sen:
-                signal_type = SignalType.SELL
-                confidence = 0.65
+            # Price vs Cloud (40% weight)
+            if current.price_vs_cloud == 'above':
+                strength_factors.append(0.4)
+            elif current.price_vs_cloud == 'below':
+                strength_factors.append(-0.4)
             else:
-                return None
+                strength_factors.append(0)
             
-            # Additional confirmation from cloud
-            if ((signal_type == SignalType.BUY and current.price_vs_cloud == 'above') or
-                (signal_type == SignalType.SELL and current.price_vs_cloud == 'below')):
-                confidence += 0.1
+            # TK Relationship (30% weight)
+            if current.tenkan_sen > current.kijun_sen:
+                strength_factors.append(0.3)
+            else:
+                strength_factors.append(-0.3)
             
-            if confidence >= self.min_confidence:
-                if signal_type == SignalType.BUY:
-                    stop_loss = min(current.kijun_sen, current.cloud_top) * 0.998
-                    take_profit = current_price + (current_price - stop_loss) * 2.0
-                else:
-                    stop_loss = max(current.kijun_sen, current.cloud_bottom) * 1.002
-                    take_profit = current_price - (stop_loss - current_price) * 2.0
-                
-                return Signal(
-                    timestamp=datetime.now(),
-                    symbol=symbol,
-                    strategy_name="ichimoku_chikou_confirm",
-                    signal_type=signal_type,
-                    confidence=confidence,
-                    price=current_price,
-                    timeframe=timeframe,
-                    strength=confidence * 0.85,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    metadata={
-                        'chikou_span': current.chikou_span,
-                        'chikou_compare_price': chikou_compare_price,
-                        'analysis_type': 'chikou_confirmation'
-                    }
-                )
+            # Cloud color (20% weight)
+            if current.cloud_color == 'bullish':
+                strength_factors.append(0.2)
+            else:
+                strength_factors.append(-0.2)
             
-            return None
+            # Chikou confirmation (10% weight)
+            if self._check_chikou_confirmation(data):
+                strength_factors.append(0.1)
+            else:
+                strength_factors.append(-0.1)
             
-        except Exception as e:
-            self.logger.error(f"Chikou analysis failed: {str(e)}")
-            return None
+            total_strength = sum(strength_factors)
+            return abs(total_strength)  # Return absolute strength 0-1
+            
+        except:
+            return 0.5
     
-    def _is_cloud_breakout(self, ichimoku_data: pd.DataFrame, current: IchimokuComponents) -> bool:
-        """Check if there's a recent cloud breakout"""
-        try:
-            if len(ichimoku_data) < 3:
-                return False
-            
-            recent_positions = ichimoku_data['price_vs_cloud'].tail(3).tolist()
-            
-            # Breakout above cloud
-            breakout_up = (recent_positions[-1] == 'above' and 
-                          'inside' in recent_positions[-3:-1])
-            
-            # Breakout below cloud  
-            breakout_down = (recent_positions[-1] == 'below' and 
-                            'inside' in recent_positions[-3:-1])
-            
-            # Ensure cloud has minimum thickness
-            thick_enough = current.cloud_thickness >= self.min_cloud_thickness
-            #thick_enough = current.cloud_thickness >= (self.min_cloud_thickness * 0.1)
-            
-            return (breakout_up or breakout_down) and thick_enough
-            
-        except Exception as e:
-            self.logger.error(f"Cloud breakout check failed: {str(e)}")
-            return False
-    
-    def _is_cloud_bounce(self, ichimoku_data: pd.DataFrame, current: IchimokuComponents) -> bool:
-        """Check if there's a bounce from cloud edge"""
-        try:
-            if len(ichimoku_data) < 5:
-                return False
-            
-            close_prices = ichimoku_data['Close'].tail(5)
-            cloud_tops = ichimoku_data['cloud_top'].tail(5)
-            cloud_bottoms = ichimoku_data['cloud_bottom'].tail(5)
-            
-            # Check for bounce from cloud top (support)
-            bounce_from_top = (
-                current.price_vs_cloud == 'above' and
-                any(abs(price - cloud_top) < current.cloud_thickness * 0.2 
-                    for price, cloud_top in zip(close_prices[:-1], cloud_tops[:-1]))
-            )
-            
-            # Check for bounce from cloud bottom (resistance)
-            bounce_from_bottom = (
-                current.price_vs_cloud == 'below' and
-                any(abs(price - cloud_bottom) < current.cloud_thickness * 0.2 
-                    for price, cloud_bottom in zip(close_prices[:-1], cloud_bottoms[:-1]))
-            )
-            
-            return bounce_from_top or bounce_from_bottom
-            
-        except Exception as e:
-            self.logger.error(f"Cloud bounce check failed: {str(e)}")
-            return False
-    
-    def _calculate_cloud_confidence(self, current: IchimokuComponents, data: pd.DataFrame) -> float:
-        """Calculate confidence for cloud breakout signals"""
-        confidence = 0.6  # Base confidence
-        
-        try:
-            # Cloud thickness factor
-            if current.cloud_thickness >= 20:
-                confidence += 0.1
-            elif current.cloud_thickness >= 10:
-                confidence += 0.05
-            
-            # Cloud color alignment
-            if ((current.price_vs_cloud == 'above' and current.cloud_color == 'bullish') or
-                (current.price_vs_cloud == 'below' and current.cloud_color == 'bearish')):
-                confidence += 0.1
-            
-            # Tenkan-Kijun alignment
-            if ((current.price_vs_cloud == 'above' and current.tenkan_sen > current.kijun_sen) or
-                (current.price_vs_cloud == 'below' and current.tenkan_sen < current.kijun_sen)):
-                confidence += 0.08
-            
-            # Volume confirmation (if available)
-            if 'Volume' in data.columns:
-                recent_volume = data['Volume'].tail(3).mean()
-                avg_volume = data['Volume'].tail(20).mean()
-                if recent_volume > avg_volume * 1.2:
-                    confidence += 0.07
-            
-            return min(confidence, 0.95)  # Cap at 95%
-            
-        except Exception as e:
-            self.logger.error(f"Cloud confidence calculation failed: {str(e)}")
-            return 0.6
-    
-    def _calculate_bounce_confidence(self, current: IchimokuComponents, data: pd.DataFrame) -> float:
-        """Calculate confidence for cloud bounce signals"""
-        confidence = 0.55  # Lower base confidence for bounces
-        
-        try:
-            # Strong cloud (thick)
-            if current.cloud_thickness >= 15:
-                confidence += 0.15
-            elif current.cloud_thickness >= 8:
-                confidence += 0.08
-            
-            # Cloud color alignment
-            if ((current.price_vs_cloud == 'above' and current.cloud_color == 'bullish') or
-                (current.price_vs_cloud == 'below' and current.cloud_color == 'bearish')):
-                confidence += 0.12
-            
-            # Price action at cloud edge
-            current_price = data['Close'].iloc[-1]
-            cloud_distance = min(abs(current_price - current.cloud_top), 
-                               abs(current_price - current.cloud_bottom))
-            
-            if cloud_distance < current.cloud_thickness * 0.1:  # Very close to cloud edge
-                confidence += 0.08
-            
-            return min(confidence, 0.85)  # Cap at 85% for bounces
-            
-        except Exception as e:
-            self.logger.error(f"Bounce confidence calculation failed: {str(e)}")
-            return 0.55
-    
-    def _apply_mtf_confirmation(self, signals: List[Signal], symbol: str, 
-                              higher_timeframe: str) -> List[Signal]:
-        """Apply multi-timeframe confirmation"""
-        try:
-            # Get higher timeframe data
-            htf_data = self.mt5_manager.get_historical_data(symbol, higher_timeframe, 100)
-            if htf_data is None or len(htf_data) < 50:
-                return signals  # Return original signals if can't get HTF data
-            
-            # Calculate Ichimoku on higher timeframe
-            htf_ichimoku = self._calculate_ichimoku(htf_data)
-            if htf_ichimoku is None:
-                return signals
-            
-            htf_current = self._get_current_ichimoku_state(htf_ichimoku)
-            if not htf_current:
-                return signals
-            
-            confirmed_signals = []
-            
-            for signal in signals:
-                # Check HTF alignment
-                htf_aligned = False
-                
-                if signal.signal_type == SignalType.BUY:
-                    htf_aligned = (
-                        htf_current.price_vs_cloud in ['above', 'inside'] and
-                        htf_current.tenkan_sen >= htf_current.kijun_sen and
-                        htf_current.cloud_color == 'bullish'
-                    )
-                elif signal.signal_type == SignalType.SELL:
-                    htf_aligned = (
-                        htf_current.price_vs_cloud in ['below', 'inside'] and
-                        htf_current.tenkan_sen <= htf_current.kijun_sen and
-                        htf_current.cloud_color == 'bearish'
-                    )
-                
-                if htf_aligned:
-                    # Boost confidence for HTF confirmation
-                    signal.confidence = min(signal.confidence + 0.1, 0.95)
-                    signal.metadata['htf_confirmed'] = True
-                    signal.metadata['htf_timeframe'] = higher_timeframe
-                    confirmed_signals.append(signal)
-                elif signal.confidence >= 0.8:  # Keep very strong signals even without HTF
-                    signal.metadata['htf_confirmed'] = False
-                    confirmed_signals.append(signal)
-            
-            return confirmed_signals
-            
-        except Exception as e:
-            self.logger.error(f"MTF confirmation failed: {str(e)}")
-            return signals
-    
-    def _filter_signals(self, signals: List[Signal], current: IchimokuComponents) -> List[Signal]:
-        """Apply additional signal filters"""
-        if not signals:
-            return signals
-        
-        filtered = []
-        
-        for signal in signals:
-            # Skip if too many recent signals
-            if self._too_many_recent_signals():
-                continue
-            
-            # Skip weak signals in ranging markets
-            if (current.cloud_thickness < 5 and signal.confidence < 0.75):
-                continue
-            
-            # Skip if signal conflicts with major cloud level
-            if self._conflicts_with_cloud_structure(signal, current):
-                continue
-            
-            filtered.append(signal)
-        
-        # Sort by confidence and take best signals
-        filtered.sort(key=lambda x: x.confidence, reverse=True)
-        return filtered[:3]  # Maximum 3 signals per generation
-    
-    def _too_many_recent_signals(self) -> bool:
-        """Check if too many signals generated recently"""
-        now = datetime.now()
-        recent_count = sum(1 for sig in self.recent_signals 
-                          if (now - sig).total_seconds() < 3600)  # 1 hour
-        return recent_count >= self.max_signals_per_hour
-    
-    def _conflicts_with_cloud_structure(self, signal: Signal, current: IchimokuComponents) -> bool:
-        """Check if signal conflicts with cloud structure"""
-        # Don't buy into strong bearish cloud resistance
-        if (signal.signal_type == SignalType.BUY and 
-            current.cloud_color == 'bearish' and 
-            current.price_vs_cloud == 'below' and
-            current.cloud_thickness > 15):
-            return True
-        
-        # Don't sell into strong bullish cloud support
-        if (signal.signal_type == SignalType.SELL and 
-            current.cloud_color == 'bullish' and 
-            current.price_vs_cloud == 'above' and
-            current.cloud_thickness > 15):
-            return True
-        
-        return False
-    
-    def _update_signal_tracking(self, signals: List[Signal]) -> None:
-        """Update recent signals tracking"""
-        now = datetime.now()
-        
-        # Add new signals
-        for signal in signals:
-            self.recent_signals.append(now)
-        
-        # Clean old signals (older than 24 hours)
-        cutoff = now - timedelta(hours=24)
-        self.recent_signals = [sig_time for sig_time in self.recent_signals if sig_time > cutoff]
-    
-    def get_strategy_info(self) -> Dict[str, Any]:
-        """Get strategy information and performance"""
-        return {
-            'name': 'Ichimoku Cloud Strategy',
-            'type': 'Technical',
-            'version': '2.0.0',
-            'description': 'Advanced Ichimoku Kinko Hyo implementation with multi-timeframe analysis',
-            'parameters': {
-                'tenkan_period': self.tenkan_period,
-                'kijun_period': self.kijun_period,
-                'senkou_span_b_period': self.senkou_span_b_period,
-                'displacement': self.displacement,
-                'min_confidence': self.min_confidence,
-                'min_cloud_thickness': self.min_cloud_thickness
-            },
-            'performance': {
-                'success_rate': self.success_rate,
-                'profit_factor': self.profit_factor,
-                'recent_signals_count': len(self.recent_signals)
-            },
-            'signal_types': [
-                'cloud_breakout',
-                'cloud_bounce', 
-                'tenkan_kijun_cross',
-                'chikou_confirmation'
-            ]
-        }
+    def _generate_recommendation(self, current: IchimokuComponents) -> str:
+        """Generate trading recommendation based on current state"""
+        if current.price_vs_cloud == 'above' and current.cloud_color == 'bullish':
+            if current.tenkan_sen > current.kijun_sen:
+                return 'STRONG_BUY'
+            return 'BUY'
+        elif current.price_vs_cloud == 'below' and current.cloud_color == 'bearish':
+            if current.tenkan_sen < current.kijun_sen:
+                return 'STRONG_SELL'
+            return 'SELL'
+        elif current.price_vs_cloud == 'inside':
+            return 'WAIT_FOR_BREAKOUT'
+        else:
+            return 'NEUTRAL'
 
 
 # Testing function
-def test_ichimoku_strategy():
-    """Test Ichimoku strategy functionality"""
-    print("Testing Ichimoku Strategy...")
-    
-    # Mock MT5 manager
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            # Generate sample OHLCV data
-            dates = pd.date_range(start='2025-01-01', periods=bars, freq='15min')
-            
-            # Generate trending price data for better testing
-            base_price = 2000.0
-            trend = np.linspace(0, 50, bars)  # Upward trend
-            noise = np.random.normal(0, 5, bars)
-            prices = base_price + trend + noise
-            
-            data = pd.DataFrame({
-                'Open': prices + np.random.normal(0, 2, bars),
-                'High': prices + np.random.normal(2, 3, bars),
-                'Low': prices + np.random.normal(-2, 3, bars),
-                'Close': prices,
-                'Volume': np.random.normal(1000, 200, bars)
-            }, index=dates)
-            
-            # Ensure High >= Low and OHLC consistency
-            data['High'] = np.maximum(data[['Open', 'Close']].max(axis=1), data['High'])
-            data['Low'] = np.minimum(data[['Open', 'Close']].min(axis=1), data['Low'])
-            
-            return data
+if __name__ == "__main__":
+    """Test the modified Ichimoku strategy"""
     
     # Test configuration
     test_config = {
@@ -799,38 +633,55 @@ def test_ichimoku_strategy():
         }
     }
     
-    try:
-        # Create strategy
-        strategy = IchimokuStrategy(test_config, MockMT5Manager())
-        
-        # Test signal generation
-        signals = strategy.generate_signals("XAUUSDm", "M15")
-        
-        print(f"Generated {len(signals)} Ichimoku signals")
-        
-        for i, signal in enumerate(signals):
-            print(f"Signal {i+1}:")
-            print(f"  Type: {signal.signal_type.value}")
-            print(f"  Confidence: {signal.confidence:.2f}")
-            print(f"  Strategy: {signal.strategy_name}")
-            print(f"  Price: {signal.price:.2f}")
-            print(f"  Stop Loss: {signal.stop_loss:.2f}" if signal.stop_loss else "  Stop Loss: None")
-            print(f"  Take Profit: {signal.take_profit:.2f}" if signal.take_profit else "  Take Profit: None")
-            print(f"  Metadata: {signal.metadata}")
-        
-        # Test strategy info
-        info = strategy.get_strategy_info()
-        print(f"\nStrategy Info: {info}")
-        
-        print("✅ Ichimoku strategy test completed successfully!")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Ichimoku strategy test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-if __name__ == "__main__":
-    test_ichimoku_strategy()
+    # Mock MT5 manager for testing
+    class MockMT5Manager:
+        def get_historical_data(self, symbol, timeframe, bars):
+            # Generate sample data
+            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                 end=datetime.now(), freq='15Min')[:bars]
+            
+            np.random.seed(42)
+            close_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
+            
+            data = pd.DataFrame({
+                'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                'Close': close_prices,
+                'Volume': np.random.randint(100, 1000, len(dates))
+            }, index=dates)
+            
+            return data
+    
+    # Create strategy instance
+    mock_mt5 = MockMT5Manager()
+    strategy = IchimokuStrategy(test_config, mock_mt5)
+    
+    print("="*60)
+    print("TESTING MODIFIED ICHIMOKU STRATEGY")
+    print("="*60)
+    
+    # Test signal generation
+    print("\n1. Testing signal generation:")
+    signals = strategy.generate_signal("XAUUSDm", "M15")
+    print(f"   Generated {len(signals)} signals")
+    for signal in signals:
+        print(f"   - {signal.signal_type.value} at {signal.price:.2f}, Confidence: {signal.confidence:.2f}")
+    
+    # Test analysis
+    print("\n2. Testing analysis method:")
+    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
+    print(f"   Analysis keys: {list(analysis.keys())}")
+    if 'current_values' in analysis:
+        print(f"   Current Tenkan: {analysis['current_values'].get('tenkan_sen', 'N/A'):.2f}")
+        print(f"   Current Kijun: {analysis['current_values'].get('kijun_sen', 'N/A'):.2f}")
+    
+    # Test performance summary
+    print("\n3. Testing performance tracking:")
+    summary = strategy.get_performance_summary()
+    print(f"   {summary}")
+    
+    print("\n" + "="*60)
+    print("ICHIMOKU STRATEGY TEST COMPLETED!")
+    print("="*60)

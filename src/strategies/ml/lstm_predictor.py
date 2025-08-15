@@ -46,6 +46,7 @@ except ImportError:
 
 from enum import Enum
 from dataclasses import dataclass
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
 # Import base classes
 try:
