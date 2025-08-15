@@ -21,7 +21,19 @@ Features:
 - Correlation-based position limits
 - Emergency stop mechanisms
 """
+
+
 from __future__ import annotations
+
+import sys
+import os
+from pathlib import Path
+
+# Add src directory to Python path
+current_dir = Path(__file__).parent  # src/core/
+src_dir = current_dir.parent  # src/
+project_root = src_dir.parent  # project root
+sys.path.insert(0, str(project_root))
 
 import pandas as pd
 import numpy as np
@@ -34,40 +46,10 @@ from enum import Enum
 import threading
 import time
 
-# Import base classes
-try:
-    from ..signal_engine import Signal, SignalType, SignalGrade
-    from ..risk_manager import RiskManager
-    #from src.core.risk_manager import RiskManager
+from src.core.base import Signal, SignalType, SignalGrade
+from src.core.risk_manager import RiskManager
 
-except ImportError:
-    # Fallback for testing
-    class SignalType(Enum):
-        BUY = "BUY"
-        SELL = "SELL"
-        HOLD = "HOLD"
-    
-    class SignalGrade(Enum):
-        A = "A"
-        B = "B" 
-        C = "C"
-        D = "D"
-    
-    @dataclass
-    class Signal:
-        timestamp: datetime
-        symbol: str
-        strategy_name: str
-        signal_type: SignalType
-        confidence: float
-        price: float
-        timeframe: str
-        strength: float = 0.0
-        grade: Optional[SignalGrade] = None
-        stop_loss: Optional[float] = None
-        take_profit: Optional[float] = None
-        metadata: Dict[str, Any] = None
-
+logger = logging.getLogger(__name__)
 
 class ExecutionStatus(Enum):
     """Execution status enumeration"""
@@ -196,7 +178,7 @@ class ExecutionEngine:
         self.execution_lock = threading.Lock()
         
         # Logger
-        self.logger = logging.getLogger('execution_engine')
+        self.logger = logger
         
         # Initialize engine
         self._initialize_engine()
@@ -274,8 +256,6 @@ class ExecutionEngine:
                     error_message=sizing_result.get('reason', 'Position size not allowed')
                 )
             
-            # Execute the order
-            execution_result = self._execute_order(signal, sizing_result, execution_id)
             # Execute the order
             execution_result = self._execute_order(signal, sizing_result, execution_id)
             
@@ -436,7 +416,6 @@ class ExecutionEngine:
                         
                         # Store position
                         self.active_positions[ticket] = position_info
-                    
                     # Create successful execution result
                     execution_result = ExecutionResult(
                         signal_id=str(id(signal)),
@@ -462,7 +441,6 @@ class ExecutionEngine:
                                    f"Price {executed_price}, Slippage {slippage:.1f}")
                     
                     return execution_result
-                
                 else:
                     # Execution failed
                     execution_result = ExecutionResult(
@@ -485,7 +463,6 @@ class ExecutionEngine:
                     self.logger.error(f"Order execution failed after {self.retry_attempts} attempts: {last_error}")
                     
                     return execution_result
-                    
         except Exception as e:
             self.logger.error(f"Order execution error: {str(e)}")
             return ExecutionResult(
@@ -536,12 +513,10 @@ class ExecutionEngine:
                         )
                         
                         self.active_positions[ticket] = position_info
-                        
                 except Exception as e:
                     self.logger.error(f"Error loading position {pos}: {str(e)}")
             
             self.logger.info(f"Loaded {len(self.active_positions)} existing positions")
-            
         except Exception as e:
             self.logger.error(f"Failed to load existing positions: {str(e)}")
     
@@ -566,7 +541,6 @@ class ExecutionEngine:
                 )
                 self.monitor_thread.start()
                 self.logger.info("Position monitoring started")
-                
         except Exception as e:
             self.logger.error(f"Failed to start position monitoring: {str(e)}")
     
@@ -588,7 +562,6 @@ class ExecutionEngine:
                 
                 # Sleep for next iteration
                 time.sleep(5)  # Check every 5 seconds
-                
             except Exception as e:
                 self.logger.error(f"Position monitoring error: {str(e)}")
                 time.sleep(10)  # Longer sleep on error
@@ -645,7 +618,6 @@ class ExecutionEngine:
                     
                     # Remove from active positions
                     del self.active_positions[ticket]
-                    
         except Exception as e:
             self.logger.error(f"Position update failed: {str(e)}")
     
@@ -689,7 +661,6 @@ class ExecutionEngine:
                 if position.time_in_position.total_seconds() > 86400:  # 24 hours
                     self._close_position(ticket, "Time Limit")
                     continue
-                    
         except Exception as e:
             self.logger.error(f"Exit condition check failed: {str(e)}")
     
@@ -722,7 +693,6 @@ class ExecutionEngine:
                 elif profit_pct >= 3.0 and not hasattr(position, 'breakeven_set'):
                     self._move_stop_to_breakeven(ticket)
                     position.breakeven_set = True
-                    
         except Exception as e:
             self.logger.error(f"Partial exit check failed: {str(e)}")
     
@@ -742,7 +712,6 @@ class ExecutionEngine:
                     # Estimate risk as 2% of position value
                     position_value = position.volume * position.current_price * 100
                     position.current_risk = position_value * 0.02
-                    
         except Exception as e:
             self.logger.error(f"Position risk update failed: {str(e)}")
     
@@ -763,7 +732,6 @@ class ExecutionEngine:
             else:
                 self.logger.error(f"Failed to close position {ticket}: {close_result.get('comment', 'Unknown error')}")
                 return False
-                
         except Exception as e:
             self.logger.error(f"Position close error: {str(e)}")
             return False
@@ -790,7 +758,6 @@ class ExecutionEngine:
             else:
                 self.logger.error(f"Failed to partially close position {ticket}")
                 return False
-                
         except Exception as e:
             self.logger.error(f"Partial close error: {str(e)}")
             return False
@@ -814,7 +781,6 @@ class ExecutionEngine:
             else:
                 self.logger.error(f"Failed to move stop to breakeven for position {ticket}")
                 return False
-                
         except Exception as e:
             self.logger.error(f"Breakeven stop error: {str(e)}")
             return False
@@ -847,7 +813,6 @@ class ExecutionEngine:
             }
             
             self.database_manager.store_signal(signal_data)
-            
         except Exception as e:
             self.logger.error(f"Signal logging failed: {str(e)}")
     
@@ -875,7 +840,6 @@ class ExecutionEngine:
             }
             
             self.database_manager.store_trade(trade_data)
-            
         except Exception as e:
             self.logger.error(f"Trade logging failed: {str(e)}")
     
@@ -897,7 +861,6 @@ class ExecutionEngine:
                     strategy=execution_result.strategy,
                     confidence=execution_result.confidence
                 )
-                
         except Exception as e:
             self.logger.error(f"Performance metrics update failed: {str(e)}")
     
@@ -961,7 +924,6 @@ class ExecutionEngine:
                     'retry_delay': self.retry_delay
                 }
             }
-            
         except Exception as e:
             self.logger.error(f"Execution summary generation failed: {str(e)}")
             return {'error': str(e)}
@@ -977,7 +939,6 @@ class ExecutionEngine:
                 self.monitor_thread.join(timeout=10)
             
             self.logger.info("Execution engine stopped")
-            
         except Exception as e:
             self.logger.error(f"Engine stop error: {str(e)}")
     
@@ -1007,7 +968,6 @@ class ExecutionEngine:
                 'successful_closes': len([r for r in results if r['success']]),
                 'results': results
             }
-            
         except Exception as e:
             self.logger.error(f"Emergency close failed: {str(e)}")
             return {'error': str(e)}
