@@ -21,8 +21,8 @@
 | Fusion Strategies | ⏳ Pending | 0/4 | - | - | - |
 | Risk Manager | ✅ Complete | 1/1 | ✅ | ⏳ | ✅ |
 | Execution Engine | ✅ Complete | 1/1 | ✅ | ⏳ | ✅ |
-| Phase 2 Integration | ⏳ Pending | 0/1 | ⏳ | ⏳ | ✅ |
-| Phase 2 Test Suits | ⏳ Pending | 0/2 | ⏳ | ⏳ | ✅ |
+| Phase 2 Integration | ⏳ Pending | 0/1 | ⏳ | ⏳ | ⏳ |
+| Phase 2 Test Suits | ⏳ Pending | 0/2 | ⏳ | ⏳ | ⏳ |
 
 
 
