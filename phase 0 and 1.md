@@ -16,7 +16,7 @@
 |-------|--------|----------|----------------|-------|-------------|
 | Phase 0: Setup | ✅ Complete | 100% | 8/8 | ✅ | ✅ |
 | Phase 1: Foundation | ✅ Complete | 100% | 8/8 | ✅ | ✅ |
-| Phase 2: Strategies | 🟡 In Progress | 40% | 7/20 | ⏳ | ⏳ |
+| Phase 2: Strategies | 🟡 In Progress | NA% | NA/NA (Not tracking and sure about total files) | ⏳ | ⏳ |
 | Phase 3: Risk & Execution | ⏳ Pending | 0% | 0/5 | - | - |
 | Phase 4: Backtesting | ⏳ Pending | 0% | 0/4 | - | - |
 | Phase 5: Live Trading | ⏳ Pending | 0% | 0/3 | - | - |
@@ -227,14 +227,14 @@ strategies:
     active_strategies:
       ichimoku: true                # Ichimoku Cloud System
       harmonic: true                # Harmonic Pattern Recognition
-      elliott_wave: false           # Elliott Wave Analysis (complex, disabled by default)
-      volume_profile: true          # Volume Profile Analysis
+      elliott_wave: true           # Elliott Wave Analysis (complex, disabled by default)
+      volume_profile: false          # Volume Profile Analysis
       market_profile: false         # Market Profile (requires tick data)
-      order_flow: true              # Order Flow Imbalance
-      wyckoff: true                 # Wyckoff Method
+      order_flow: false              # Order Flow Imbalance
+      wyckoff: false                 # Wyckoff Method
       gann: false                   # Gann Analysis (complex)
-      fibonacci_advanced: true      # Advanced Fibonacci Clusters
-      momentum_divergence: true     # Multi-timeframe Momentum Divergence
+      fibonacci_advanced: false      # Advanced Fibonacci Clusters
+      momentum_divergence: false     # Multi-timeframe Momentum Divergence
     
     # Technical strategy parameters
     parameters:
@@ -250,11 +250,11 @@ strategies:
     
     # SMC components
     active_components:
-      market_structure: true        # Market structure analysis
+      market_structure: false        # Market structure analysis
       order_blocks: true            # Order block detection
-      fair_value_gaps: true         # FVG identification
-      liquidity_pools: true         # Liquidity pool detection
-      manipulation: true            # Session manipulation detection
+      fair_value_gaps: false         # FVG identification
+      liquidity_pools: false         # Liquidity pool detection
+      manipulation: false            # Session manipulation detection
     
     # SMC parameters
     parameters:
@@ -279,9 +279,9 @@ strategies:
     # Active ML models
     active_models:
       lstm: true                    # LSTM price prediction
-      xgboost: true                 # XGBoost classification
+      xgboost: false                 # XGBoost classification
       reinforcement: false          # RL agent (requires training)
-      ensemble: true                # Ensemble neural network
+      ensemble: false                # Ensemble neural network
     
     # ML parameters
     parameters:
@@ -301,7 +301,7 @@ strategies:
   
   # Signal Fusion Strategy
   fusion:
-    enabled: true                   # Use fusion (recommended)
+    enabled: false                   # Use fusion (recommended)
     method: "weighted_voting"       # Options: weighted_voting, ml_fusion, adaptive
     
     # Fusion parameters
