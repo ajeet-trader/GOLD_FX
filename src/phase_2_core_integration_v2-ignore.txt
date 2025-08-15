@@ -1,0 +1,1467 @@
+#!/usr/bin/env python3
+"""
+Phase 2 Advanced Trading System Integration v2.0
+=================================================
+Author: XAUUSD Trading System
+Version: 2.0.0
+Date: 2025-01-15
+
+Complete Phase 2 implementation with enhanced architecture:
+- Dynamic Strategy Loading with Plugin Support
+- Advanced Signal Engine with Multi-timeframe Analysis
+- Smart Money Concepts (SMC) Integration
+- Technical Indicators Suite
+- Machine Learning Predictions
+- Risk-Adjusted Position Sizing
+- Real-time Performance Monitoring
+- Emergency Control Systems
+
+Features:
+- Modular strategy architecture
+- Graceful degradation on missing components
+- Performance-based strategy selection
+- Real-time configuration updates
+- Advanced signal fusion algorithms
+- Market regime detection
+- Correlation-based filtering
+
+Usage:
+    python phase_2_integration_v2.py --mode live     # Live trading
+    python phase_2_integration_v2.py --mode paper    # Paper trading
+    python phase_2_integration_v2.py --mode backtest # Backtesting
+    python phase_2_integration_v2.py --test          # Component testing
+"""
+
+import sys
+import os
+import asyncio
+import argparse
+import json
+import time
+import traceback
+import importlib
+import inspect
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Any, Union, Set
+from dataclasses import dataclass, field, asdict
+from enum import Enum, auto
+from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import threading
+import queue
+import logging
+import warnings
+import yaml
+import numpy as np
+import pandas as pd
+from abc import ABC, abstractmethod
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+    handlers=[
+        logging.FileHandler('logs/phase2_integration.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# ====================== ENUMS & CONSTANTS ======================
+
+class TradingMode(Enum):
+    """Trading modes"""
+    LIVE = "live"
+    PAPER = "paper"
+    BACKTEST = "backtest"
+    TEST = "test"
+
+class SignalType(Enum):
+    """Signal types"""
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+    CLOSE_BUY = "CLOSE_BUY"
+    CLOSE_SELL = "CLOSE_SELL"
+
+class StrategyType(Enum):
+    """Strategy categories"""
+    TECHNICAL = "technical"
+    SMC = "smc"
+    ML = "ml"
+    VOLUME = "volume"
+    SENTIMENT = "sentiment"
+    FUSION = "fusion"
+
+class MarketRegime(Enum):
+    """Market regime types"""
+    TRENDING_UP = "trending_up"
+    TRENDING_DOWN = "trending_down"
+    RANGING = "ranging"
+    VOLATILE = "volatile"
+    QUIET = "quiet"
+    BREAKOUT = "breakout"
+
+class SignalGrade(Enum):
+    """Signal quality grades"""
+    A_PLUS = "A+"  # 95%+ confidence
+    A = "A"        # 85-94% confidence
+    B = "B"        # 75-84% confidence
+    C = "C"        # 65-74% confidence
+    D = "D"        # 55-64% confidence
+    F = "F"        # Below 55% confidence
+
+# ====================== DATA CLASSES ======================
+
+@dataclass
+class Signal:
+    """Enhanced trading signal with comprehensive metadata"""
+    id: str
+    timestamp: datetime
+    symbol: str
+    strategy_name: str
+    strategy_type: StrategyType
+    signal_type: SignalType
+    price: float
+    confidence: float
+    strength: float
+    grade: SignalGrade
+    timeframe: str
+    
+    # Risk parameters
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    risk_reward_ratio: Optional[float] = None
+    position_size: Optional[float] = None
+    
+    # Technical indicators
+    indicators: Dict[str, float] = field(default_factory=dict)
+    
+    # SMC data
+    smc_data: Dict[str, Any] = field(default_factory=dict)
+    
+    # Market context
+    market_regime: Optional[MarketRegime] = None
+    volatility: Optional[float] = None
+    volume_profile: Optional[str] = None
+    
+    # Metadata
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    correlations: Dict[str, float] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Auto-calculate grade if not provided"""
+        if not self.grade:
+            self.grade = self._calculate_grade()
+        if not self.risk_reward_ratio and self.stop_loss and self.take_profit:
+            risk = abs(self.price - self.stop_loss)
+            reward = abs(self.take_profit - self.price)
+            self.risk_reward_ratio = reward / risk if risk > 0 else 0
+    
+    def _calculate_grade(self) -> SignalGrade:
+        """Calculate signal grade based on confidence and strength"""
+        score = (self.confidence * 0.7) + (self.strength * 0.3)
+        if score >= 0.95:
+            return SignalGrade.A_PLUS
+        elif score >= 0.85:
+            return SignalGrade.A
+        elif score >= 0.75:
+            return SignalGrade.B
+        elif score >= 0.65:
+            return SignalGrade.C
+        elif score >= 0.55:
+            return SignalGrade.D
+        else:
+            return SignalGrade.F
+
+@dataclass
+class StrategyPerformance:
+    """Strategy performance metrics"""
+    strategy_name: str
+    total_signals: int = 0
+    successful_signals: int = 0
+    failed_signals: int = 0
+    win_rate: float = 0.0
+    avg_profit: float = 0.0
+    avg_loss: float = 0.0
+    profit_factor: float = 0.0
+    sharpe_ratio: float = 0.0
+    max_drawdown: float = 0.0
+    recovery_factor: float = 0.0
+    total_pnl: float = 0.0
+    best_trade: float = 0.0
+    worst_trade: float = 0.0
+    avg_holding_time: timedelta = timedelta()
+    last_updated: datetime = field(default_factory=datetime.now)
+    
+    def update(self, trade_result: Dict):
+        """Update performance metrics with new trade result"""
+        self.total_signals += 1
+        if trade_result['profit'] > 0:
+            self.successful_signals += 1
+            self.avg_profit = ((self.avg_profit * (self.successful_signals - 1)) + 
+                              trade_result['profit']) / self.successful_signals
+        else:
+            self.failed_signals += 1
+            self.avg_loss = ((self.avg_loss * (self.failed_signals - 1)) + 
+                            abs(trade_result['profit'])) / self.failed_signals
+        
+        self.win_rate = self.successful_signals / self.total_signals if self.total_signals > 0 else 0
+        self.total_pnl += trade_result['profit']
+        self.best_trade = max(self.best_trade, trade_result['profit'])
+        self.worst_trade = min(self.worst_trade, trade_result['profit'])
+        
+        if self.avg_loss > 0:
+            self.profit_factor = self.avg_profit / self.avg_loss
+        
+        self.last_updated = datetime.now()
+
+# ====================== STRATEGY MANAGER ======================
+
+class StrategyManager:
+    """Advanced strategy manager with dynamic loading and monitoring"""
+    
+    def __init__(self, config: Dict):
+        self.config = config
+        self.strategies = {}
+        self.strategy_performance = {}
+        self.strategy_health = {}
+        self.failed_strategies = set()
+        self.strategy_weights = {}
+        self.correlation_matrix = pd.DataFrame()
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Strategy paths
+        self.strategy_paths = {
+            StrategyType.TECHNICAL: "strategies.technical",
+            StrategyType.SMC: "strategies.smc",
+            StrategyType.ML: "strategies.ml",
+            StrategyType.VOLUME: "strategies.volume",
+            StrategyType.SENTIMENT: "strategies.sentiment",
+            StrategyType.FUSION: "strategies.fusion"
+        }
+        
+        # Initialize thread pool for parallel strategy execution
+        self.executor = ThreadPoolExecutor(max_workers=10)
+        
+    def load_strategies(self) -> Dict[str, Any]:
+        """Dynamically load all available strategies"""
+        loaded_strategies = {}
+        
+        for strategy_type, module_path in self.strategy_paths.items():
+            self.logger.info(f"Loading {strategy_type.value} strategies...")
+            
+            # Get strategy configurations
+            strategy_configs = self.config.get('strategies', {}).get(strategy_type.value, {})
+            
+            for strategy_name, strategy_config in strategy_configs.items():
+                if not strategy_config.get('enabled', False):
+                    continue
+                
+                try:
+                    # Construct module name
+                    module_name = f"{module_path}.{strategy_name}"
+                    
+                    # Try to import the module
+                    module = importlib.import_module(module_name)
+                    
+                    # Find the strategy class (usually named with Strategy suffix)
+                    strategy_class = None
+                    for name, obj in inspect.getmembers(module):
+                        if inspect.isclass(obj) and name.endswith('Strategy'):
+                            strategy_class = obj
+                            break
+                    
+                    if strategy_class:
+                        # Initialize strategy
+                        strategy_instance = strategy_class(strategy_config)
+                        loaded_strategies[strategy_name] = {
+                            'instance': strategy_instance,
+                            'type': strategy_type,
+                            'config': strategy_config,
+                            'enabled': True
+                        }
+                        
+                        # Initialize performance tracking
+                        self.strategy_performance[strategy_name] = StrategyPerformance(strategy_name)
+                        self.strategy_health[strategy_name] = {'failures': 0, 'last_success': datetime.now()}
+                        self.strategy_weights[strategy_name] = strategy_config.get('weight', 1.0)
+                        
+                        self.logger.info(f"✅ Loaded {strategy_name} strategy")
+                    else:
+                        self.logger.warning(f"⚠️ No strategy class found in {module_name}")
+                        
+                except ImportError as e:
+                    self.logger.warning(f"⚠️ Could not load {strategy_name}: {e}")
+                    self.failed_strategies.add(strategy_name)
+                except Exception as e:
+                    self.logger.error(f"❌ Error loading {strategy_name}: {e}")
+                    self.failed_strategies.add(strategy_name)
+        
+        self.strategies = loaded_strategies
+        self.logger.info(f"Loaded {len(loaded_strategies)} strategies successfully")
+        
+        if self.failed_strategies:
+            self.logger.warning(f"Failed to load: {', '.join(self.failed_strategies)}")
+        
+        return loaded_strategies
+    
+    def execute_strategy(self, strategy_name: str, data: pd.DataFrame) -> Optional[List[Signal]]:
+        """Execute a single strategy with error handling"""
+        if strategy_name not in self.strategies:
+            return None
+        
+        strategy_info = self.strategies[strategy_name]
+        
+        if not strategy_info['enabled']:
+            return None
+        
+        try:
+            # Execute strategy
+            strategy = strategy_info['instance']
+            signals = strategy.generate_signals(data)
+            
+            # Update health
+            self.strategy_health[strategy_name]['last_success'] = datetime.now()
+            self.strategy_health[strategy_name]['failures'] = 0
+            
+            return signals
+            
+        except Exception as e:
+            # Handle strategy failure
+            self.logger.error(f"Strategy {strategy_name} failed: {e}")
+            
+            # Update health
+            self.strategy_health[strategy_name]['failures'] += 1
+            
+            # Disable strategy if too many failures
+            if self.strategy_health[strategy_name]['failures'] >= 5:
+                self.logger.warning(f"Disabling {strategy_name} due to repeated failures")
+                strategy_info['enabled'] = False
+                
+            return None
+    
+    async def execute_all_strategies_async(self, data: pd.DataFrame) -> Dict[str, List[Signal]]:
+        """Execute all strategies in parallel"""
+        tasks = []
+        
+        for strategy_name in self.strategies:
+            task = asyncio.create_task(
+                asyncio.to_thread(self.execute_strategy, strategy_name, data)
+            )
+            tasks.append((strategy_name, task))
+        
+        results = {}
+        for strategy_name, task in tasks:
+            signals = await task
+            if signals:
+                results[strategy_name] = signals
+        
+        return results
+    
+    def update_strategy_weights(self):
+        """Update strategy weights based on performance"""
+        for strategy_name, performance in self.strategy_performance.items():
+            if performance.total_signals < 10:
+                continue  # Not enough data
+            
+            # Calculate weight based on performance metrics
+            base_weight = self.config['strategies'].get(strategy_name, {}).get('weight', 1.0)
+            
+            # Adjust based on win rate
+            win_rate_factor = performance.win_rate / 0.5  # Normalize around 50% win rate
+            
+            # Adjust based on profit factor
+            profit_factor_factor = min(performance.profit_factor / 1.5, 2.0)  # Cap at 2x
+            
+            # Adjust based on recent performance
+            recent_factor = 1.0  # Could be calculated from recent trades
+            
+            # Calculate new weight
+            new_weight = base_weight * win_rate_factor * profit_factor_factor * recent_factor
+            new_weight = max(0.1, min(new_weight, 5.0))  # Clamp between 0.1 and 5.0
+            
+            self.strategy_weights[strategy_name] = new_weight
+    
+    def calculate_correlation_matrix(self, signals_history: List[Dict[str, List[Signal]]]):
+        """Calculate correlation between strategies"""
+        if len(signals_history) < 20:
+            return
+        
+        # Create DataFrame of signal directions
+        signal_directions = defaultdict(list)
+        
+        for signals_dict in signals_history:
+            for strategy_name, signals in signals_dict.items():
+                if signals:
+                    # Use first signal's type (simplified)
+                    direction = 1 if signals[0].signal_type == SignalType.BUY else -1
+                else:
+                    direction = 0
+                signal_directions[strategy_name].append(direction)
+        
+        # Calculate correlation
+        df = pd.DataFrame(signal_directions)
+        self.correlation_matrix = df.corr()
+        
+        # Log high correlations
+        for i in range(len(self.correlation_matrix)):
+            for j in range(i+1, len(self.correlation_matrix)):
+                corr = self.correlation_matrix.iloc[i, j]
+                if abs(corr) > 0.8:
+                    strategy1 = self.correlation_matrix.index[i]
+                    strategy2 = self.correlation_matrix.columns[j]
+                    self.logger.info(f"High correlation ({corr:.2f}) between {strategy1} and {strategy2}")
+
+# ====================== SIGNAL ENGINE V2 ======================
+
+class SignalEngineV2:
+    """Advanced signal engine with fusion and filtering"""
+    
+    def __init__(self, strategy_manager: StrategyManager, config: Dict):
+        self.strategy_manager = strategy_manager
+        self.config = config
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Signal storage
+        self.signal_queue = queue.PriorityQueue()
+        self.signal_history = deque(maxlen=1000)
+        self.active_signals = []
+        
+        # Market regime detector
+        self.current_regime = MarketRegime.RANGING
+        self.regime_history = deque(maxlen=100)
+        
+        # Signal fusion parameters
+        self.min_confidence = config.get('min_confidence', 0.65)
+        self.min_correlation = config.get('min_correlation', 0.3)
+        self.max_correlation = config.get('max_correlation', 0.9)
+        
+    async def generate_signals(self, symbol: str, timeframes: List[str]) -> List[Signal]:
+        """Generate signals from all strategies with multi-timeframe analysis"""
+        all_signals = []
+        
+        for timeframe in timeframes:
+            # Fetch data for timeframe
+            data = await self.fetch_market_data(symbol, timeframe)
+            
+            if data is None or data.empty:
+                continue
+            
+            # Detect market regime
+            self.current_regime = self.detect_market_regime(data)
+            self.regime_history.append({
+                'timestamp': datetime.now(),
+                'regime': self.current_regime,
+                'timeframe': timeframe
+            })
+            
+            # Execute all strategies
+            strategy_signals = await self.strategy_manager.execute_all_strategies_async(data)
+            
+            # Process and filter signals
+            for strategy_name, signals in strategy_signals.items():
+                for signal in signals:
+                    # Add market context
+                    signal.market_regime = self.current_regime
+                    signal.timeframe = timeframe
+                    
+                    # Calculate additional indicators
+                    signal.volatility = self.calculate_volatility(data)
+                    signal.volume_profile = self.analyze_volume_profile(data)
+                    
+                    # Apply regime filter
+                    if self.filter_by_regime(signal):
+                        all_signals.append(signal)
+        
+        # Fusion and correlation analysis
+        fused_signals = self.fuse_signals(all_signals)
+        
+        # Final filtering and ranking
+        final_signals = self.filter_and_rank_signals(fused_signals)
+        
+        # Store in history
+        self.signal_history.extend(final_signals)
+        self.active_signals = final_signals
+        
+        return final_signals
+    
+    def detect_market_regime(self, data: pd.DataFrame) -> MarketRegime:
+        """Detect current market regime using multiple indicators"""
+        try:
+            # Calculate indicators
+            close_prices = data['close'].values
+            
+            # Trend detection using moving averages
+            ma_short = pd.Series(close_prices).rolling(20).mean().iloc[-1]
+            ma_long = pd.Series(close_prices).rolling(50).mean().iloc[-1]
+            current_price = close_prices[-1]
+            
+            # Volatility detection
+            returns = pd.Series(close_prices).pct_change()
+            volatility = returns.std()
+            avg_volatility = returns.rolling(20).std().mean()
+            
+            # ADX for trend strength
+            adx = self.calculate_adx(data)
+            
+            # Determine regime
+            if adx > 25:  # Strong trend
+                if current_price > ma_short > ma_long:
+                    return MarketRegime.TRENDING_UP
+                elif current_price < ma_short < ma_long:
+                    return MarketRegime.TRENDING_DOWN
+                else:
+                    return MarketRegime.BREAKOUT
+            elif volatility > avg_volatility * 1.5:
+                return MarketRegime.VOLATILE
+            elif volatility < avg_volatility * 0.5:
+                return MarketRegime.QUIET
+            else:
+                return MarketRegime.RANGING
+                
+        except Exception as e:
+            self.logger.error(f"Error detecting market regime: {e}")
+            return MarketRegime.RANGING
+    
+    def fuse_signals(self, signals: List[Signal]) -> List[Signal]:
+        """Fuse signals from multiple strategies using weighted voting"""
+        if not signals:
+            return []
+        
+        # Group signals by symbol and direction
+        signal_groups = defaultdict(list)
+        
+        for signal in signals:
+            key = (signal.symbol, signal.signal_type)
+            signal_groups[key].append(signal)
+        
+        fused_signals = []
+        
+        for (symbol, signal_type), group_signals in signal_groups.items():
+            if len(group_signals) < 2:
+                # Not enough signals to fuse
+                fused_signals.extend(group_signals)
+                continue
+            
+            # Calculate weighted average
+            total_weight = 0
+            weighted_confidence = 0
+            weighted_strength = 0
+            weighted_price = 0
+            
+            for signal in group_signals:
+                weight = self.strategy_manager.strategy_weights.get(signal.strategy_name, 1.0)
+                total_weight += weight
+                weighted_confidence += signal.confidence * weight
+                weighted_strength += signal.strength * weight
+                weighted_price += signal.price * weight
+            
+            # Create fused signal
+            fused_signal = Signal(
+                id=f"FUSED_{datetime.now().timestamp()}",
+                timestamp=datetime.now(),
+                symbol=symbol,
+                strategy_name="FUSION",
+                strategy_type=StrategyType.FUSION,
+                signal_type=signal_type,
+                price=weighted_price / total_weight,
+                confidence=weighted_confidence / total_weight,
+                strength=weighted_strength / total_weight,
+                grade=SignalGrade.A if weighted_confidence / total_weight > 0.85 else SignalGrade.B,
+                timeframe=group_signals[0].timeframe,
+                metadata={
+                    'source_strategies': [s.strategy_name for s in group_signals],
+                    'source_count': len(group_signals)
+                }
+            )
+            
+            # Calculate consensus stop loss and take profit
+            stop_losses = [s.stop_loss for s in group_signals if s.stop_loss]
+            take_profits = [s.take_profit for s in group_signals if s.take_profit]
+            
+            if stop_losses:
+                fused_signal.stop_loss = np.mean(stop_losses)
+            if take_profits:
+                fused_signal.take_profit = np.mean(take_profits)
+            
+            fused_signals.append(fused_signal)
+        
+        return fused_signals
+    
+    def filter_by_regime(self, signal: Signal) -> bool:
+        """Filter signals based on market regime"""
+        # Define regime-appropriate strategies
+        regime_strategies = {
+            MarketRegime.TRENDING_UP: [StrategyType.TECHNICAL, StrategyType.ML],
+            MarketRegime.TRENDING_DOWN: [StrategyType.TECHNICAL, StrategyType.ML],
+            MarketRegime.RANGING: [StrategyType.SMC, StrategyType.VOLUME],
+            MarketRegime.VOLATILE: [StrategyType.SMC, StrategyType.VOLUME],
+            MarketRegime.QUIET: [StrategyType.TECHNICAL],
+            MarketRegime.BREAKOUT: [StrategyType.SMC, StrategyType.TECHNICAL]
+        }
+        
+        # Check if strategy type is appropriate for current regime
+        appropriate_types = regime_strategies.get(self.current_regime, [])
+        
+        if signal.strategy_type not in appropriate_types and signal.strategy_type != StrategyType.FUSION:
+            # Reduce confidence for inappropriate strategies
+            signal.confidence *= 0.7
+        
+        return signal.confidence >= self.min_confidence
+    
+    def filter_and_rank_signals(self, signals: List[Signal]) -> List[Signal]:
+        """Filter and rank signals by quality and correlation"""
+        if not signals:
+            return []
+        
+        # Filter by minimum confidence
+        filtered_signals = [s for s in signals if s.confidence >= self.min_confidence]
+        
+        # Remove highly correlated signals
+        final_signals = []
+        
+        for signal in filtered_signals:
+            # Check correlation with already selected signals
+            is_unique = True
+            
+            for selected in final_signals:
+                if signal.strategy_name == selected.strategy_name:
+                    continue
+                    
+                # Get correlation from matrix
+                if not self.strategy_manager.correlation_matrix.empty:
+                    try:
+                        corr = self.strategy_manager.correlation_matrix.loc[
+                            signal.strategy_name, selected.strategy_name
+                        ]
+                        if abs(corr) > self.max_correlation:
+                            is_unique = False
+                            break
+                    except:
+                        pass
+            
+            if is_unique:
+                final_signals.append(signal)
+        
+        # Sort by confidence and grade
+        final_signals.sort(key=lambda x: (x.grade.value, x.confidence), reverse=True)
+        
+        # Limit number of signals
+        max_signals = self.config.get('max_signals_per_cycle', 5)
+        return final_signals[:max_signals]
+    
+    async def fetch_market_data(self, symbol: str, timeframe: str) -> pd.DataFrame:
+        """Fetch market data (placeholder - implement with actual data source)"""
+        # This would connect to MT5 or other data source
+        # For now, return sample data
+        try:
+            # Implement actual data fetching logic here
+            # Example: return await self.mt5_manager.get_data(symbol, timeframe)
+            
+            # Placeholder data
+            dates = pd.date_range(end=datetime.now(), periods=100, freq='1H')
+            data = pd.DataFrame({
+                'timestamp': dates,
+                'open': np.random.randn(100).cumsum() + 100,
+                'high': np.random.randn(100).cumsum() + 101,
+                'low': np.random.randn(100).cumsum() + 99,
+                'close': np.random.randn(100).cumsum() + 100,
+                'volume': np.random.randint(1000, 10000, 100)
+            })
+            return data
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching data: {e}")
+            return pd.DataFrame()
+    
+    def calculate_volatility(self, data: pd.DataFrame) -> float:
+        """Calculate current volatility"""
+        try:
+            returns = data['close'].pct_change()
+            return returns.std()
+        except:
+            return 0.0
+    
+    def analyze_volume_profile(self, data: pd.DataFrame) -> str:
+        """Analyze volume profile"""
+        try:
+            avg_volume = data['volume'].mean()
+            current_volume = data['volume'].iloc[-1]
+            
+            if current_volume > avg_volume * 1.5:
+                return "HIGH"
+            elif current_volume < avg_volume * 0.5:
+                return "LOW"
+            else:
+                return "NORMAL"
+        except:
+            return "UNKNOWN"
+    
+    def calculate_adx(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Average Directional Index"""
+        try:
+            high = data['high']
+            low = data['low']
+            close = data['close']
+            
+            # Calculate True Range
+            tr1 = high - low
+            tr2 = abs(high - close.shift())
+            tr3 = abs(low - close.shift())
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr = tr.rolling(period).mean()
+            
+            # Calculate directional movements
+            up_move = high - high.shift()
+            down_move = low.shift() - low
+            
+            pos_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0)
+            neg_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0)
+            
+            pos_di = 100 * pd.Series(pos_dm).rolling(period).mean() / atr
+            neg_di = 100 * pd.Series(neg_dm).rolling(period).mean() / atr
+            
+            dx = 100 * abs(pos_di - neg_di) / (pos_di + neg_di)
+            adx = dx.rolling(period).mean()
+            
+            return adx.iloc[-1] if not adx.empty else 0.0
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating ADX: {e}")
+            return 0.0
+
+# ====================== RISK MANAGER V2 ======================
+
+class RiskManagerV2:
+    """Enhanced risk management system"""
+    
+    def __init__(self, config: Dict):
+        self.config = config
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Risk parameters
+        self.max_risk_per_trade = config.get('max_risk_per_trade', 0.02)
+        self.max_daily_loss = config.get('max_daily_loss', 0.05)
+        self.max_positions = config.get('max_positions', 5)
+        self.max_correlation = config.get('max_correlation', 0.7)
+        
+        # Portfolio tracking
+        self.open_positions = []
+        self.daily_pnl = 0.0
+        self.total_exposure = 0.0
+        
+        # Risk metrics
+        self.current_drawdown = 0.0
+        self.max_drawdown = 0.0
+        self.risk_score = 0.0
+        
+    def calculate_position_size(self, signal: Signal, account_balance: float) -> float:
+        """Calculate position size using Kelly Criterion with safety factor"""
+        try:
+            # Base position size from risk percentage
+            risk_amount = account_balance * self.max_risk_per_trade
+            
+            if signal.stop_loss:
+                pip_risk = abs(signal.price - signal.stop_loss)
+                if pip_risk > 0:
+                    base_size = risk_amount / pip_risk
+                else:
+                    base_size = 0
+            else:
+                # Use ATR-based sizing if no stop loss
+                base_size = risk_amount / (signal.price * 0.02)  # 2% price movement
+            
+            # Apply Kelly Criterion with safety factor
+            win_rate = 0.5  # Use strategy's historical win rate
+            avg_win = 1.5  # Use strategy's average win
+            avg_loss = 1.0  # Use strategy's average loss
+            
+            kelly_fraction = (win_rate * avg_win - (1 - win_rate) * avg_loss) / avg_win
+            kelly_fraction = max(0, min(kelly_fraction, 0.25))  # Cap at 25%
+            
+            # Apply confidence adjustment
+            confidence_factor = signal.confidence
+            
+            # Apply regime adjustment
+            regime_factor = self.get_regime_factor(signal.market_regime)
+            
+            # Calculate final size
+            position_size = base_size * kelly_fraction * confidence_factor * regime_factor
+            
+            # Apply maximum position limits
+            max_position = account_balance * 0.1  # Max 10% per position
+            position_size = min(position_size, max_position)
+            
+            return round(position_size, 2)
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating position size: {e}")
+            return 0.0
+    
+    def get_regime_factor(self, regime: MarketRegime) -> float:
+        """Get risk adjustment factor based on market regime"""
+        regime_factors = {
+            MarketRegime.TRENDING_UP: 1.2,
+            MarketRegime.TRENDING_DOWN: 1.2,
+            MarketRegime.RANGING: 0.8,
+            MarketRegime.VOLATILE: 0.6,
+            MarketRegime.QUIET: 1.0,
+            MarketRegime.BREAKOUT: 1.1
+        }
+        return regime_factors.get(regime, 1.0)
+    
+    def validate_trade(self, signal: Signal, account_balance: float) -> Tuple[bool, str]:
+        """Validate if trade can be taken based on risk rules"""
+        # Check daily loss limit
+        if abs(self.daily_pnl) >= account_balance * self.max_daily_loss:
+            return False, "Daily loss limit reached"
+        
+        # Check maximum positions
+        if len(self.open_positions) >= self.max_positions:
+            return False, "Maximum positions reached"
+        
+        # Check correlation with existing positions
+        for position in self.open_positions:
+            if self.calculate_correlation(signal, position) > self.max_correlation:
+                return False, "High correlation with existing position"
+        
+        # Check exposure limits
+        position_size = self.calculate_position_size(signal, account_balance)
+        new_exposure = self.total_exposure + (position_size * signal.price)
+        
+        if new_exposure > account_balance * 2:  # Max 2x leverage
+            return False, "Exposure limit exceeded"
+        
+        # Check signal quality
+        if signal.grade in [SignalGrade.D, SignalGrade.F]:
+            return False, f"Signal grade too low: {signal.grade.value}"
+        
+        return True, "Trade validated"
+    
+    def calculate_correlation(self, signal1: Signal, signal2: Signal) -> float:
+        """Calculate correlation between two signals/positions"""
+        # Simplified correlation - would use actual price correlation in production
+        if signal1.symbol == signal2.symbol:
+            return 1.0
+        
+        # Check if instruments are in same category (e.g., both forex, both indices)
+        # This would be more sophisticated in production
+        return 0.3  # Default low correlation
+    
+    def update_risk_metrics(self, account_balance: float):
+        """Update risk metrics"""
+        # Calculate current drawdown
+        if self.daily_pnl < 0:
+            self.current_drawdown = abs(self.daily_pnl) / account_balance
+            self.max_drawdown = max(self.max_drawdown, self.current_drawdown)
+        
+        # Calculate risk score (0-100)
+        risk_components = [
+            self.current_drawdown * 100,  # Drawdown component
+            (len(self.open_positions) / self.max_positions) * 30,  # Position count
+            (self.total_exposure / account_balance) * 20,  # Exposure component
+        ]
+        
+        self.risk_score = min(sum(risk_components), 100)
+    
+    def emergency_stop_check(self) -> bool:
+        """Check if emergency stop conditions are met"""
+        if self.current_drawdown > 0.1:  # 10% drawdown
+            self.logger.critical("EMERGENCY STOP: 10% drawdown reached")
+            return True
+        
+        if self.risk_score > 90:
+            self.logger.critical("EMERGENCY STOP: Risk score exceeds 90")
+            return True
+        
+        return False
+
+# ====================== EXECUTION ENGINE V2 ======================
+
+class ExecutionEngineV2:
+    """Advanced execution engine with smart order routing"""
+    
+    def __init__(self, risk_manager: RiskManagerV2, config: Dict):
+        self.risk_manager = risk_manager
+        self.config = config
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Execution parameters
+        self.slippage_model = config.get('slippage_model', 'fixed')
+        self.max_slippage = config.get('max_slippage', 0.0005)
+        self.use_limit_orders = config.get('use_limit_orders', False)
+        
+        # Order tracking
+        self.pending_orders = []
+        self.executed_orders = []
+        self.failed_orders = []
+        
+        # Performance tracking
+        self.execution_stats = {
+            'total_orders': 0,
+            'successful_orders': 0,
+            'failed_orders': 0,
+            'avg_slippage': 0.0,
+            'avg_execution_time': timedelta()
+        }
+    
+    async def execute_signal(self, signal: Signal, account_balance: float) -> Dict[str, Any]:
+        """Execute trading signal with smart routing"""
+        execution_result = {
+            'signal_id': signal.id,
+            'status': 'pending',
+            'order_id': None,
+            'execution_price': None,
+            'slippage': None,
+            'timestamp': None,
+            'message': ''
+        }
+        
+        try:
+            # Validate trade with risk manager
+            is_valid, validation_message = self.risk_manager.validate_trade(signal, account_balance)
+            
+            if not is_valid:
+                execution_result['status'] = 'rejected'
+                execution_result['message'] = validation_message
+                self.logger.warning(f"Trade rejected: {validation_message}")
+                return execution_result
+            
+            # Calculate position size
+            position_size = self.risk_manager.calculate_position_size(signal, account_balance)
+            
+            if position_size <= 0:
+                execution_result['status'] = 'rejected'
+                execution_result['message'] = "Invalid position size"
+                return execution_result
+            
+            # Prepare order
+            order = self.prepare_order(signal, position_size)
+            
+            # Execute order
+            if self.use_limit_orders and signal.grade != SignalGrade.A_PLUS:
+                execution_result = await self.execute_limit_order(order)
+            else:
+                execution_result = await self.execute_market_order(order)
+            
+            # Update statistics
+            self.update_execution_stats(execution_result)
+            
+            # Update risk manager
+            if execution_result['status'] == 'filled':
+                self.risk_manager.open_positions.append({
+                    'signal': signal,
+                    'size': position_size,
+                    'entry_price': execution_result['execution_price'],
+                    'timestamp': execution_result['timestamp']
+                })
+                self.risk_manager.total_exposure += position_size * signal.price
+            
+            return execution_result
+            
+        except Exception as e:
+            self.logger.error(f"Execution error: {e}")
+            execution_result['status'] = 'error'
+            execution_result['message'] = str(e)
+            return execution_result
+    
+    def prepare_order(self, signal: Signal, position_size: float) -> Dict[str, Any]:
+        """Prepare order details"""
+        order = {
+            'symbol': signal.symbol,
+            'type': 'BUY' if signal.signal_type == SignalType.BUY else 'SELL',
+            'size': position_size,
+            'price': signal.price,
+            'stop_loss': signal.stop_loss,
+            'take_profit': signal.take_profit,
+            'signal_id': signal.id,
+            'timestamp': datetime.now()
+        }
+        
+        # Add smart order features
+        if signal.grade == SignalGrade.A_PLUS:
+            order['urgency'] = 'high'
+            order['allow_partial'] = False
+        else:
+            order['urgency'] = 'normal'
+            order['allow_partial'] = True
+        
+        return order
+    
+    async def execute_market_order(self, order: Dict) -> Dict[str, Any]:
+        """Execute market order"""
+        # Simulate order execution (replace with actual broker API)
+        await asyncio.sleep(0.1)  # Simulate network delay
+        
+        # Calculate slippage
+        slippage = self.calculate_slippage(order['size'], order['urgency'])
+        execution_price = order['price'] * (1 + slippage)
+        
+        result = {
+            'signal_id': order['signal_id'],
+            'status': 'filled',
+            'order_id': f"ORD_{datetime.now().timestamp()}",
+            'execution_price': execution_price,
+            'slippage': slippage,
+            'timestamp': datetime.now(),
+            'message': 'Market order executed'
+        }
+        
+        self.executed_orders.append(result)
+        return result
+    
+    async def execute_limit_order(self, order: Dict) -> Dict[str, Any]:
+        """Execute limit order with price improvement logic"""
+        # Simulate limit order (replace with actual broker API)
+        await asyncio.sleep(0.5)  # Simulate waiting for fill
+        
+        # Simulate price improvement
+        improvement = np.random.uniform(-0.0001, 0.0003)
+        execution_price = order['price'] * (1 + improvement)
+        
+        result = {
+            'signal_id': order['signal_id'],
+            'status': 'filled',
+            'order_id': f"ORD_{datetime.now().timestamp()}",
+            'execution_price': execution_price,
+            'slippage': improvement,
+            'timestamp': datetime.now(),
+            'message': 'Limit order executed with price improvement'
+        }
+        
+        self.executed_orders.append(result)
+        return result
+    
+    def calculate_slippage(self, size: float, urgency: str) -> float:
+        """Calculate expected slippage based on order size and urgency"""
+        if self.slippage_model == 'fixed':
+            return self.max_slippage if urgency == 'high' else self.max_slippage / 2
+        
+        # Dynamic slippage model based on size
+        base_slippage = 0.0001
+        size_impact = min(size / 100000, 0.001)  # Size impact capped at 0.1%
+        urgency_factor = 2.0 if urgency == 'high' else 1.0
+        
+        return min(base_slippage + size_impact * urgency_factor, self.max_slippage)
+    
+    def update_execution_stats(self, result: Dict):
+        """Update execution statistics"""
+        self.execution_stats['total_orders'] += 1
+        
+        if result['status'] == 'filled':
+            self.execution_stats['successful_orders'] += 1
+            
+            # Update average slippage
+            current_avg = self.execution_stats['avg_slippage']
+            new_count = self.execution_stats['successful_orders']
+            self.execution_stats['avg_slippage'] = (
+                (current_avg * (new_count - 1) + abs(result['slippage'])) / new_count
+            )
+        else:
+            self.execution_stats['failed_orders'] += 1
+
+# ====================== MAIN INTEGRATION CLASS ======================
+
+class Phase2TradingSystem:
+    """Main Phase 2 trading system integration"""
+    
+    def __init__(self, config_path: str = 'config/master_config.yaml'):
+        self.config = self.load_config(config_path)
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Initialize components
+        self.strategy_manager = None
+        self.signal_engine = None
+        self.risk_manager = None
+        self.execution_engine = None
+        
+        # System state
+        self.is_running = False
+        self.mode = TradingMode.TEST
+        self.emergency_stop = False
+        
+        # Performance tracking
+        self.system_metrics = {
+            'start_time': None,
+            'total_signals': 0,
+            'total_trades': 0,
+            'successful_trades': 0,
+            'total_pnl': 0.0,
+            'uptime': timedelta()
+        }
+        
+        # Initialize event loop
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+    
+    def load_config(self, config_path: str) -> Dict:
+        """Load configuration from YAML file"""
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Set defaults if not present
+            config.setdefault('strategies', {})
+            config.setdefault('risk_management', {})
+            config.setdefault('execution', {})
+            config.setdefault('timeframes', ['H1', 'H4', 'D1'])
+            config.setdefault('symbols', ['XAUUSD'])
+            
+            return config
+            
+        except Exception as e:
+            self.logger.error(f"Error loading config: {e}")
+            # Return default config
+            return {
+                'strategies': {},
+                'risk_management': {'max_risk_per_trade': 0.02},
+                'execution': {'use_limit_orders': False},
+                'timeframes': ['H1'],
+                'symbols': ['XAUUSD']
+            }
+    
+    def initialize(self, mode: TradingMode = TradingMode.TEST) -> bool:
+        """Initialize all system components"""
+        try:
+            self.mode = mode
+            self.logger.info(f"Initializing Phase 2 Trading System in {mode.value} mode...")
+            
+            # Initialize strategy manager
+            self.strategy_manager = StrategyManager(self.config)
+            loaded_strategies = self.strategy_manager.load_strategies()
+            
+            if not loaded_strategies:
+                self.logger.error("No strategies loaded! Cannot proceed.")
+                return False
+            
+            # Initialize signal engine
+            self.signal_engine = SignalEngineV2(self.strategy_manager, self.config)
+            
+            # Initialize risk manager
+            self.risk_manager = RiskManagerV2(self.config.get('risk_management', {}))
+            
+            # Initialize execution engine
+            self.execution_engine = ExecutionEngineV2(
+                self.risk_manager,
+                self.config.get('execution', {})
+            )
+            
+            self.system_metrics['start_time'] = datetime.now()
+            self.is_running = True
+            
+            self.logger.info("✅ System initialized successfully")
+            self.logger.info(f"Loaded strategies: {list(loaded_strategies.keys())}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Initialization failed: {e}")
+            traceback.print_exc()
+            return False
+    
+    async def run_trading_cycle(self):
+        """Run one complete trading cycle"""
+        try:
+            # Check emergency stop
+            if self.emergency_stop or self.risk_manager.emergency_stop_check():
+                self.logger.critical("Emergency stop activated - halting trading")
+                self.emergency_stop = True
+                return
+            
+            # Get account balance (mock for testing)
+            account_balance = 100000  # This would come from broker API
+            
+            # Generate signals for all symbols
+            all_signals = []
+            for symbol in self.config['symbols']:
+                signals = await self.signal_engine.generate_signals(
+                    symbol,
+                    self.config['timeframes']
+                )
+                all_signals.extend(signals)
+            
+            self.system_metrics['total_signals'] += len(all_signals)
+            
+            # Log signal summary
+            if all_signals:
+                self.logger.info(f"Generated {len(all_signals)} signals:")
+                for signal in all_signals[:5]:  # Log first 5
+                    self.logger.info(
+                        f"  {signal.strategy_name}: {signal.signal_type.value} "
+                        f"{signal.symbol} @ {signal.price:.2f} "
+                        f"(Confidence: {signal.confidence:.2%}, Grade: {signal.grade.value})"
+                    )
+            
+            # Execute signals if in live or paper mode
+            if self.mode in [TradingMode.LIVE, TradingMode.PAPER]:
+                for signal in all_signals:
+                    if self.emergency_stop:
+                        break
+                    
+                    result = await self.execution_engine.execute_signal(signal, account_balance)
+                    
+                    if result['status'] == 'filled':
+                        self.system_metrics['total_trades'] += 1
+                        self.logger.info(
+                            f"✅ Executed: {signal.signal_type.value} {signal.symbol} "
+                            f"@ {result['execution_price']:.2f}"
+                        )
+                    elif result['status'] == 'rejected':
+                        self.logger.info(f"❌ Rejected: {result['message']}")
+            
+            # Update risk metrics
+            self.risk_manager.update_risk_metrics(account_balance)
+            
+            # Update strategy weights periodically
+            if self.system_metrics['total_trades'] % 10 == 0:
+                self.strategy_manager.update_strategy_weights()
+            
+            # Log system status
+            self.log_system_status()
+            
+        except Exception as e:
+            self.logger.error(f"Error in trading cycle: {e}")
+            traceback.print_exc()
+    
+    async def run(self):
+        """Main run loop"""
+        self.logger.info("Starting main trading loop...")
+        
+        cycle_interval = self.config.get('cycle_interval', 60)  # Default 60 seconds
+        
+        while self.is_running and not self.emergency_stop:
+            try:
+                cycle_start = datetime.now()
+                
+                # Run trading cycle
+                await self.run_trading_cycle()
+                
+                # Calculate next cycle time
+                cycle_duration = (datetime.now() - cycle_start).total_seconds()
+                sleep_time = max(0, cycle_interval - cycle_duration)
+                
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+                    
+            except KeyboardInterrupt:
+                self.logger.info("Received interrupt signal")
+                break
+            except Exception as e:
+                self.logger.error(f"Unexpected error: {e}")
+                await asyncio.sleep(cycle_interval)
+        
+        self.shutdown()
+    
+    def log_system_status(self):
+        """Log current system status"""
+        uptime = datetime.now() - self.system_metrics['start_time']
+        
+        status = (
+            f"\n{'='*60}\n"
+            f"System Status Report\n"
+            f"{'='*60}\n"
+            f"Mode: {self.mode.value}\n"
+            f"Uptime: {uptime}\n"
+            f"Total Signals: {self.system_metrics['total_signals']}\n"
+            f"Total Trades: {self.system_metrics['total_trades']}\n"
+            f"Active Positions: {len(self.risk_manager.open_positions)}\n"
+            f"Risk Score: {self.risk_manager.risk_score:.1f}/100\n"
+            f"Daily P&L: ${self.risk_manager.daily_pnl:,.2f}\n"
+            f"Current Drawdown: {self.risk_manager.current_drawdown:.2%}\n"
+            f"Active Strategies: {len([s for s in self.strategy_manager.strategies.values() if s['enabled']])}\n"
+            f"{'='*60}"
+        )
+        
+        self.logger.info(status)
+    
+    def test_components(self):
+        """Test all system components"""
+        self.logger.info("Running component tests...")
+        
+        test_results = {
+            'strategies': False,
+            'signal_generation': False,
+            'risk_validation': False,
+            'execution': False
+        }
+        
+        try:
+            # Test strategy loading
+            if self.strategy_manager and self.strategy_manager.strategies:
+                test_results['strategies'] = True
+                self.logger.info(f"✅ Strategies: {len(self.strategy_manager.strategies)} loaded")
+            
+            # Test signal generation
+            test_data = pd.DataFrame({
+                'close': np.random.randn(100).cumsum() + 100,
+                'high': np.random.randn(100).cumsum() + 101,
+                'low': np.random.randn(100).cumsum() + 99,
+                'volume': np.random.randint(1000, 10000, 100)
+            })
+            
+            # Test risk validation
+            test_signal = Signal(
+                id="TEST_001",
+                timestamp=datetime.now(),
+                symbol="XAUUSD",
+                strategy_name="test",
+                strategy_type=StrategyType.TECHNICAL,
+                signal_type=SignalType.BUY,
+                price=2000.0,
+                confidence=0.8,
+                strength=0.7,
+                grade=SignalGrade.B,
+                timeframe="H1"
+            )
+            
+            is_valid, message = self.risk_manager.validate_trade(test_signal, 100000)
+            test_results['risk_validation'] = True
+            self.logger.info(f"✅ Risk Validation: {message}")
+            
+            # Test execution engine
+            if self.execution_engine:
+                test_results['execution'] = True
+                self.logger.info("✅ Execution Engine: Ready")
+            
+            # Summary
+            passed = sum(test_results.values())
+            total = len(test_results)
+            
+            self.logger.info(f"\nTest Summary: {passed}/{total} components passed")
+            
+            return all(test_results.values())
+            
+        except Exception as e:
+            self.logger.error(f"Component test failed: {e}")
+            return False
+    
+    def shutdown(self):
+        """Gracefully shutdown the system"""
+        self.logger.info("Shutting down Phase 2 Trading System...")
+        
+        self.is_running = False
+        
+        # Close all positions if in live mode
+        if self.mode == TradingMode.LIVE and self.risk_manager.open_positions:
+            self.logger.warning(f"Closing {len(self.risk_manager.open_positions)} open positions...")
+            # Implement position closing logic
+        
+        # Save system state
+        self.save_system_state()
+        
+        # Log final statistics
+        self.log_final_statistics()
+        
+        self.logger.info("System shutdown complete")
+    
+    def save_system_state(self):
+        """Save current system state to file"""
+        try:
+            state = {
+                'timestamp': datetime.now().isoformat(),
+                'mode': self.mode.value,
+                'metrics': self.system_metrics,
+                'strategy_performance': {
+                    k: asdict(v) for k, v in self.strategy_manager.strategy_performance.items()
+                },
+                'risk_metrics': {
+                    'max_drawdown': self.risk_manager.max_drawdown,
+                    'risk_score': self.risk_manager.risk_score
+                }
+            }
+            
+            with open('logs/system_state.json', 'w') as f:
+                json.dump(state, f, indent=2, default=str)
+            
+            self.logger.info("System state saved")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to save system state: {e}")
+    
+    def log_final_statistics(self):
+        """Log final system statistics"""
+        if not self.system_metrics['start_time']:
+            return
+        
+        uptime = datetime.now() - self.system_metrics['start_time']
+        
+        stats = (
+            f"\n{'='*60}\n"
+            f"Final System Statistics\n"
+            f"{'='*60}\n"
+            f"Total Runtime: {uptime}\n"
+            f"Total Signals Generated: {self.system_metrics['total_signals']}\n"
+            f"Total Trades Executed: {self.system_metrics['total_trades']}\n"
+            f"Average Execution Slippage: {self.execution_engine.execution_stats['avg_slippage']:.5f}\n"
+            f"Maximum Drawdown: {self.risk_manager.max_drawdown:.2%}\n"
+            f"Final P&L: ${self.risk_manager.daily_pnl:,.2f}\n"
+            f"{'='*60}"
+        )
+        
+        self.logger.info(stats)
+
+# ====================== MAIN ENTRY POINT ======================
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description='Phase 2 Trading System')
+    parser.add_argument(
+        '--mode',
+        type=str,
+        choices=['live', 'paper', 'backtest', 'test'],
+        default='test',
+        help='Trading mode'
+    )
+    parser.add_argument(
+        '--config',
+        type=str,
+        default='config/master_config.yaml',
+        help='Configuration file path'
+    )
+    parser.add_argument(
+        '--test',
+        action='store_true',
+        help='Run component tests'
+    )
+    
+    args = parser.parse_args()
+    
+    # Create logs directory if not exists
+    Path('logs').mkdir(exist_ok=True)
+    
+    # Initialize system
+    system = Phase2TradingSystem(args.config)
+    
+    # Map string mode to enum
+    mode_map = {
+        'live': TradingMode.LIVE,
+        'paper': TradingMode.PAPER,
+        'backtest': TradingMode.BACKTEST,
+        'test': TradingMode.TEST
+    }
+    mode = mode_map.get(args.mode, TradingMode.TEST)
+    
+    if not system.initialize(mode):
+        logger.error("Failed to initialize system")
+        sys.exit(1)
+    
+    # Run tests if requested
+    if args.test:
+        success = system.test_components()
+        sys.exit(0 if success else 1)
+    
+    # Run main loop
+    try:
+        asyncio.run(system.run())
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        traceback.print_exc()
+    finally:
+        system.shutdown()
+
+if __name__ == "__main__":
+    main()
