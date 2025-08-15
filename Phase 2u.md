@@ -1181,7 +1181,7 @@ ORDER BLOCKS STRATEGY TEST COMPLETED!
 
 ---
 
-#### 2.3.2 Liquidity Pools Strategy
+## 2.3.2 Liquidity Pools Strategy
 
 ### File: `src/strategies/smc/liquidity_pools.py`
 **Status**: ⏳ PENDING  
@@ -1221,7 +1221,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.3.3 Manipulation Strategy
+## 2.3.3 Manipulation Strategy
 
 ### File: `src/strategies/smc/manipulation.py`
 **Status**: ⏳ PENDING  
@@ -1261,7 +1261,7 @@ Output missing – needs capture
 
 ---
 
-#### 2.3.4 Market Structure Strategy
+## 2.3.4 Market Structure Strategy
 
 ### File: `src/strategies/smc/market_structure.py`
 **Status**: ⏳ PENDING  
@@ -1450,7 +1450,7 @@ LSTM PREDICTOR STRATEGY TEST COMPLETED!
 
 ---
 
-#### 2.4.2 XGBoost Classifier
+## 2.4.2 XGBoost Classifier
 
 ### File: `src/strategies/ml/xgboost_classifier.py`
 **Status**: ⏳ PENDING  
