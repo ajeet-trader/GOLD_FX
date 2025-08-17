@@ -61,7 +61,7 @@ if not ML_AVAILABLE:
     class Model:
         pass
     
-class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
+class LSTMPredictorStrategy(AbstractStrategy): # Inherit from AbstractStrategy
     """
     Advanced LSTM Neural Network for Gold Price Prediction
     
@@ -85,24 +85,26 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
         super().__init__(config, mt5_manager, database) # Call parent __init__
         
         # Strategy parameters - access from self.config (which is the passed 'config')
-        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.75)
+        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.60)  # Reduced from 0.75
         self.prediction_horizon = self.config.get('parameters', {}).get('prediction_horizon', 12)
         self.feature_lookback = self.config.get('parameters', {}).get('feature_lookback', 50)
         self.retrain_frequency = self.config.get('parameters', {}).get('retrain_frequency', 'weekly')
         self.min_training_samples = self.config.get('parameters', {}).get('min_training_samples', 1000)
         
-        # Model architecture parameters
-        self.sequence_length = 60
-        self.lstm_units = [128, 64, 32]
-        self.dropout_rate = 0.3
+        # Model architecture parameters - Optimized for 8GB RAM
+        self.sequence_length = 30  # Reduced from 60
+        self.lstm_units = [64, 32]  # Reduced from [128, 64, 32]
+        self.dropout_rate = 0.2  # Reduced from 0.3
         self.learning_rate = 0.001
-        self.batch_size = 16  # Reduced from 32
-        self.max_epochs = 30  # Reduced from 50
+        self.batch_size = 8   # Reduced from 16 for 8GB RAM
+        self.max_epochs = 15  # Reduced from 30 for faster training
         
-        # Memory optimization settings
-        self.max_training_samples = 2000  # Limit training data size
-        self.feature_buffer_size = 500  # Limit feature buffer
-        self.prediction_batch_size = 5  # Process predictions in smaller batches
+        # Memory optimization settings for 8GB RAM
+        self.max_training_samples = 1000  # Reduced from 2000
+        self.feature_buffer_size = 200    # Reduced from 500
+        self.prediction_batch_size = 3    # Reduced from 5
+        self.memory_cleanup_interval = 50  # Clean memory every 50 predictions
+        self.prediction_count = 0
         
         # Data preprocessing
         self.price_scaler = MinMaxScaler(feature_range=(0, 1)) if ML_AVAILABLE else None
@@ -138,54 +140,72 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
         if not ML_AVAILABLE:
             self.logger.warning("ML libraries not available. Running in simulation mode.")
     
-    # Renamed from generate_signals to generate_signal to match AbstractStrategy
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
-        """Generate ML-based trading signals"""
-        signals = [] # Initialize signals list
+        """Generate ML-based trading signals - Optimized for 8GB RAM"""
+        signals = []
         try:
-            # Get market data
-            if not self.mt5_manager: # Added check for mt5_manager
+            # Print consistent status message like technical strategies
+            print(f"LSTM Predictor - Analyzing {symbol} on {timeframe}")
+            
+            # Get market data with memory optimization
+            if not self.mt5_manager:
                 self.logger.warning("MT5 manager not available for signal generation.")
                 return []
             
-            data = self.mt5_manager.get_historical_data(symbol, timeframe, 1000)
-            if data is None or len(data) < self.sequence_length + 50:
+            # Reduced data request for memory efficiency
+            data = self.mt5_manager.get_historical_data(symbol, timeframe, 500)  # Reduced from 1000
+            if data is None or len(data) < self.sequence_length + 30:  # Reduced requirement
                 self.logger.warning(f"Insufficient data for LSTM analysis: {len(data) if data is not None else 0}")
                 return []
             
-            # Prepare features
+            # Memory cleanup before processing
+            self.prediction_count += 1
+            if self.prediction_count % self.memory_cleanup_interval == 0:
+                self._cleanup_memory()
+            
+            # Prepare features with memory optimization
             features = self._prepare_features(data, symbol, timeframe)
             if features is None or len(features) == 0:
                 self.logger.warning("Feature preparation failed")
                 return []
             
-            # Check if models need training/retraining
+            # Check if models need training (less frequent for speed)
             if self._should_retrain():
+                print("   Training models...")
                 self._train_models(data, symbol, timeframe)
             
-            # Generate predictions
+            # Generate predictions in smaller batches
             predictions = self._generate_predictions(features)
             if predictions is None:
                 return []
             
-            # Convert predictions to signals (raw signals from LSTM logic)
-            raw_signals = self._predictions_to_signals(predictions, data, symbol, timeframe)
+            # Convert predictions to signals with enhanced logic
+            raw_signals = self._predictions_to_signals_enhanced(predictions, data, symbol, timeframe)
             
-            # Update training data for future retraining
-            self._update_training_data(features, data)
+            # Update training data efficiently
+            self._update_training_data_optimized(features, data)
             
-            # Filter and validate signals using base class validation
+            # Apply multi-signal generation like technical strategies
             validated_signals = []
             for signal in raw_signals:
-                if self.validate_signal(signal): # Apply base class validation
+                if self.validate_signal(signal):
                     validated_signals.append(signal)
+                    # self.signal_history.append(signal) <-- REMOVED: validate_signal already appends
             
-            self.logger.info(f"LSTM generated {len(validated_signals)} valid signals with avg confidence {np.mean([s.confidence for s in validated_signals]):.2f}" if validated_signals else "LSTM generated 0 valid signals.")
+            # Print results like technical strategies
+            if validated_signals:
+                avg_confidence = np.mean([s.confidence for s in validated_signals])
+                print(f"   Generated {len(validated_signals)} signals (avg confidence: {avg_confidence:.2f})")
+                for signal in validated_signals:
+                    print(f"      - {signal.signal_type.value} at {signal.price:.2f} (conf: {signal.confidence:.2f})")
+            else:
+                print("   No valid signals generated")
             
             return validated_signals
             
         except Exception as e:
             self.logger.error(f"LSTM signal generation failed: {str(e)}", exc_info=True)
+            print(f"   LSTM Error: {str(e)}")
             return []
     
     def analyze(self, data: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
@@ -549,22 +569,18 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
             return None
         
         model = Sequential([
-            Bidirectional(LSTM(self.lstm_units[0], return_sequences=True, 
-                             kernel_regularizer=l2(0.01)), 
-                         input_shape=(input_shape[1], input_shape[2])),
+            LSTM(self.lstm_units[0], return_sequences=True, 
+                 kernel_regularizer=l2(0.005),  # Reduced regularization
+                 input_shape=(input_shape[1], input_shape[2])),
             Dropout(self.dropout_rate),
             
-            Bidirectional(LSTM(self.lstm_units[1], return_sequences=True,
-                             kernel_regularizer=l2(0.01))),
+            LSTM(self.lstm_units[1], kernel_regularizer=l2(0.005)),  # Removed Bidirectional and third layer
             Dropout(self.dropout_rate),
             
-            LSTM(self.lstm_units[2], kernel_regularizer=l2(0.01)),
+            Dense(32, activation='relu', kernel_regularizer=l2(0.005)),  # Reduced from 64
             Dropout(self.dropout_rate),
             
-            Dense(64, activation='relu', kernel_regularizer=l2(0.01)),
-            Dropout(self.dropout_rate),
-            
-            Dense(32, activation='relu'),
+            Dense(16, activation='relu'),  # Reduced from 32
             Dense(3, activation='softmax')  # 3 classes: Down, Sideways, Up
         ])
         
@@ -577,27 +593,23 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
         return model
     
     def _build_magnitude_model(self, input_shape: Tuple) -> Sequential:
-        """Build LSTM model for magnitude prediction"""
+        """Build lightweight LSTM model for magnitude prediction - 8GB RAM optimized"""
         if not ML_AVAILABLE:
             return None
         
         model = Sequential([
-            Bidirectional(LSTM(self.lstm_units[0], return_sequences=True,
-                             kernel_regularizer=l2(0.01)), 
-                         input_shape=(input_shape[1], input_shape[2])),
+            LSTM(self.lstm_units[0], return_sequences=True,
+                 kernel_regularizer=l2(0.005),  # Reduced regularization
+                 input_shape=(input_shape[1], input_shape[2])),
             Dropout(self.dropout_rate),
             
-            Bidirectional(LSTM(self.lstm_units[1], return_sequences=True,
-                             kernel_regularizer=l2(0.01))),
+            LSTM(self.lstm_units[1], kernel_regularizer=l2(0.005)),  # Removed Bidirectional
             Dropout(self.dropout_rate),
             
-            LSTM(self.lstm_units[2], kernel_regularizer=l2(0.01)),
+            Dense(24, activation='relu', kernel_regularizer=l2(0.005)),  # Reduced from 64
             Dropout(self.dropout_rate),
             
-            Dense(64, activation='relu', kernel_regularizer=l2(0.01)),
-            Dropout(self.dropout_rate),
-            
-            Dense(32, activation='relu'),
+            Dense(12, activation='relu'),  # Reduced from 32
             Dense(1, activation='linear')  # Regression output
         ])
         
@@ -610,21 +622,21 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
         return model
     
     def _build_volatility_model(self, input_shape: Tuple) -> Sequential:
-        """Build LSTM model for volatility prediction"""
+        """Build lightweight LSTM model for volatility prediction - 8GB RAM optimized"""
         if not ML_AVAILABLE:
             return None
         
         model = Sequential([
-            Bidirectional(LSTM(64, return_sequences=True,
-                             kernel_regularizer=l2(0.01)), 
-                         input_shape=(input_shape[1], input_shape[2])),
+            LSTM(32, return_sequences=True,  # Reduced from 64
+                 kernel_regularizer=l2(0.005),  # Reduced regularization 
+                 input_shape=(input_shape[1], input_shape[2])),
             Dropout(self.dropout_rate),
             
-            LSTM(32, kernel_regularizer=l2(0.01)),
+            LSTM(16, kernel_regularizer=l2(0.005)),  # Reduced from 32
             Dropout(self.dropout_rate),
             
-            Dense(32, activation='relu', kernel_regularizer=l2(0.01)),
-            Dense(16, activation='relu'),
+            Dense(16, activation='relu', kernel_regularizer=l2(0.005)),  # Reduced from 32
+            Dense(8, activation='relu'),  # Reduced from 16
             Dense(1, activation='linear')  # Regression output
         ])
         
@@ -865,6 +877,146 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
     #         self.logger.error(f"Signal grade determination failed: {str(e)}")
     #         return SignalGrade.C
     
+    def _predictions_to_signals_enhanced(self, predictions: Dict[str, np.ndarray], 
+                                        data: pd.DataFrame, symbol: str, timeframe: str) -> List[Signal]:
+        """Enhanced signal generation with multiple signal types like technical strategies"""
+        signals = []
+        
+        try:
+            current_price = data['Close'].iloc[-1]
+            current_time = data.index[-1]
+            
+            # Generate multiple signals based on different prediction aspects
+            for i in range(min(len(predictions['direction_class']), 3)):  # Up to 3 signals
+                direction = predictions['direction_class'][i]
+                magnitude = predictions['magnitude'][i]
+                confidence = predictions['confidence'][i]
+                
+                # Skip low confidence predictions
+                if confidence < self.min_confidence:
+                    continue
+                
+                # Create different signal types based on prediction strength
+                if direction == 2 and magnitude > 0.005:  # Strong upward prediction
+                    signal_type = SignalType.BUY
+                    signal_reason = 'ml_strong_bullish_prediction'
+                    strength = min(magnitude * 100, 0.9)
+                elif direction == 0 and magnitude > 0.005:  # Strong downward prediction
+                    signal_type = SignalType.SELL
+                    signal_reason = 'ml_strong_bearish_prediction' 
+                    strength = min(magnitude * 100, 0.9)
+                else:
+                    continue  # Skip weak predictions
+                
+                # Calculate risk parameters with ATR
+                atr = self._calculate_atr(data, 14)
+                if atr is None:
+                    continue
+                
+                volatility_factor = max(predictions['volatility'][i] * 50, 0.5)
+                
+                if signal_type == SignalType.BUY:
+                    stop_loss = current_price - (atr * 1.5 * volatility_factor)
+                    take_profit = current_price + (atr * 2.5 * confidence)
+                else:
+                    stop_loss = current_price + (atr * 1.5 * volatility_factor)
+                    take_profit = current_price - (atr * 2.5 * confidence)
+                
+                # Validate risk-reward ratio
+                if signal_type == SignalType.BUY:
+                    risk = current_price - stop_loss
+                    reward = take_profit - current_price
+                else:
+                    risk = stop_loss - current_price
+                    reward = current_price - take_profit
+                
+                if risk > 0 and reward > 0 and (reward / risk) >= 1.2:  # Minimum 1.2:1 RR
+                    signal = Signal(
+                        timestamp=current_time,
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=signal_type,
+                        confidence=confidence,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=strength,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        metadata={
+                            'signal_reason': signal_reason,
+                            'predicted_direction': int(direction),
+                            'predicted_magnitude': float(magnitude),
+                            'predicted_volatility': float(predictions['volatility'][i]),
+                            'model_accuracy': self.model_performance.get('direction_accuracy', 0.0),
+                            'ml_model': 'LSTM_Enhanced'
+                        }
+                    )
+                    signals.append(signal)
+            
+            return signals
+            
+        except Exception as e:
+            self.logger.error(f"Enhanced signal conversion failed: {str(e)}")
+            return []
+    
+    def _cleanup_memory(self):
+        """Clean up memory for 8GB RAM optimization"""
+        try:
+            import gc
+            
+            # Clear TensorFlow session if available
+            if ML_AVAILABLE and hasattr(tf, 'keras'):
+                tf.keras.backend.clear_session()
+            
+            # Limit training data size
+            if len(self.training_data['features']) > self.max_training_samples:
+                keep_size = self.max_training_samples // 2
+                self.training_data['features'] = self.training_data['features'][-keep_size:]
+                self.training_data['direction_targets'] = self.training_data['direction_targets'][-keep_size:]
+                self.training_data['magnitude_targets'] = self.training_data['magnitude_targets'][-keep_size:]
+                self.training_data['volatility_targets'] = self.training_data['volatility_targets'][-keep_size:]
+            
+            # Force garbage collection
+            gc.collect()
+            
+            print(f"   Memory cleanup completed (prediction #{self.prediction_count})")
+            
+        except Exception as e:
+            self.logger.error(f"Memory cleanup failed: {str(e)}")
+    
+    def _update_training_data_optimized(self, features: np.ndarray, data: pd.DataFrame) -> None:
+        """Optimized training data update for memory efficiency"""
+        try:
+            if features is None or len(features) == 0:
+                return
+            
+            # Add only the most recent features (reduced from 10 to 3)
+            recent_features = features[-3:] if len(features) >= 3 else features
+            
+            if isinstance(recent_features, np.ndarray):
+                self.training_data['features'].extend(recent_features.tolist())
+            else:
+                self.training_data['features'].extend(recent_features)
+            
+            # Prepare corresponding targets
+            targets = self._prepare_targets(data)
+            if targets is not None:
+                recent_size = len(recent_features)
+                self.training_data['direction_targets'].extend(targets['direction'][-recent_size:].tolist())
+                self.training_data['magnitude_targets'].extend(targets['magnitude'][-recent_size:].tolist())
+                self.training_data['volatility_targets'].extend(targets['volatility'][-recent_size:].tolist())
+            
+            # Aggressive memory management
+            if len(self.training_data['features']) > self.max_training_samples:
+                keep_size = self.max_training_samples // 2  # Keep only half when limit exceeded
+                self.training_data['features'] = self.training_data['features'][-keep_size:]
+                self.training_data['direction_targets'] = self.training_data['direction_targets'][-keep_size:]
+                self.training_data['magnitude_targets'] = self.training_data['magnitude_targets'][-keep_size:]
+                self.training_data['volatility_targets'] = self.training_data['volatility_targets'][-keep_size:]
+                
+        except Exception as e:
+            self.logger.error(f"Optimized training data update failed: {str(e)}")
+    
     def _update_training_data(self, features: np.ndarray, data: pd.DataFrame) -> None:
         """Update training data for future retraining"""
         try:
@@ -1033,7 +1185,7 @@ if __name__ == "__main__":
     
     # Create strategy instance
     mock_mt5 = MockMT5Manager()
-    strategy = LSTMPredictor(test_config, mock_mt5, database=None) # Added database=None
+    strategy = LSTMPredictorStrategy(test_config, mock_mt5, database=None) # Added database=None
     
     # Output header matching other strategy files
     print("============================================================")

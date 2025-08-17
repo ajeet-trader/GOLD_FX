@@ -157,14 +157,14 @@ strategies:
     
     # Active ML models
     active_models:
-      lstm: true                    # LSTM price prediction
-      xgboost: false                 # XGBoost classification
-      reinforcement: false          # RL agent (requires training)
-      ensemble: false                # Ensemble neural network
+      lstm_predictor: true          # LSTM price prediction
+      xgboost_classifier: true      # XGBoost classification
+      rl_agent: true               # RL agent (requires training)
+      ensemble_nn: true             # Ensemble neural network
     
     # ML parameters
     parameters:
-      confidence_threshold: 0.75    # High threshold for ML signals
+      confidence_threshold: 0.60    # Reduced for more signals
       prediction_horizon: 12        # Bars ahead to predict
       feature_lookback: 50          # Historical bars for features
       retrain_frequency: "weekly"   # Model retraining frequency
@@ -180,13 +180,20 @@ strategies:
   
   # Signal Fusion Strategy
   fusion:
-    enabled: false                   # Use fusion (recommended)
+    enabled: true                   # Use fusion (recommended)
     method: "weighted_voting"       # Options: weighted_voting, ml_fusion, adaptive
+    
+    # Active fusion strategies
+    active_strategies:
+      adaptive_ensemble: true       # Adaptive ensemble fusion
+      weighted_voting: true         # Weighted voting fusion
+      confidence_sizing: true       # Confidence-based position sizing
+      regime_detection: true        # Market regime detection
     
     # Fusion parameters
     parameters:
       min_strategies_agreement: 2   # Minimum strategies agreeing
-      confidence_threshold: 0.60    # Overall confidence threshold
+      confidence_threshold: 0.55    # Reduced for more signals
       
       # Signal quality filters
       quality_filters:
