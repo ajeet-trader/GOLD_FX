@@ -91,10 +91,10 @@ class HarmonicStrategy(AbstractStrategy):
         """Initialize Harmonic strategy"""
         super().__init__(config, mt5_manager, database)
         
-        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.72)
+        self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.55)  # Lower threshold
         self.lookback_period = self.config.get('parameters', {}).get('lookback_period', 200)
-        self.fib_tolerance = 0.05
-        self.min_pattern_score = 0.7
+        self.fib_tolerance = 0.10  # More tolerance for Fibonacci ratios
+        self.min_pattern_score = 0.50  # Lower minimum score
         
         self.pattern_ratios = {
             PatternType.GARTLEY: {
@@ -149,6 +149,10 @@ class HarmonicStrategy(AbstractStrategy):
                 return []
             
             patterns = self._detect_harmonic_patterns(data, pivots)
+            
+            # NEW: Add simplified ABCD patterns for more signal generation
+            abcd_patterns = self._detect_abcd_patterns(data, pivots)
+            patterns.extend(abcd_patterns)
             self.detected_patterns_count = len(patterns)
             
             for pattern in patterns:
@@ -217,7 +221,7 @@ class HarmonicStrategy(AbstractStrategy):
     def _find_pivot_points(self, data: pd.DataFrame) -> List[Tuple[int, float, str]]:
         """Find significant pivot points (swing highs and lows)"""
         pivots = []
-        window = 5
+        window = 3  # Reduced window for more sensitivity
         
         for i in range(window, len(data) - window):
             is_high = True
@@ -304,6 +308,73 @@ class HarmonicStrategy(AbstractStrategy):
         
         return patterns
     
+    def _detect_abcd_patterns(self, data: pd.DataFrame, pivots: List[Tuple[int, float, str]]) -> List[HarmonicPattern]:
+        """Detect simple ABCD patterns for more signal generation"""
+        patterns = []
+        
+        if len(pivots) < 4:
+            return patterns
+        
+        for i in range(len(pivots) - 3):
+            points = pivots[i:i+4]
+            
+            if not self._is_valid_abcd_structure(points):
+                continue
+            
+            a_point = (points[0][0], points[0][1])
+            b_point = (points[1][0], points[1][1])
+            c_point = (points[2][0], points[2][1])
+            d_point = (points[3][0], points[3][1])
+            
+            direction = 'bullish' if points[0][2] == 'low' else 'bearish'
+            
+            # Calculate AB and CD ratios
+            ab_distance = abs(b_point[1] - a_point[1])
+            cd_distance = abs(d_point[1] - c_point[1])
+            
+            if ab_distance == 0:
+                continue
+            
+            cd_ab_ratio = cd_distance / ab_distance
+            
+            # ABCD pattern: CD should be 1.27 or 1.618 of AB (with tolerance)
+            if 0.8 <= cd_ab_ratio <= 2.0:  # Very lenient for more patterns
+                pattern_score = 0.6 + (0.3 * min(1.0, 1.0 / abs(cd_ab_ratio - 1.27)))
+                
+                if pattern_score >= 0.5:
+                    # Create pattern with dummy X point for ABCD
+                    x_point = a_point  # ABCD doesn't have X, use A
+                    
+                    pattern = HarmonicPattern(
+                        pattern_type=PatternType.ABCD,
+                        direction=direction,
+                        x_point=x_point,
+                        a_point=a_point,
+                        b_point=b_point,
+                        c_point=c_point,
+                        d_point=d_point,
+                        xab_ratio=0,  # N/A for ABCD
+                        abc_ratio=0,  # N/A for ABCD
+                        bcd_ratio=cd_ab_ratio,
+                        xad_ratio=0,  # N/A for ABCD
+                        completion_zone=(d_point[1] - 5, d_point[1] + 5),
+                        pattern_score=pattern_score,
+                        confidence=min(0.8, 0.55 + pattern_score * 0.2)
+                    )
+                    
+                    patterns.append(pattern)
+        
+        return patterns
+    
+    def _is_valid_abcd_structure(self, points: List[Tuple[int, float, str]]) -> bool:
+        """Check if points form valid ABCD structure"""
+        expected_bull = ['low', 'high', 'low', 'high']
+        expected_bear = ['high', 'low', 'high', 'low']
+        
+        actual_sequence = [p[2] for p in points]
+        
+        return actual_sequence == expected_bull or actual_sequence == expected_bear
+    
     def _is_valid_structure(self, points: List[Tuple[int, float, str]]) -> bool:
         """Check if points form valid pattern structure"""
         expected_sequence = ['high', 'low', 'high', 'low', 'high']
@@ -315,27 +386,46 @@ class HarmonicStrategy(AbstractStrategy):
     
     def _check_pattern_ratios(self, xab: float, abc: float, bcd: float, xad: float, 
                              expected_ratios: Dict) -> bool:
-        """Check if ratios match expected pattern ratios"""
+        """Check if ratios match expected pattern ratios - More lenient version"""
+        tolerance_multiplier = 2.0  # Double the tolerance for more patterns
+        
         xab_range = expected_ratios['xab']
         if isinstance(xab_range[1], float) and xab_range[1] < 1:
-            if not (xab_range[0] * (1 - xab_range[1]) <= xab <= xab_range[0] * (1 + xab_range[1])):
+            tolerance = xab_range[1] * tolerance_multiplier
+            if not (xab_range[0] * (1 - tolerance) <= xab <= xab_range[0] * (1 + tolerance)):
                 return False
         else:
-            if not (xab_range[0] <= xab <= xab_range[1]):
+            range_width = xab_range[1] - xab_range[0]
+            extended_min = xab_range[0] - range_width * 0.5
+            extended_max = xab_range[1] + range_width * 0.5
+            if not (extended_min <= xab <= extended_max):
                 return False
         
-        if not (expected_ratios['abc'][0] <= abc <= expected_ratios['abc'][1]):
+        # More lenient ABC range
+        abc_range_width = expected_ratios['abc'][1] - expected_ratios['abc'][0]
+        abc_min = expected_ratios['abc'][0] - abc_range_width * 0.3
+        abc_max = expected_ratios['abc'][1] + abc_range_width * 0.3
+        if not (abc_min <= abc <= abc_max):
             return False
         
-        if not (expected_ratios['bcd'][0] <= bcd <= expected_ratios['bcd'][1]):
+        # More lenient BCD range
+        bcd_range_width = expected_ratios['bcd'][1] - expected_ratios['bcd'][0]
+        bcd_min = expected_ratios['bcd'][0] - bcd_range_width * 0.3
+        bcd_max = expected_ratios['bcd'][1] + bcd_range_width * 0.3
+        if not (bcd_min <= bcd <= bcd_max):
             return False
         
+        # More lenient XAD range
         xad_range = expected_ratios['xad']
         if isinstance(xad_range[1], float) and xad_range[1] < 1:
-            if not (xad_range[0] * (1 - xad_range[1]) <= xad <= xad_range[0] * (1 + xad_range[1])):
+            tolerance = xad_range[1] * tolerance_multiplier
+            if not (xad_range[0] * (1 - tolerance) <= xad <= xad_range[0] * (1 + tolerance)):
                 return False
         else:
-            if not (xad_range[0] <= xad <= xad_range[1]):
+            range_width = xad_range[1] - xad_range[0]
+            extended_min = xad_range[0] - range_width * 0.5
+            extended_max = xad_range[1] + range_width * 0.5
+            if not (extended_min <= xad <= extended_max):
                 return False
         
         return True
@@ -415,6 +505,8 @@ class HarmonicStrategy(AbstractStrategy):
             current_price = data['Close'].iloc[-1]
             current_time = data.index[-1]
             
+            # More lenient PRZ checking - allow signals even outside PRZ
+            distance_from_prz = 0
             if not (pattern.completion_zone[0] <= current_price <= pattern.completion_zone[1]):
                 distance_from_prz = min(
                     abs(current_price - pattern.completion_zone[0]),
@@ -423,9 +515,15 @@ class HarmonicStrategy(AbstractStrategy):
                 
                 prz_width = pattern.completion_zone[1] - pattern.completion_zone[0]
                 if prz_width == 0:
+                    prz_width = 10  # Default width
+                
+                # Allow signals up to 5x PRZ width away (very lenient)
+                if distance_from_prz > prz_width * 5:
                     return None
-                if distance_from_prz > prz_width * 2:
-                    return None
+                
+                # Reduce confidence based on distance from PRZ
+                distance_penalty = min(0.3, distance_from_prz / prz_width * 0.1)
+                pattern.confidence = max(0.5, pattern.confidence - distance_penalty)
             
             if pattern.direction == 'bullish':
                 signal_type = SignalType.BUY

@@ -86,17 +86,17 @@ class VolumeProfileStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
-        # Strategy parameters
+        # Strategy parameters - More lenient for more signals
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
         self.value_area_pct = config.get('parameters', {}).get('value_area_pct', 0.7)
-        self.volume_node_threshold = config.get('parameters', {}).get('volume_node_threshold', 1.3)
-        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.65)
-        self.min_price_distance = config.get('parameters', {}).get('min_price_distance', 0.2)
+        self.volume_node_threshold = config.get('parameters', {}).get('volume_node_threshold', 1.1)  # Lower threshold
+        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.55)  # Lower threshold
+        self.min_price_distance = config.get('parameters', {}).get('min_price_distance', 0.1)  # Smaller distance
         
-        # Additional parameters
-        self.bin_size_factor = 0.002  # 0.2% of price for bin size
-        self.tolerance_pct = 0.003  # 0.3% tolerance for level proximity
-        self.max_signals = 3  # Max signals per generation to prevent overload
+        # Additional parameters - More signals
+        self.bin_size_factor = 0.003  # 0.3% of price for bin size (more bins)
+        self.tolerance_pct = 0.005  # 0.5% tolerance for level proximity (wider range)
+        self.max_signals = 10  # Allow up to 10 signals per generation
         
         # Performance tracking (handled by parent)
         self.success_rate = 0.65
@@ -198,6 +198,14 @@ class VolumeProfileStrategy(AbstractStrategy):
                 
                 if len(signals) >= self.max_signals:
                     break
+            
+            # NEW: Add additional signal types if we have fewer signals
+            if len(signals) < 5:
+                additional_signals = self._generate_additional_signals(profile, current_price, symbol, timeframe, data)
+                signals.extend(additional_signals)
+                
+                # Limit total signals
+                signals = signals[:self.max_signals]
             
             return signals
             
@@ -326,6 +334,85 @@ class VolumeProfileStrategy(AbstractStrategy):
                 'profit_factor': self.performance.profit_factor
             }
         }
+
+    def _generate_additional_signals(self, profile: VolumeProfile, current_price: float, 
+                                   symbol: str, timeframe: str, data: pd.DataFrame) -> List[Signal]:
+        """Generate additional signals to reach 5-10 signals per run"""
+        additional_signals = []
+        
+        try:
+            # 1. Half-distance signals (between major levels)
+            major_levels = [profile.val, profile.poc, profile.vah]
+            for i in range(len(major_levels) - 1):
+                mid_level = (major_levels[i] + major_levels[i + 1]) / 2
+                if abs(current_price - mid_level) / current_price < 0.008:  # Within 0.8%
+                    signal_type = SignalType.BUY if current_price < mid_level else SignalType.SELL
+                    confidence = 0.60 + abs(current_price - mid_level) / mid_level * 5
+                    
+                    additional_signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=signal_type,
+                        confidence=min(confidence, 0.75),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.6,
+                        stop_loss=mid_level - (mid_level * 0.003) if signal_type == SignalType.BUY else mid_level + (mid_level * 0.003),
+                        take_profit=mid_level + (mid_level * 0.006) if signal_type == SignalType.BUY else mid_level - (mid_level * 0.006),
+                        metadata={'level_type': 'mid_level', 'level': mid_level}
+                    ))
+            
+            # 2. Volume spike signals (from recent high-volume periods)
+            recent_volume = data['Volume'].iloc[-20:] 
+            avg_volume = recent_volume.mean()
+            for i in range(len(recent_volume) - 5, len(recent_volume)):
+                if recent_volume.iloc[i] > avg_volume * 1.5:  # Volume spike
+                    spike_price = data['Close'].iloc[-20 + i]
+                    if abs(current_price - spike_price) / current_price < 0.01:  # Within 1%
+                        signal_type = SignalType.BUY if current_price < spike_price else SignalType.SELL
+                        confidence = 0.58 + (recent_volume.iloc[i] / avg_volume - 1.5) * 0.1
+                        
+                        additional_signals.append(Signal(
+                            timestamp=datetime.now(),
+                            symbol=symbol,
+                            strategy_name=self.strategy_name,
+                            signal_type=signal_type,
+                            confidence=min(confidence, 0.72),
+                            price=current_price,
+                            timeframe=timeframe,
+                            strength=0.58,
+                            stop_loss=spike_price - (spike_price * 0.004) if signal_type == SignalType.BUY else spike_price + (spike_price * 0.004),
+                            take_profit=spike_price + (spike_price * 0.008) if signal_type == SignalType.BUY else spike_price - (spike_price * 0.008),
+                            metadata={'level_type': 'volume_spike', 'level': spike_price, 'volume_ratio': recent_volume.iloc[i] / avg_volume}
+                        ))
+            
+            # 3. Multiple HVN proximity signals
+            nearby_hvns = [hvn for hvn in profile.high_volume_nodes if abs(current_price - hvn) / current_price < 0.015]
+            for hvn in nearby_hvns[:5]:  # Max 5 nearby HVN signals
+                signal_type = SignalType.SELL if current_price > hvn else SignalType.BUY
+                distance_factor = 1 - (abs(current_price - hvn) / current_price / 0.015)
+                confidence = 0.58 + distance_factor * 0.12
+                
+                additional_signals.append(Signal(
+                    timestamp=datetime.now(),
+                    symbol=symbol,
+                    strategy_name=self.strategy_name,
+                    signal_type=signal_type,
+                    confidence=min(confidence, 0.70),
+                    price=current_price,
+                    timeframe=timeframe,
+                    strength=0.58,
+                    stop_loss=hvn - (hvn * 0.004) if signal_type == SignalType.BUY else hvn + (hvn * 0.004),
+                    take_profit=hvn + (hvn * 0.008) if signal_type == SignalType.BUY else hvn - (hvn * 0.008),
+                    metadata={'level_type': 'nearby_hvn', 'level': hvn}
+                ))
+            
+            return additional_signals[:7]  # Max 7 additional signals
+            
+        except Exception as e:
+            self.logger.error(f"Error generating additional signals: {str(e)}")
+            return []
 
 
 # Testing function

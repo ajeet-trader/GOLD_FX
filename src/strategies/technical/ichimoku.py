@@ -101,15 +101,15 @@ class IchimokuStrategy(AbstractStrategy):
         self.displacement = 26
         
         # Strategy parameters (these can override parent class defaults)
-        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.65)
+        self.min_confidence = config.get('parameters', {}).get('confidence_threshold', 0.55)  # Lower threshold
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
         self.primary_timeframe = config.get('parameters', {}).get('timeframe_primary', 'M15')
         self.secondary_timeframe = config.get('parameters', {}).get('timeframe_secondary', 'H1')
         
-        # Signal filters
-        self.min_cloud_thickness = 5.0  # Minimum cloud thickness in points
-        self.min_momentum_bars = 3      # Minimum bars for momentum confirmation
-        self.max_signals_per_hour = 2   # Maximum signals per hour
+        # Signal filters - More lenient to generate more signals
+        self.min_cloud_thickness = 2.0  # Reduced minimum cloud thickness
+        self.min_momentum_bars = 2      # Reduced momentum confirmation
+        self.max_signals_per_hour = 10  # Allow more signals per hour
         
         # Performance tracking (now handled by parent class)
         # self.recent_signals = []  # Remove - parent class handles this
@@ -151,7 +151,7 @@ class IchimokuStrategy(AbstractStrategy):
             if not current_components:
                 return []
             
-            # Generate signals based on Ichimoku analysis
+            # Generate signals based on Ichimoku analysis - More comprehensive approach
             signals = []
             
             # Check for cloud breakout
@@ -168,6 +168,18 @@ class IchimokuStrategy(AbstractStrategy):
             chikou_signal = self._check_chikou_span(ichimoku_data, current_components, symbol, timeframe)
             if chikou_signal:
                 signals.append(chikou_signal)
+            
+            # NEW: Check for support/resistance bounce signals
+            bounce_signals = self._check_support_resistance_bounce(ichimoku_data, current_components, symbol, timeframe)
+            signals.extend(bounce_signals)
+            
+            # NEW: Check for trend continuation signals
+            trend_signals = self._check_trend_continuation(ichimoku_data, current_components, symbol, timeframe)
+            signals.extend(trend_signals)
+            
+            # NEW: Check for divergence signals
+            divergence_signals = self._check_divergence_signals(ichimoku_data, current_components, symbol, timeframe)
+            signals.extend(divergence_signals)
             
             # Multi-timeframe confirmation if available
             if self.secondary_timeframe and timeframe != self.secondary_timeframe:
@@ -341,8 +353,8 @@ class IchimokuStrategy(AbstractStrategy):
             
             # Bullish breakout
             if prev_position != 'above' and current.price_vs_cloud == 'above':
-                if current.cloud_color == 'bullish' and current.cloud_thickness >= self.min_cloud_thickness:
-                    confidence = min(0.85, 0.65 + (current.cloud_thickness / 100))
+                if current.cloud_thickness >= self.min_cloud_thickness:  # Remove strict color requirement
+                    confidence = min(0.85, 0.55 + (current.cloud_thickness / 50))  # More generous confidence
                     
                     return Signal(
                         timestamp=datetime.now(),
@@ -364,8 +376,8 @@ class IchimokuStrategy(AbstractStrategy):
             
             # Bearish breakout
             elif prev_position != 'below' and current.price_vs_cloud == 'below':
-                if current.cloud_color == 'bearish' and current.cloud_thickness >= self.min_cloud_thickness:
-                    confidence = min(0.85, 0.65 + (current.cloud_thickness / 100))
+                if current.cloud_thickness >= self.min_cloud_thickness:  # Remove strict color requirement
+                    confidence = min(0.85, 0.55 + (current.cloud_thickness / 50))  # More generous confidence
                     
                     return Signal(
                         timestamp=datetime.now(),
@@ -401,10 +413,10 @@ class IchimokuStrategy(AbstractStrategy):
             
             # Bullish TK Cross
             if prev_tenkan <= prev_kijun and current.tenkan_sen > current.kijun_sen:
-                if current.price_vs_cloud == 'above':
-                    confidence = 0.75
-                    
-                    return Signal(
+                # More lenient conditions for signal generation
+                confidence = 0.65 if current.price_vs_cloud == 'above' else 0.60
+                
+                return Signal(
                         timestamp=datetime.now(),
                         symbol=symbol,
                         strategy_name=self.strategy_name,
@@ -423,10 +435,10 @@ class IchimokuStrategy(AbstractStrategy):
             
             # Bearish TK Cross
             elif prev_tenkan >= prev_kijun and current.tenkan_sen < current.kijun_sen:
-                if current.price_vs_cloud == 'below':
-                    confidence = 0.75
-                    
-                    return Signal(
+                # More lenient conditions for signal generation
+                confidence = 0.65 if current.price_vs_cloud == 'below' else 0.60
+                
+                return Signal(
                         timestamp=datetime.now(),
                         symbol=symbol,
                         strategy_name=self.strategy_name,
@@ -507,6 +519,232 @@ class IchimokuStrategy(AbstractStrategy):
         """Get confirmation from higher timeframe"""
         # Implementation for multi-timeframe analysis
         return []
+    
+    def _check_support_resistance_bounce(self, data: pd.DataFrame, current: IchimokuComponents,
+                                       symbol: str, timeframe: str) -> List[Signal]:
+        """Check for bounces off cloud support/resistance levels"""
+        signals = []
+        try:
+            current_price = data['Close'].iloc[-1]
+            recent_prices = data['Close'].iloc[-10:].values
+            
+            # Check for bounce off cloud top (resistance)
+            if current.price_vs_cloud == 'below':
+                cloud_touches = sum(1 for p in recent_prices if abs(p - current.cloud_top) < 3)
+                if cloud_touches >= 2:  # Multiple touches
+                    confidence = 0.60 + (cloud_touches * 0.05)
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=min(confidence, 0.80),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.6,
+                        stop_loss=current.cloud_top + 8,
+                        take_profit=current_price - (current.cloud_top - current_price) * 1.5,
+                        metadata={'signal_reason': 'cloud_resistance_bounce', 'touches': cloud_touches}
+                    ))
+            
+            # Check for bounce off cloud bottom (support)  
+            elif current.price_vs_cloud == 'above':
+                cloud_touches = sum(1 for p in recent_prices if abs(p - current.cloud_bottom) < 3)
+                if cloud_touches >= 2:  # Multiple touches
+                    confidence = 0.60 + (cloud_touches * 0.05)
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=min(confidence, 0.80),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.6,
+                        stop_loss=current.cloud_bottom - 8,
+                        take_profit=current_price + (current_price - current.cloud_bottom) * 1.5,
+                        metadata={'signal_reason': 'cloud_support_bounce', 'touches': cloud_touches}
+                    ))
+            
+            # Check for Kijun-sen bounces
+            kijun_touches = sum(1 for p in recent_prices if abs(p - current.kijun_sen) < 2)
+            if kijun_touches >= 2:
+                if current_price > current.kijun_sen:  # Bounce off support
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=0.65,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.55,
+                        stop_loss=current.kijun_sen - 5,
+                        take_profit=current_price + (current_price - current.kijun_sen) * 1.2,
+                        metadata={'signal_reason': 'kijun_support_bounce'}
+                    ))
+                else:  # Bounce off resistance
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=0.65,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.55,
+                        stop_loss=current.kijun_sen + 5,
+                        take_profit=current_price - (current.kijun_sen - current_price) * 1.2,
+                        metadata={'signal_reason': 'kijun_resistance_bounce'}
+                    ))
+            
+            return signals
+            
+        except Exception as e:
+            self.logger.error(f"Error checking bounce signals: {str(e)}")
+            return []
+    
+    def _check_trend_continuation(self, data: pd.DataFrame, current: IchimokuComponents,
+                                symbol: str, timeframe: str) -> List[Signal]:
+        """Check for trend continuation patterns"""
+        signals = []
+        try:
+            current_price = data['Close'].iloc[-1]
+            
+            # Strong bullish trend continuation
+            if (current.price_vs_cloud == 'above' and 
+                current.cloud_color == 'bullish' and 
+                current.tenkan_sen > current.kijun_sen and
+                current.cloud_thickness > 3):
+                
+                # Check for pullback completion
+                pullback_depth = abs(current_price - current.tenkan_sen)
+                if pullback_depth < 8:  # Small pullback
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=0.70,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.65,
+                        stop_loss=current.kijun_sen - 5,
+                        take_profit=current_price + current.cloud_thickness * 2,
+                        metadata={'signal_reason': 'bullish_trend_continuation'}
+                    ))
+            
+            # Strong bearish trend continuation
+            elif (current.price_vs_cloud == 'below' and 
+                  current.cloud_color == 'bearish' and 
+                  current.tenkan_sen < current.kijun_sen and
+                  current.cloud_thickness > 3):
+                
+                # Check for pullback completion
+                pullback_depth = abs(current_price - current.tenkan_sen)
+                if pullback_depth < 8:  # Small pullback
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=0.70,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.65,
+                        stop_loss=current.kijun_sen + 5,
+                        take_profit=current_price - current.cloud_thickness * 2,
+                        metadata={'signal_reason': 'bearish_trend_continuation'}
+                    ))
+            
+            return signals
+            
+        except Exception as e:
+            self.logger.error(f"Error checking trend continuation: {str(e)}")
+            return []
+    
+    def _check_divergence_signals(self, data: pd.DataFrame, current: IchimokuComponents,
+                                symbol: str, timeframe: str) -> List[Signal]:
+        """Check for price-indicator divergence signals"""
+        signals = []
+        try:
+            current_price = data['Close'].iloc[-1]
+            
+            # Check for Tenkan-Kijun convergence (potential reversal)
+            tk_distance = abs(current.tenkan_sen - current.kijun_sen)
+            avg_tk_distance = abs(data['tenkan_sen'].iloc[-20:] - data['kijun_sen'].iloc[-20:]).mean()
+            
+            if tk_distance < avg_tk_distance * 0.3:  # Lines converging
+                if current.price_vs_cloud == 'above' and current.tenkan_sen < current.kijun_sen:
+                    # Potential bearish reversal
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=0.62,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.55,
+                        stop_loss=max(current.tenkan_sen, current.kijun_sen) + 5,
+                        take_profit=current_price - tk_distance * 3,
+                        metadata={'signal_reason': 'tk_convergence_bearish'}
+                    ))
+                elif current.price_vs_cloud == 'below' and current.tenkan_sen > current.kijun_sen:
+                    # Potential bullish reversal
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=0.62,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.55,
+                        stop_loss=min(current.tenkan_sen, current.kijun_sen) - 5,
+                        take_profit=current_price + tk_distance * 3,
+                        metadata={'signal_reason': 'tk_convergence_bullish'}
+                    ))
+            
+            # Check for cloud thickness changes (momentum shift)
+            recent_thickness = data['cloud_thickness'].iloc[-5:].mean()
+            historical_thickness = data['cloud_thickness'].iloc[-20:-5].mean()
+            
+            if recent_thickness > historical_thickness * 1.5:  # Cloud expanding
+                if current.cloud_color == 'bullish' and current.price_vs_cloud == 'above':
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,
+                        confidence=0.68,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.60,
+                        stop_loss=current.cloud_bottom - 5,
+                        take_profit=current_price + recent_thickness,
+                        metadata={'signal_reason': 'cloud_expansion_bullish'}
+                    ))
+                elif current.cloud_color == 'bearish' and current.price_vs_cloud == 'below':
+                    signals.append(Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,
+                        confidence=0.68,
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=0.60,
+                        stop_loss=current.cloud_top + 5,
+                        take_profit=current_price - recent_thickness,
+                        metadata={'signal_reason': 'cloud_expansion_bearish'}
+                    ))
+            
+            return signals
+            
+        except Exception as e:
+            self.logger.error(f"Error checking divergence signals: {str(e)}")
+            return []
     
     def _detect_cloud_breakout_potential(self, data: pd.DataFrame) -> str:
         """Detect potential for cloud breakout"""

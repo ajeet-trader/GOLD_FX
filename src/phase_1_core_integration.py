@@ -189,7 +189,7 @@ class CoreSystem:
             bool: True if initialization successful, False otherwise
         """
         print("="*60)
-        print("🎯 XAUUSD MT5 Trading System - Phase 1 Initialization")
+        print("XAUUSD MT5 Trading System - Phase 1 Initialization")
         print("="*60)
         print(f"System ID: {self.system_id}")
         print(f"Start Time: {self.start_time}")
@@ -198,59 +198,59 @@ class CoreSystem:
         
         try:
             # Step 1: Initialize Error Handler (first, to catch other component errors)
-            print("📋 Step 1: Initializing Error Handler...")
+            print("Step 1: Initializing Error Handler...")
             self.error_handler = ErrorHandler(self.config)
             self.error_handler.start()
-            print("✅ Error Handler initialized")
+            print("Error Handler initialized")
             
             # Step 2: Initialize Logging System
-            print("📋 Step 2: Initializing Logging System...")
+            print("Step 2: Initializing Logging System...")
             self.logger_manager = LoggerManager(self.config)
             success = self.logger_manager.setup_logging()
             if not success:
-                print("❌ Failed to initialize logging system")
+                print("ERROR - Failed to initialize logging system")
                 return False
-            print("✅ Logging System initialized")
+            print("OK - Logging System initialized")
             
             # Step 3: Initialize Database
-            print("📋 Step 3: Initializing Database...")
+            print("Step Step 3: Initializing Database...")
             self.database_manager = DatabaseManager(self.config)
             success = self.database_manager.initialize_database()
             if not success:
-                print("❌ Failed to initialize database")
+                print("ERROR - Failed to initialize database")
                 self.logger_manager.error("Database initialization failed")
                 return False
-            print("✅ Database initialized")
+            print("OK - Database initialized")
             
             # Step 4: Initialize MT5 Manager
-            print("📋 Step 4: Initializing MT5 Manager...")
+            print("Step Step 4: Initializing MT5 Manager...")
             #self.mt5_manager = MT5Manager(self.config)
             symbol = self.config.get('trading', {}).get('symbol', 'XAUUSDm')
             self.mt5_manager = MT5Manager(symbol=symbol, magic_number=123456)
-            print("✅ MT5 Manager initialized (connection will be established when needed)")
+            print("OK - MT5 Manager initialized (connection will be established when needed)")
             
             # Step 5: System Health Check
-            print("📋 Step 5: Performing System Health Check...")
+            print("Step Step 5: Performing System Health Check...")
             if not self._perform_health_check():
-                print("❌ System health check failed")
+                print("ERROR - System health check failed")
                 return False
-            print("✅ System health check passed")
+            print("OK - System health check passed")
             
             # Step 6: Store System Initialization
             self._store_system_initialization()
             
             self.initialized = True
             print()
-            print("🎉 Phase 1 Core System Initialization Complete!")
+            print(" Phase 1 Core System Initialization Complete!")
             print("="*60)
             print()
-            print("📊 System Status:")
-            print(f"   • Error Handler: {'✅ Active' if self.error_handler else '❌ Inactive'}")
-            print(f"   • Logging System: {'✅ Active' if self.logger_manager else '❌ Inactive'}")
-            print(f"   • Database: {'✅ Active' if self.database_manager else '❌ Inactive'}")
-            print(f"   • MT5 Manager: {'✅ Ready' if self.mt5_manager else '❌ Not Ready'}")
+            print("Status: System Status:")
+            print(f"   • Error Handler: {'OK - Active' if self.error_handler else 'ERROR - Inactive'}")
+            print(f"   • Logging System: {'OK - Active' if self.logger_manager else 'ERROR - Inactive'}")
+            print(f"   • Database: {'OK - Active' if self.database_manager else 'ERROR - Inactive'}")
+            print(f"   • MT5 Manager: {'OK - Ready' if self.mt5_manager else 'ERROR - Not Ready'}")
             print()
-            print("🚀 System is ready for Phase 2 development!")
+            print(" System is ready for Phase 2 development!")
             print("="*60)
             
             # Log successful initialization
@@ -260,7 +260,7 @@ class CoreSystem:
             
         except Exception as e:
             error_msg = f"System initialization failed: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"ERROR - {error_msg}")
             
             if self.error_handler:
                 self.error_handler.handle_error(e, "System initialization")
@@ -302,15 +302,15 @@ class CoreSystem:
             # Determine overall health
             all_healthy = all(health_status.values())
             
-            print(f"   • Error Handler: {'✅' if health_status['error_handler'] else '❌'}")
-            print(f"   • Logging System: {'✅' if health_status['logging'] else '❌'}")
-            print(f"   • Database: {'✅' if health_status['database'] else '❌'}")
-            print(f"   • Configuration: {'✅' if health_status['config'] else '❌'}")
+            print(f"   • Error Handler: {'OK -' if health_status['error_handler'] else 'ERROR -'}")
+            print(f"   • Logging System: {'OK -' if health_status['logging'] else 'ERROR -'}")
+            print(f"   • Database: {'OK -' if health_status['database'] else 'ERROR -'}")
+            print(f"   • Configuration: {'OK -' if health_status['config'] else 'ERROR -'}")
             
             return all_healthy
             
         except Exception as e:
-            print(f"   ❌ Health check error: {str(e)}")
+            print(f"   ERROR - Health check error: {str(e)}")
             return False
     
     def _store_system_initialization(self) -> None:
@@ -351,15 +351,15 @@ class CoreSystem:
             bool: True if connection successful
         """
         if not self.initialized:
-            print("❌ System not initialized. Call initialize() first.")
+            print("ERROR - System not initialized. Call initialize() first.")
             return False
         
         try:
-            print("📡 Connecting to MT5...")
+            print(" Connecting to MT5...")
             success = self.mt5_manager.connect()
             
             if success:
-                print("✅ MT5 connection established")
+                print("OK - MT5 connection established")
                 self.logger_manager.info("MT5 connection established successfully")
                 
                 # Store account information
@@ -369,13 +369,13 @@ class CoreSystem:
                 
                 return True
             else:
-                print("❌ MT5 connection failed")
+                print("ERROR - MT5 connection failed")
                 self.logger_manager.error("MT5 connection failed")
                 return False
                 
         except Exception as e:
             error_msg = f"MT5 connection error: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"ERROR - {error_msg}")
             self.error_handler.handle_error(e, "MT5 connection")
             self.logger_manager.error(error_msg, e)
             return False
@@ -402,10 +402,10 @@ class CoreSystem:
             self.logger_manager.info("Test log message")
             self.logger_manager.log_signal("test_strategy", "BUY", "XAUUSDm", 0.85, 1950.0)
             test_results['tests']['logging'] = {'status': 'PASS', 'message': 'All logging functions working'}
-            print("   ✅ PASS")
+            print("   OK - PASS")
         except Exception as e:
             test_results['tests']['logging'] = {'status': 'FAIL', 'message': str(e)}
-            print(f"   ❌ FAIL: {e}")
+            print(f"   ERROR - FAIL: {e}")
         
         # Test 2: Database Operations
         try:
@@ -418,13 +418,13 @@ class CoreSystem:
             
             if retrieved_value == "test_value":
                 test_results['tests']['database'] = {'status': 'PASS', 'message': 'Database operations working'}
-                print("   ✅ PASS")
+                print("   OK - PASS")
             else:
                 raise Exception("Configuration storage/retrieval failed")
                 
         except Exception as e:
             test_results['tests']['database'] = {'status': 'FAIL', 'message': str(e)}
-            print(f"   ❌ FAIL: {e}")
+            print(f"   ERROR - FAIL: {e}")
         
         # Test 3: Error Handling
         try:
@@ -436,13 +436,13 @@ class CoreSystem:
             
             if error_context and error_context.error_id:
                 test_results['tests']['error_handling'] = {'status': 'PASS', 'message': 'Error handling working'}
-                print("   ✅ PASS")
+                print("   OK - PASS")
             else:
                 raise Exception("Error handling failed")
                 
         except Exception as e:
             test_results['tests']['error_handling'] = {'status': 'FAIL', 'message': str(e)}
-            print(f"   ❌ FAIL: {e}")
+            print(f"   ERROR - FAIL: {e}")
         
         # Test 4: MT5 Manager (without connection)
         try:
@@ -453,14 +453,14 @@ class CoreSystem:
             
             if symbol:
                 test_results['tests']['mt5_manager'] = {'status': 'PASS', 'message': 'MT5 Manager initialized correctly'}
-                print("   ✅ PASS")
+                print("   OK - PASS")
             else:
                 test_results['tests']['mt5_manager'] = {'status': 'PASS', 'message': 'MT5 Manager working (no connection test)'}
-                print("   ✅ PASS (No connection test)")
+                print("   OK - PASS (No connection test)")
                 
         except Exception as e:
             test_results['tests']['mt5_manager'] = {'status': 'FAIL', 'message': str(e)}
-            print(f"   ❌ FAIL: {e}")
+            print(f"   ERROR - FAIL: {e}")
         
         # Test 5: System Integration
         try:
@@ -471,13 +471,13 @@ class CoreSystem:
             
             if stats and 'components' in stats:
                 test_results['tests']['integration'] = {'status': 'PASS', 'message': 'System integration working'}
-                print("   ✅ PASS")
+                print("   OK - PASS")
             else:
                 raise Exception("System integration test failed")
                 
         except Exception as e:
             test_results['tests']['integration'] = {'status': 'FAIL', 'message': str(e)}
-            print(f"   ❌ FAIL: {e}")
+            print(f"   ERROR - FAIL: {e}")
         
         # Calculate overall result
         passed_tests = sum(1 for test in test_results['tests'].values() if test['status'] == 'PASS')
@@ -491,7 +491,7 @@ class CoreSystem:
         
         print("="*40)
         print(f"🧪 Test Summary: {passed_tests}/{total_tests} tests passed")
-        print(f"📊 Success Rate: {test_results['summary']['success_rate']:.1%}")
+        print(f"Status: Success Rate: {test_results['summary']['success_rate']:.1%}")
         
         # Log test results
         self.logger_manager.info(f"System test completed: {passed_tests}/{total_tests} passed")
@@ -551,24 +551,24 @@ class CoreSystem:
             # Disconnect MT5
             if self.mt5_manager and self.mt5_manager.connected:
                 self.mt5_manager.disconnect()
-                print("✅ MT5 disconnected")
+                print("OK - MT5 disconnected")
             
             # Stop error handler
             if self.error_handler:
                 self.error_handler.stop()
-                print("✅ Error handler stopped")
+                print("OK - Error handler stopped")
             
             # Final log
             if self.logger_manager:
                 uptime = (datetime.now() - self.start_time).total_seconds()
                 self.logger_manager.info(f"System shutdown completed. Uptime: {uptime:.1f} seconds")
-                print("✅ Logging system finalized")
+                print("OK - Logging system finalized")
             
             self.initialized = False
-            print("🎯 Core System shutdown complete")
+            print(" Core System shutdown complete")
             
         except Exception as e:
-            print(f"❌ Error during shutdown: {str(e)}")
+            print(f"ERROR - Error during shutdown: {str(e)}")
     
     # Convenience properties for easy access
     @property
@@ -594,7 +594,7 @@ class CoreSystem:
 
 def main():
     """Main function for testing the core system"""
-    print("🎯 XAUUSD MT5 Trading System - Phase 1 Test")
+    print(" XAUUSD MT5 Trading System - Phase 1 Test")
     print("="*50)
     
     # Initialize core system
@@ -603,34 +603,34 @@ def main():
     try:
         # Initialize system
         if not core.initialize():
-            print("❌ System initialization failed")
+            print("ERROR - System initialization failed")
             return False
         
         # Run system tests
         test_results = core.test_system()
         
         # Try MT5 connection (optional)
-        print("\n📡 Attempting MT5 connection (optional)...")
+        print("\n Attempting MT5 connection (optional)...")
         mt5_connected = core.connect_mt5()
         if mt5_connected:
-            print("✅ MT5 connection successful")
+            print("OK - MT5 connection successful")
             
             # Test data retrieval
             try:
                 symbol = core.mt5.get_valid_symbol("XAUUSD")
                 data = core.mt5.get_historical_data(symbol, "M15", 10)
                 if not data.empty:
-                    print(f"✅ Retrieved {len(data)} bars of market data")
+                    print(f"OK - Retrieved {len(data)} bars of market data")
                     core.logger.info(f"Market data test successful: {len(data)} bars")
                 else:
-                    print("⚠️ No market data retrieved")
+                    print("WARNING -️ No market data retrieved")
             except Exception as e:
-                print(f"⚠️ Market data test failed: {e}")
+                print(f"WARNING -️ Market data test failed: {e}")
         else:
-            print("⚠️ MT5 connection failed (this is normal if MT5 is not configured)")
+            print("WARNING -️ MT5 connection failed (this is normal if MT5 is not configured)")
         
         # Display system statistics
-        print("\n📊 System Statistics:")
+        print("\nStatus: System Statistics:")
         print("="*30)
         stats = core.get_system_stats()
         print(f"System ID: {stats.get('system_id', 'Unknown')}")
@@ -638,17 +638,17 @@ def main():
         print(f"Initialized: {stats.get('initialized', False)}")
         
         # Wait for user input
-        print("\n🎯 Phase 1 Core System is running!")
+        print("\n Phase 1 Core System is running!")
         print("Press Enter to shutdown...")
         input()
         
         return True
         
     except KeyboardInterrupt:
-        print("\n⚠️ Interrupted by user")
+        print("\nWARNING -️ Interrupted by user")
         return True
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nERROR - Unexpected error: {e}")
         return False
     finally:
         # Always shutdown gracefully

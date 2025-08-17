@@ -130,11 +130,11 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         
         # Wave parameters - use self.config from AbstractStrategy
         # Access parameters from the 'parameters' key in the config dict
-        self.min_wave_size = self.config.get('parameters', {}).get('min_wave_size', 30)  # pips
+        self.min_wave_size = self.config.get('parameters', {}).get('min_wave_size', 10)  # Reduced minimum wave size
         self.lookback_periods = self.config.get('parameters', {}).get('lookback_periods', 200)
-        self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.65)
+        self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.55)  # Lower confidence threshold
         self.use_volume = self.config.get('parameters', {}).get('use_volume', True)
-        self.strict_rules = self.config.get('parameters', {}).get('strict_rules', True)
+        self.strict_rules = self.config.get('parameters', {}).get('strict_rules', False)  # Less strict validation
         
         # Fibonacci ratios for wave relationships
         self.fib_ratios = {
@@ -188,6 +188,12 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
                 if signal:
                     if self.validate_signal(signal): # Validate signal using base class method
                         signals.append(signal)
+            
+            # NEW: Generate additional signals from all valid patterns
+            additional_signals = self._generate_additional_signals(analysis_result_dict, symbol, timeframe, data)
+            for signal in additional_signals:
+                if self.validate_signal(signal):
+                    signals.append(signal)
             
             return signals
             
@@ -313,7 +319,7 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         """
         try:
             swings = []
-            window = 5
+            window = 3  # Reduced window for more sensitive detection
             
             for i in range(window, len(data) - window):
                 high_price = data.iloc[i]['High']
@@ -849,6 +855,250 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         
         return signal_dict
     
+    def _generate_additional_signals(self, analysis_result: Dict, symbol: str, timeframe: str, data: pd.DataFrame) -> List[Signal]:
+        """Generate additional signals from patterns for better signal generation"""
+        signals = []
+        
+        try:
+            if not self.mt5_manager:
+                return []
+            
+            # Get data for analysis
+            if data is None or len(data) < self.lookback_periods:
+                return []
+            
+            swings = self._identify_swings(data)
+            if len(swings) < 6:
+                return []
+            
+            impulse_waves = self._find_impulse_waves(swings, data)
+            corrective_waves = self._find_corrective_waves(swings, data)
+            all_patterns = impulse_waves + corrective_waves
+            valid_patterns = self._validate_patterns(all_patterns)
+            
+            # Generate signals from multiple valid patterns (not just the best one)
+            for i, pattern in enumerate(valid_patterns[:5]):  # Limit to top 5 patterns
+                if pattern.confidence >= max(0.50, self.min_confidence - 0.1):  # More lenient threshold
+                    additional_signal = self._create_pattern_specific_signal(pattern, data, symbol, timeframe, i)
+                    if additional_signal:
+                        signals.append(additional_signal)
+                        
+            # Generate signals from intermediate wave completions
+            intermediate_signals = self._generate_intermediate_wave_signals(valid_patterns, data, symbol, timeframe)
+            signals.extend(intermediate_signals)
+            
+            return signals[:10]  # Limit total additional signals to 10
+            
+        except Exception as e:
+            self.logger.error(f"Error generating additional signals: {str(e)}")
+            return []
+    
+    def _create_pattern_specific_signal(self, pattern: WavePattern, data: pd.DataFrame, symbol: str, timeframe: str, index: int) -> Optional[Signal]:
+        """Create a signal from a specific pattern"""
+        try:
+            current_price = float(data['Close'].iloc[-1])
+            
+            if pattern.pattern_type == WaveType.IMPULSE:
+                last_wave = pattern.waves[-1]
+                is_bullish_impulse = last_wave.end_price > pattern.waves[0].start_price
+                
+                confidence_adjustment = 1.0 - (index * 0.1)  # Reduce confidence for lower-ranked patterns
+                adjusted_confidence = pattern.confidence * confidence_adjustment
+                
+                if is_bullish_impulse:
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,  # Expect correction after impulse up
+                        confidence=max(0.5, adjusted_confidence),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=pattern.validation_score,
+                        stop_loss=last_wave.end_price + 25,
+                        take_profit=current_price - (abs(pattern.end_price - pattern.start_price) * 0.382),
+                        metadata={
+                            'signal_reason': f'impulse_completion_{index+1}',
+                            'pattern_type': pattern.pattern_type.value,
+                            'wave_count': len(pattern.waves),
+                            'pattern_rank': index + 1
+                        }
+                    )
+                else:
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,  # Expect correction after impulse down
+                        confidence=max(0.5, adjusted_confidence),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=pattern.validation_score,
+                        stop_loss=last_wave.end_price - 25,
+                        take_profit=current_price + (abs(pattern.end_price - pattern.start_price) * 0.382),
+                        metadata={
+                            'signal_reason': f'impulse_completion_{index+1}',
+                            'pattern_type': pattern.pattern_type.value,
+                            'wave_count': len(pattern.waves),
+                            'pattern_rank': index + 1
+                        }
+                    )
+            
+            elif pattern.pattern_type in [WaveType.CORRECTIVE, WaveType.ZIGZAG, WaveType.FLAT]:
+                last_wave = pattern.waves[-1]
+                is_bearish_correction = last_wave.end_price < pattern.waves[0].start_price
+                
+                confidence_adjustment = 1.0 - (index * 0.1)
+                adjusted_confidence = pattern.confidence * confidence_adjustment
+                
+                if is_bearish_correction:
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.BUY,  # Buy after correction down
+                        confidence=max(0.5, adjusted_confidence),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=pattern.validation_score,
+                        stop_loss=last_wave.end_price - 25,
+                        take_profit=current_price + (abs(pattern.end_price - pattern.start_price) * 1.27),
+                        metadata={
+                            'signal_reason': f'correction_completion_{index+1}',
+                            'pattern_type': pattern.pattern_type.value,
+                            'wave_count': len(pattern.waves),
+                            'pattern_rank': index + 1
+                        }
+                    )
+                else:
+                    return Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name=self.strategy_name,
+                        signal_type=SignalType.SELL,  # Sell after correction up
+                        confidence=max(0.5, adjusted_confidence),
+                        price=current_price,
+                        timeframe=timeframe,
+                        strength=pattern.validation_score,
+                        stop_loss=last_wave.end_price + 25,
+                        take_profit=current_price - (abs(pattern.end_price - pattern.start_price) * 1.27),
+                        metadata={
+                            'signal_reason': f'correction_completion_{index+1}',
+                            'pattern_type': pattern.pattern_type.value,
+                            'wave_count': len(pattern.waves),
+                            'pattern_rank': index + 1
+                        }
+                    )
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error creating pattern-specific signal: {str(e)}")
+            return None
+    
+    def _generate_intermediate_wave_signals(self, patterns: List[WavePattern], data: pd.DataFrame, symbol: str, timeframe: str) -> List[Signal]:
+        """Generate signals from intermediate wave formations"""
+        signals = []
+        
+        try:
+            if not patterns:
+                return signals
+                
+            current_price = float(data['Close'].iloc[-1])
+            
+            # Look for wave 3 completions (strongest waves)
+            for pattern in patterns[:3]:  # Top 3 patterns
+                if pattern.pattern_type == WaveType.IMPULSE and len(pattern.waves) >= 3:
+                    wave3 = pattern.waves[2]  # Third wave (index 2)
+                    
+                    # Check if wave 3 might be completing (strong momentum)
+                    wave3_size = abs(wave3.end_price - wave3.start_price)
+                    if wave3_size > self.min_wave_size:
+                        
+                        if wave3.end_price > wave3.start_price:  # Bullish wave 3
+                            signals.append(Signal(
+                                timestamp=datetime.now(),
+                                symbol=symbol,
+                                strategy_name=self.strategy_name,
+                                signal_type=SignalType.BUY,  # Continue with wave 5
+                                confidence=0.62,
+                                price=current_price,
+                                timeframe=timeframe,
+                                strength=0.65,
+                                stop_loss=wave3.start_price - 15,
+                                take_profit=current_price + wave3_size * 0.618,
+                                metadata={
+                                    'signal_reason': 'wave3_momentum_continuation',
+                                    'wave_size': wave3_size
+                                }
+                            ))
+                        else:  # Bearish wave 3
+                            signals.append(Signal(
+                                timestamp=datetime.now(),
+                                symbol=symbol,
+                                strategy_name=self.strategy_name,
+                                signal_type=SignalType.SELL,  # Continue with wave 5
+                                confidence=0.62,
+                                price=current_price,
+                                timeframe=timeframe,
+                                strength=0.65,
+                                stop_loss=wave3.start_price + 15,
+                                take_profit=current_price - wave3_size * 0.618,
+                                metadata={
+                                    'signal_reason': 'wave3_momentum_continuation',
+                                    'wave_size': wave3_size
+                                }
+                            ))
+            
+            # Look for ABC correction signals
+            for pattern in patterns:
+                if pattern.pattern_type in [WaveType.CORRECTIVE, WaveType.ZIGZAG] and len(pattern.waves) >= 2:
+                    wave_b = pattern.waves[1]  # B wave
+                    
+                    # Generate signal on B wave completion (anticipating C wave)
+                    if abs(wave_b.end_price - wave_b.start_price) > self.min_wave_size:
+                        
+                        if wave_b.end_price > wave_b.start_price:  # B wave up, expect C down
+                            signals.append(Signal(
+                                timestamp=datetime.now(),
+                                symbol=symbol,
+                                strategy_name=self.strategy_name,
+                                signal_type=SignalType.SELL,
+                                confidence=0.58,
+                                price=current_price,
+                                timeframe=timeframe,
+                                strength=0.60,
+                                stop_loss=wave_b.end_price + 20,
+                                take_profit=current_price - abs(wave_b.end_price - wave_b.start_price) * 1.27,
+                                metadata={
+                                    'signal_reason': 'wave_b_completion',
+                                    'expected_wave': 'C'
+                                }
+                            ))
+                        else:  # B wave down, expect C up
+                            signals.append(Signal(
+                                timestamp=datetime.now(),
+                                symbol=symbol,
+                                strategy_name=self.strategy_name,
+                                signal_type=SignalType.BUY,
+                                confidence=0.58,
+                                price=current_price,
+                                timeframe=timeframe,
+                                strength=0.60,
+                                stop_loss=wave_b.end_price - 20,
+                                take_profit=current_price + abs(wave_b.end_price - wave_b.start_price) * 1.27,
+                                metadata={
+                                    'signal_reason': 'wave_b_completion',
+                                    'expected_wave': 'C'
+                                }
+                            ))
+            
+            return signals[:5]  # Limit intermediate signals
+            
+        except Exception as e:
+            self.logger.error(f"Error generating intermediate wave signals: {str(e)}")
+            return []
+    
     def _create_signal_from_analysis(self, analysis: Dict, symbol: str, timeframe: str, data: pd.DataFrame) -> Optional[Signal]:
         """
         Create a Signal object from analysis results dictionary.
@@ -1149,7 +1399,10 @@ if __name__ == "__main__":
                 print(f"     Degree: {signal.metadata.get('degree', 'N/A')}")
                 if 'wave_count' in signal.metadata:
                     wave_count = signal.metadata['wave_count']
-                    print(f"     Current Wave: {wave_count.get('current_wave', 'N/A')}")
+                    if isinstance(wave_count, dict):
+                        print(f"     Current Wave: {wave_count.get('current_wave', 'N/A')}")
+                    else:
+                        print(f"     Wave Count: {wave_count}")
         
         # 2. Testing analysis method
         print("\n2. Testing analysis method:")

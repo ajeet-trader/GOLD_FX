@@ -182,16 +182,27 @@ class FibonacciAdvancedStrategy(AbstractStrategy):
         """
         clusters = []
         price_points = sorted([level.price for level in levels])
+        used_points = set()
         
         for i, price in enumerate(price_points):
+            if price in used_points:
+                continue
+                
             nearby_levels = [p for p in price_points if 
                           abs(p - price) <= price * self.cluster_tolerance]
+            
             if len(nearby_levels) >= self.min_cluster_size:
                 center = sum(nearby_levels) / len(nearby_levels)
                 tolerance = center * self.cluster_tolerance
                 clusters.append((center, tolerance, len(nearby_levels)))
+                
+                # Mark these points as used to avoid duplicate clusters
+                for point in nearby_levels:
+                    used_points.add(point)
         
-        return sorted(clusters, key=lambda x: abs(current_price - x[0]))
+        # Sort by proximity to current price and return top 5 clusters
+        clusters = sorted(clusters, key=lambda x: abs(current_price - x[0]))
+        return clusters[:5]
     
     def _get_trend_direction(self, data: pd.DataFrame) -> str:
         """
@@ -291,65 +302,114 @@ class FibonacciAdvancedStrategy(AbstractStrategy):
             trend = self._get_trend_direction(data)
             
             signals = []
-            for cluster_center, tolerance, level_count in clusters[:2]:  # Check top 2 clusters
-                # Calculate confidence based on cluster size and timeframe confluence
-                base_confidence = min(0.9, self.confidence_threshold + (level_count - self.min_cluster_size) * 0.1)
-                if secondary_data is not None:
-                    base_confidence *= 1.2  # Boost for multi-timeframe confluence
-                
-                # Check for retracement signals
-                if abs(current_price - cluster_center) <= tolerance:
-                    if trend == "up" and 0.5 <= fib_levels[0].level <= 0.618:
-                        signal_type = SignalType.BUY
-                        confidence = base_confidence * 1.1
-                    elif trend == "down" and 0.5 <= fib_levels[0].level <= 0.618:
-                        signal_type = SignalType.SELL
-                        confidence = base_confidence * 1.1
-                    else:
-                        continue
-                
-                # Check for extension breakout signals
-                elif current_price > cluster_center and fib_levels[0].type == "extension":
-                    signal_type = SignalType.BUY
-                    confidence = base_confidence
-                elif current_price < cluster_center and fib_levels[0].type == "extension":
-                    signal_type = SignalType.SELL
-                    confidence = base_confidence
-                else:
-                    continue
-                
-                # Calculate stop loss and take profit
-                fib_range = abs(fib_levels[0].swing_ref[0] - fib_levels[0].swing_ref[1])
-                if signal_type == SignalType.BUY:
-                    stop_loss = cluster_center - fib_range * 0.2
-                    take_profit = cluster_center + fib_range * 0.4
-                else:
-                    stop_loss = cluster_center + fib_range * 0.2
-                    take_profit = cluster_center - fib_range * 0.4
-                
-                signal = Signal(
-                    timestamp=datetime.now(),
-                    symbol=symbol,
-                    strategy_name="FibonacciAdvanced",
-                    signal_type=signal_type,
-                    confidence=min(confidence, 0.95),
-                    price=cluster_center,
-                    timeframe=timeframe,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    metadata={
-                        'cluster_center': cluster_center,
-                        'level_count': level_count,
-                        'trend': trend,
-                        'fib_type': fib_levels[0].type
-                    }
-                )
-                
-                if self.validate_signal(signal):
-                    signals.append(signal)
-                    self.last_signal_time = current_time
             
-            return signals[:self.max_signals_per_hour]
+            # Get recent price action for signal generation
+            recent_high = data['High'].tail(10).max()
+            recent_low = data['Low'].tail(10).min()
+            price_range = recent_high - recent_low
+            
+            for cluster_center, tolerance, level_count in clusters:  # Check all clusters
+                # Calculate confidence based on cluster size and proximity to current price
+                distance_factor = 1.0 - min(abs(current_price - cluster_center) / (price_range + 1), 0.5)
+                base_confidence = min(0.9, 0.6 + (level_count - self.min_cluster_size) * 0.05 + distance_factor * 0.2)
+                
+                if secondary_data is not None:
+                    base_confidence *= 1.1  # Boost for multi-timeframe confluence
+                
+                signal_type = None
+                confidence = base_confidence
+                signal_reason = ""
+                
+                # Check for various signal conditions
+                price_to_cluster_distance = abs(current_price - cluster_center)
+                
+                # 1. Price near cluster (retracement/support/resistance)
+                if price_to_cluster_distance <= tolerance * 2:
+                    if trend == "up" and current_price > cluster_center:
+                        signal_type = SignalType.BUY
+                        confidence *= 1.1
+                        signal_reason = "bullish_retracement"
+                    elif trend == "down" and current_price < cluster_center:
+                        signal_type = SignalType.SELL
+                        confidence *= 1.1
+                        signal_reason = "bearish_retracement"
+                    elif trend == "sideways":
+                        # In sideways market, trade bounces off levels
+                        if current_price < cluster_center:
+                            signal_type = SignalType.BUY
+                            signal_reason = "support_bounce"
+                        else:
+                            signal_type = SignalType.SELL
+                            signal_reason = "resistance_rejection"
+                
+                # 2. Price approaching cluster from distance
+                elif price_to_cluster_distance <= tolerance * 5:
+                    if trend == "up" and current_price < cluster_center:
+                        signal_type = SignalType.BUY
+                        confidence *= 0.9
+                        signal_reason = "approaching_resistance"
+                    elif trend == "down" and current_price > cluster_center:
+                        signal_type = SignalType.SELL
+                        confidence *= 0.9
+                        signal_reason = "approaching_support"
+                
+                # 3. Breakout signals
+                elif current_price > cluster_center and trend in ["up", "sideways"]:
+                    signal_type = SignalType.BUY
+                    confidence *= 0.8
+                    signal_reason = "breakout_above"
+                elif current_price < cluster_center and trend in ["down", "sideways"]:
+                    signal_type = SignalType.SELL
+                    confidence *= 0.8
+                    signal_reason = "breakdown_below"
+                
+                if signal_type and confidence >= 0.5:  # Lower threshold for more signals
+                    # Calculate stop loss and take profit based on recent price action
+                    atr_estimate = price_range * 0.3  # Rough ATR estimate
+                    
+                    if signal_type == SignalType.BUY:
+                        stop_loss = current_price - atr_estimate * 1.5
+                        take_profit = current_price + atr_estimate * 2.0
+                    else:
+                        stop_loss = current_price + atr_estimate * 1.5
+                        take_profit = current_price - atr_estimate * 2.0
+                    
+                    signal = Signal(
+                        timestamp=datetime.now(),
+                        symbol=symbol,
+                        strategy_name="FibonacciAdvanced",
+                        signal_type=signal_type,
+                        confidence=min(confidence, 0.95),
+                        price=current_price,  # Use current price instead of cluster center
+                        timeframe=timeframe,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        metadata={
+                            'cluster_center': cluster_center,
+                            'level_count': level_count,
+                            'trend': trend,
+                            'signal_reason': signal_reason,
+                            'distance_to_cluster': price_to_cluster_distance,
+                            'price_range': price_range
+                        }
+                    )
+                    
+                    signals.append(signal)
+                    
+                    # Limit signals to prevent overtrading
+                    if len(signals) >= 8:
+                        break
+            
+            # Filter and validate signals
+            valid_signals = []
+            for signal in signals:
+                if signal.confidence >= 0.5:  # Lower validation threshold
+                    valid_signals.append(signal)
+                    
+            if valid_signals:
+                self.last_signal_time = current_time
+            
+            return valid_signals[:self.max_signals_per_hour]
         
         except Exception as e:
             self.logger.error(f"Signal generation failed: {str(e)}")
@@ -380,6 +440,7 @@ class FibonacciAdvancedStrategy(AbstractStrategy):
                 elif current_swing[2] == 'low' and next_swing[2] == 'high':
                     fib_levels.extend(self._calculate_fibonacci_levels(
                         next_swing[1], current_swing[1], timeframe))
+
             
             # Find clusters
             current_price = data['Close'].iloc[-1]
@@ -454,7 +515,7 @@ if __name__ == "__main__":
             dates = pd.date_range(
                 start=datetime.now() - timedelta(days=10), 
                 end=datetime.now(), 
-                freq='15Min' if timeframe == 'M15' else 'H'
+                freq='15Min' if timeframe == 'M15' else 'h'
             )[:bars]
             
             np.random.seed(42)
@@ -487,14 +548,43 @@ if __name__ == "__main__":
     print("TESTING FIBONACCI ADVANCED STRATEGY")
     print("============================================================")
     
-    print("\n1. Testing signal generation:")
-    signals = strategy.generate_signal("XAUUSDm", "M15")
-    print(f"   Generated {len(signals)} signals")
-    for signal in signals:
-        print(f"   - {signal.signal_type.value} at {signal.price:.2f}, "
-              f"Confidence: {signal.confidence:.3f}, Grade: {signal.grade.value}")
-        print(f"     Cluster Center: {signal.metadata.get('cluster_center', 'N/A'):.2f}")
-        print(f"     Trend: {signal.metadata.get('trend', 'N/A')}")
+    print("\n1. Testing signal generation (Multiple runs to simulate daily signals):")
+    all_signals = []
+    
+    # Simulate multiple runs throughout the day with different random seeds
+    for run in range(8):  # Simulate 8 different time periods
+        np.random.seed(42 + run)  # Different seed for each run
+        strategy.last_signal_time = None  # Reset cooldown for testing
+        
+        signals = strategy.generate_signal("XAUUSDm", "M15")
+        if signals:
+            all_signals.extend(signals)
+            print(f"   Run {run+1}: Generated {len(signals)} signals")
+            for signal in signals:
+                print(f"     - {signal.signal_type.value} at {signal.price:.2f}, "
+                      f"Confidence: {signal.confidence:.3f}, Grade: {signal.grade.value}")
+                print(f"       Reason: {signal.metadata.get('signal_reason', 'N/A')}")
+                print(f"       SL: {signal.stop_loss:.2f}, TP: {signal.take_profit:.2f}")
+                print(f"       Risk/Reward: {abs(signal.take_profit - signal.price) / abs(signal.price - signal.stop_loss):.2f}")
+        else:
+            print(f"   Run {run+1}: No signals generated")
+    
+    print(f"\n   TOTAL DAILY SIGNALS: {len(all_signals)}")
+    print(f"   Signal Distribution:")
+    buy_signals = [s for s in all_signals if s.signal_type == SignalType.BUY]
+    sell_signals = [s for s in all_signals if s.signal_type == SignalType.SELL]
+    print(f"     BUY signals: {len(buy_signals)}")
+    print(f"     SELL signals: {len(sell_signals)}")
+    
+    if all_signals:
+        avg_confidence = sum(s.confidence for s in all_signals) / len(all_signals)
+        print(f"     Average confidence: {avg_confidence:.3f}")
+        
+        grade_counts = {}
+        for signal in all_signals:
+            grade = signal.grade.value
+            grade_counts[grade] = grade_counts.get(grade, 0) + 1
+        print(f"     Grade distribution: {grade_counts}")
     
     print("\n2. Testing analysis method:")
     mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)

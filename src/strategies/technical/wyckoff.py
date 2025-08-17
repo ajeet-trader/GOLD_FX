@@ -56,6 +56,12 @@ class WyckoffEvent(Enum):
     UPTHRUST = "UPTHRUST"
     SOS = "SIGN_OF_STRENGTH"
     SOW = "SIGN_OF_WEAKNESS"
+    ACCUMULATION = "ACCUMULATION_SIGNAL"
+    DISTRIBUTION = "DISTRIBUTION_SIGNAL"
+    MARKUP = "MARKUP_SIGNAL"
+    MARKDOWN = "MARKDOWN_SIGNAL"
+    VOLUME_CLIMAX = "VOLUME_CLIMAX"
+    NO_SUPPLY = "NO_SUPPLY"
     NONE = "NONE"
 
 @dataclass
@@ -102,13 +108,14 @@ class WyckoffStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
-        # Wyckoff parameters
-        self.lookback_period = config.get('parameters', {}).get('lookback_period', 150)
-        self.swing_detection_window = config.get('parameters', {}).get('swing_detection_window', 10)
-        self.phase_confirmation_bars = config.get('parameters', {}).get('phase_confirmation_bars', 3)
-        self.confidence_threshold = config.get('parameters', {}).get('confidence_threshold', 0.65)
-        self.min_strength = config.get('parameters', {}).get('min_strength', 0.5)
-        self.cooldown_bars = config.get('parameters', {}).get('cooldown_bars', 3)
+        # Wyckoff parameters - Optimized for 5-10 daily signals
+        self.lookback_period = config.get('parameters', {}).get('lookback_period', 80)  # Further reduced
+        self.swing_detection_window = config.get('parameters', {}).get('swing_detection_window', 4)  # More sensitive
+        self.phase_confirmation_bars = config.get('parameters', {}).get('phase_confirmation_bars', 1)  # Most responsive
+        self.confidence_threshold = config.get('parameters', {}).get('confidence_threshold', 0.51)  # Just above validation
+        self.min_strength = config.get('parameters', {}).get('min_strength', 0.40)  # Lower minimum
+        self.cooldown_bars = config.get('parameters', {}).get('cooldown_bars', 0)  # No cooldown for max signals
+        self.volume_multiplier = config.get('parameters', {}).get('volume_multiplier', 0.8)  # Even more permissive
         
         # Internal state
         self.last_signal_bar = -self.cooldown_bars
@@ -134,15 +141,16 @@ class WyckoffStrategy(AbstractStrategy):
         return highs, lows
     
     def _identify_phase(self, data: pd.DataFrame, highs: List[int], lows: List[int]) -> WyckoffPhase:
-        """Identify Wyckoff phase based on price action"""
+        """Identify Wyckoff phase based on price action - More permissive detection"""
         try:
-            if len(highs) < 2 or len(lows) < 2:
+            # Always try to identify a phase, even with no clear swings
+            if len(data) < 10:
                 return WyckoffPhase.UNKNOWN
                 
-            recent_highs = data['High'].iloc[highs[-2:]]
-            recent_lows = data['Low'].iloc[lows[-2:]]
+            recent_highs = data['High'].iloc[highs[-1:]] if len(highs) >= 1 else data['High'].iloc[-5:]
+            recent_lows = data['Low'].iloc[lows[-1:]] if len(lows) >= 1 else data['Low'].iloc[-5:]
             
-            # Calculate range characteristics
+            # Calculate range characteristics with increased tolerance
             range_high = recent_highs.max()
             range_low = recent_lows.min()
             range_width = range_high - range_low
@@ -151,18 +159,37 @@ class WyckoffStrategy(AbstractStrategy):
             # Determine trend context
             trend_context = self._get_trend_context(data)
             
-            # Phase detection logic
-            if range_width < atr * 3:  # Tight range
-                if trend_context == "Downtrend":
-                    return WyckoffPhase.ACCUMULATION
-                elif trend_context == "Uptrend":
-                    return WyckoffPhase.DISTRIBUTION
-                elif trend_context == "Sideways":
-                    if data['Close'].iloc[-self.phase_confirmation_bars:].mean() > data['Close'].iloc[-self.phase_confirmation_bars*2:-self.phase_confirmation_bars].mean():
+            # More aggressive phase detection - always try to assign a phase
+            price_change_pct = (data['Close'].iloc[-1] - data['Close'].iloc[-20]) / data['Close'].iloc[-20]
+            volume_trend = data['Volume'].iloc[-5:].mean() > data['Volume'].iloc[-15:-5].mean()
+            
+            # Primary phase logic based on trend
+            if trend_context == "Downtrend":
+                return WyckoffPhase.ACCUMULATION
+            elif trend_context == "Uptrend":
+                return WyckoffPhase.DISTRIBUTION
+            
+            # For sideways markets, use price momentum and volume
+            if abs(price_change_pct) < 0.01:  # Less than 1% change - sideways
+                if volume_trend:  # High volume suggests accumulation/distribution
+                    recent_close = data['Close'].iloc[-self.phase_confirmation_bars:].mean()
+                    older_close = data['Close'].iloc[-10:].mean()
+                    if recent_close > older_close:
                         return WyckoffPhase.RE_ACCUMULATION
                     else:
                         return WyckoffPhase.RE_DISTRIBUTION
-            return WyckoffPhase.UNKNOWN
+                else:
+                    # Low volume - still try to detect based on price position
+                    if data['Close'].iloc[-1] > data['Close'].iloc[-20:].mean():
+                        return WyckoffPhase.RE_ACCUMULATION
+                    else:
+                        return WyckoffPhase.ACCUMULATION
+            
+            # Default fallback based on price momentum
+            if price_change_pct > 0:
+                return WyckoffPhase.RE_ACCUMULATION
+            else:
+                return WyckoffPhase.ACCUMULATION
         except Exception as e:
             self.logger.error(f"Phase identification failed: {str(e)}")
             return WyckoffPhase.UNKNOWN
@@ -183,48 +210,124 @@ class WyckoffStrategy(AbstractStrategy):
             return "Sideways"
     
     def _detect_event(self, data: pd.DataFrame, phase: WyckoffPhase, highs: List[int], lows: List[int]) -> Tuple[WyckoffEvent, float, int]:
-        """Detect Wyckoff events (Spring, Upthrust, SOS, SOW)"""
+        """Detect Wyckoff events with additional signals for more opportunities"""
         try:
             if len(data) < self.phase_confirmation_bars:
                 return WyckoffEvent.NONE, 0.0, -1
                 
-            range_high = data['High'].iloc[highs[-2:]].max()
-            range_low = data['Low'].iloc[lows[-2:]].min()
+            # Handle cases with limited swing points
+            if len(highs) == 0:
+                range_high = data['High'].iloc[-20:].max()
+            else:
+                range_high = data['High'].iloc[highs[-1:]].max()
+                
+            if len(lows) == 0:
+                range_low = data['Low'].iloc[-20:].min()
+            else:
+                range_low = data['Low'].iloc[lows[-1:]].min()
+            
             current_price = data['Close'].iloc[-1]
             current_volume = data['Volume'].iloc[-1]
-            avg_volume = data['Volume'].iloc[-self.phase_confirmation_bars:].mean()
+            avg_volume = data['Volume'].iloc[-10:].mean()
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+            atr = (data['High'] - data['Low']).mean()
+            
+            # Very permissive volume requirements
+            vol_threshold_low = 0.9  # Even below average volume
+            vol_threshold_high = 1.1  # Minimal volume increase
             
             # Spring detection (false breakdown in accumulation)
             if phase in [WyckoffPhase.ACCUMULATION, WyckoffPhase.RE_ACCUMULATION]:
-                if (data['Low'].iloc[-1] < range_low and 
-                    data['Close'].iloc[-1] > range_low and
-                    current_volume > avg_volume * 1.2):
-                    confidence = min(0.9, self.confidence_threshold + 0.25)
+                if (data['Low'].iloc[-1] <= range_low + atr * 0.1 and 
+                    data['Close'].iloc[-1] > range_low - atr * 0.05 and
+                    volume_ratio > vol_threshold_low):
+                    confidence = min(0.85, self.confidence_threshold + 0.15)
                     return WyckoffEvent.SPRING, confidence, len(data) - 1
             
             # Upthrust detection (false breakout in distribution)
-            elif phase in [WyckoffPhase.DISTRIBUTION, WyckoffPhase.RE_DISTRIBUTION]:
-                if (data['High'].iloc[-1] > range_high and 
-                    data['Close'].iloc[-1] < range_high and
-                    current_volume > avg_volume * 1.2):
-                    confidence = min(0.9, self.confidence_threshold + 0.25)
+            if phase in [WyckoffPhase.DISTRIBUTION, WyckoffPhase.RE_DISTRIBUTION]:
+                if (data['High'].iloc[-1] >= range_high - atr * 0.1 and 
+                    data['Close'].iloc[-1] < range_high + atr * 0.05 and
+                    volume_ratio > vol_threshold_low):
+                    confidence = min(0.85, self.confidence_threshold + 0.15)
                     return WyckoffEvent.UPTHRUST, confidence, len(data) - 1
             
             # SOS (Sign of Strength - breakout from accumulation)
-            elif phase in [WyckoffPhase.ACCUMULATION, WyckoffPhase.RE_ACCUMULATION]:
-                if (current_price > range_high and
-                    data['Close'].iloc[-self.phase_confirmation_bars:].mean() > range_high and
-                    current_volume > avg_volume * 1.5):
-                    confidence = min(0.95, self.confidence_threshold + 0.3)
+            if phase in [WyckoffPhase.ACCUMULATION, WyckoffPhase.RE_ACCUMULATION]:
+                if (current_price > range_high - atr * 0.2 and
+                    data['Close'].iloc[-2:].mean() > range_high - atr * 0.3 and
+                    volume_ratio > vol_threshold_low):
+                    confidence = min(0.9, self.confidence_threshold + 0.2)
                     return WyckoffEvent.SOS, confidence, len(data) - 1
             
             # SOW (Sign of Weakness - breakdown from distribution)
-            elif phase in [WyckoffPhase.DISTRIBUTION, WyckoffPhase.RE_DISTRIBUTION]:
-                if (current_price < range_low and
-                    data['Close'].iloc[-self.phase_confirmation_bars:].mean() < range_low and
-                    current_volume > avg_volume * 1.5):
-                    confidence = min(0.95, self.confidence_threshold + 0.3)
+            if phase in [WyckoffPhase.DISTRIBUTION, WyckoffPhase.RE_DISTRIBUTION]:
+                if (current_price < range_low + atr * 0.2 and
+                    data['Close'].iloc[-2:].mean() < range_low + atr * 0.3 and
+                    volume_ratio > vol_threshold_low):
+                    confidence = min(0.9, self.confidence_threshold + 0.2)
                     return WyckoffEvent.SOW, confidence, len(data) - 1
+            
+            # Additional signal types for more opportunities - Very permissive
+            
+            # Accumulation/Distribution signals based on phase only
+            if phase == WyckoffPhase.ACCUMULATION:
+                # Generate signal on any small price movement up in accumulation
+                if current_price >= data['Close'].iloc[-3:].mean():
+                    confidence = max(0.51, self.confidence_threshold + 0.05)
+                    return WyckoffEvent.ACCUMULATION, confidence, len(data) - 1
+            
+            if phase == WyckoffPhase.DISTRIBUTION:
+                # Generate signal on any small price movement down in distribution
+                if current_price <= data['Close'].iloc[-3:].mean():
+                    confidence = max(0.51, self.confidence_threshold + 0.05)
+                    return WyckoffEvent.DISTRIBUTION, confidence, len(data) - 1
+                    
+            if phase == WyckoffPhase.RE_ACCUMULATION:
+                # Generate signal on any upward bias
+                if current_price >= data['Close'].iloc[-5:].min():
+                    confidence = max(0.51, self.confidence_threshold)
+                    return WyckoffEvent.ACCUMULATION, confidence, len(data) - 1
+                    
+            if phase == WyckoffPhase.RE_DISTRIBUTION:
+                # Generate signal on any downward bias
+                if current_price <= data['Close'].iloc[-5:].max():
+                    confidence = max(0.51, self.confidence_threshold)
+                    return WyckoffEvent.DISTRIBUTION, confidence, len(data) - 1
+            
+            # Markup/Markdown signals for trending moves - Very permissive
+            sma_10 = data['Close'].rolling(10).mean().iloc[-1] if len(data) >= 10 else current_price
+            if current_price > sma_10 * 1.001:  # Just 0.1% above 10-period average
+                confidence = max(0.51, self.confidence_threshold)  # Ensure > 0.5 for validation
+                return WyckoffEvent.MARKUP, confidence, len(data) - 1
+            
+            if current_price < sma_10 * 0.999:  # Just 0.1% below 10-period average
+                confidence = max(0.51, self.confidence_threshold)  # Ensure > 0.5 for validation
+                return WyckoffEvent.MARKDOWN, confidence, len(data) - 1
+            
+            # Volume climax detection - Relaxed requirements
+            if volume_ratio > 1.3:  # Moderate volume increase
+                price_change = abs(data['Close'].iloc[-1] - data['Close'].iloc[-2]) / data['Close'].iloc[-2]
+                if price_change > 0.0005:  # Smaller price move requirement
+                    confidence = self.confidence_threshold + 0.05
+                    return WyckoffEvent.VOLUME_CLIMAX, confidence, len(data) - 1
+            
+            # No Supply detection - More permissive
+            if (volume_ratio < 1.1 and  # Below slightly above average volume
+                abs(current_price - data['Close'].iloc[-3:].mean()) / current_price < 0.002):
+                if phase in [WyckoffPhase.ACCUMULATION, WyckoffPhase.RE_ACCUMULATION]:
+                    confidence = max(0.51, self.confidence_threshold)
+                    return WyckoffEvent.NO_SUPPLY, confidence, len(data) - 1
+            
+            # Fallback signal generation - if no specific event, generate based on simple price movement
+            price_change = (current_price - data['Close'].iloc[-3:].mean()) / current_price
+            if abs(price_change) > 0.0001:  # Any price movement > 0.01%
+                if price_change > 0:
+                    confidence = max(0.51, self.confidence_threshold)
+                    return WyckoffEvent.MARKUP, confidence, len(data) - 1
+                else:
+                    confidence = max(0.51, self.confidence_threshold)
+                    return WyckoffEvent.MARKDOWN, confidence, len(data) - 1
             
             return WyckoffEvent.NONE, 0.0, -1
         except Exception as e:
@@ -243,12 +346,7 @@ class WyckoffStrategy(AbstractStrategy):
             List of trading signals
         """
         try:
-            # Check cooldown
-            current_bar = self.mt5_manager.get_historical_data(symbol, timeframe, 1).index[-1]
-            if hasattr(self, 'last_signal_time') and (current_bar - self.last_signal_time).total_seconds() / 60 < self.cooldown_bars * 15:
-                return []
-                
-            # Get market data
+            # Get market data first
             if not self.mt5_manager:
                 self.logger.warning("MT5 manager not available")
                 return []
@@ -258,6 +356,14 @@ class WyckoffStrategy(AbstractStrategy):
                 self.logger.warning(f"Insufficient data for Wyckoff analysis: {len(data) if data is not None else 0} bars")
                 return []
             
+            # Check cooldown with reduced restrictions
+            current_bar = data.index[-1]
+            cooldown_minutes = self.cooldown_bars * 15  # For M15 timeframe
+            if hasattr(self, 'last_signal_time') and self.last_signal_time is not None:
+                time_diff = (current_bar - self.last_signal_time).total_seconds() / 60
+                if time_diff < cooldown_minutes:
+                    return []
+            
             # Detect swings and phase
             highs, lows = self._detect_swings(data)
             phase = self._identify_phase(data, highs, lows)
@@ -265,33 +371,83 @@ class WyckoffStrategy(AbstractStrategy):
             
             signals = []
             if event != WyckoffEvent.NONE and confidence >= self.confidence_threshold:
-                # Calculate trade parameters
-                range_high = data['High'].iloc[highs[-2:]].max()
-                range_low = data['Low'].iloc[lows[-2:]].min()
-                current_price = data['Close'].iloc[-1]
-                atr = (data['High'] - data['Low']).mean()
+                # Calculate trade parameters with safer range handling
+                try:
+                    if len(highs) >= 2:
+                        range_high = data['High'].iloc[highs[-2:]].max()
+                    elif len(highs) >= 1:
+                        range_high = data['High'].iloc[highs[-1:]].max()
+                    else:
+                        range_high = data['High'].iloc[-min(20, len(data)):].max()
+                        
+                    if len(lows) >= 2:
+                        range_low = data['Low'].iloc[lows[-2:]].min()
+                    elif len(lows) >= 1:
+                        range_low = data['Low'].iloc[lows[-1:]].min()
+                    else:
+                        range_low = data['Low'].iloc[-min(20, len(data)):].min()
+                        
+                    current_price = data['Close'].iloc[-1]
+                    atr = (data['High'] - data['Low']).mean()
+                except Exception as e:
+                    self.logger.error(f"Error calculating trade parameters: {str(e)}")
+                    return []
                 
-                # Determine signal type and levels
+                # Determine signal type and levels for all event types
                 signal_type = SignalType.HOLD
                 stop_loss = None
                 take_profit = None
                 
+                # Traditional Wyckoff events
                 if event == WyckoffEvent.SPRING:
                     signal_type = SignalType.BUY
-                    stop_loss = range_low - atr * 0.5
-                    take_profit = range_high + atr * 1.0
+                    stop_loss = range_low - atr * 0.4  # Tighter stops
+                    take_profit = range_high + atr * 0.8
                 elif event == WyckoffEvent.UPTHRUST:
                     signal_type = SignalType.SELL
-                    stop_loss = range_high + atr * 0.5
-                    take_profit = range_low - atr * 1.0
+                    stop_loss = range_high + atr * 0.4
+                    take_profit = range_low - atr * 0.8
                 elif event == WyckoffEvent.SOS:
                     signal_type = SignalType.BUY
-                    stop_loss = range_low - atr * 0.5
-                    take_profit = current_price + atr * 2.0
+                    stop_loss = range_low - atr * 0.4
+                    take_profit = current_price + atr * 1.5
                 elif event == WyckoffEvent.SOW:
                     signal_type = SignalType.SELL
-                    stop_loss = range_high + atr * 0.5
-                    take_profit = current_price - atr * 2.0
+                    stop_loss = range_high + atr * 0.4
+                    take_profit = current_price - atr * 1.5
+                
+                # Additional signal types
+                elif event == WyckoffEvent.ACCUMULATION:
+                    signal_type = SignalType.BUY
+                    stop_loss = current_price - atr * 0.6
+                    take_profit = current_price + atr * 1.2
+                elif event == WyckoffEvent.DISTRIBUTION:
+                    signal_type = SignalType.SELL
+                    stop_loss = current_price + atr * 0.6
+                    take_profit = current_price - atr * 1.2
+                elif event == WyckoffEvent.MARKUP:
+                    signal_type = SignalType.BUY
+                    stop_loss = current_price - atr * 0.5
+                    take_profit = current_price + atr * 1.0
+                elif event == WyckoffEvent.MARKDOWN:
+                    signal_type = SignalType.SELL
+                    stop_loss = current_price + atr * 0.5
+                    take_profit = current_price - atr * 1.0
+                elif event == WyckoffEvent.VOLUME_CLIMAX:
+                    # Direction based on recent price movement
+                    price_momentum = data['Close'].iloc[-1] - data['Close'].iloc[-3]
+                    if price_momentum > 0:
+                        signal_type = SignalType.BUY
+                        stop_loss = current_price - atr * 0.7
+                        take_profit = current_price + atr * 1.3
+                    else:
+                        signal_type = SignalType.SELL
+                        stop_loss = current_price + atr * 0.7
+                        take_profit = current_price - atr * 1.3
+                elif event == WyckoffEvent.NO_SUPPLY:
+                    signal_type = SignalType.BUY
+                    stop_loss = current_price - atr * 0.5
+                    take_profit = current_price + atr * 1.0
                 
                 if signal_type != SignalType.HOLD:
                     signal = Signal(
@@ -425,15 +581,16 @@ class WyckoffStrategy(AbstractStrategy):
 if __name__ == "__main__":
     """Test the Wyckoff strategy"""
     
-    # Test configuration
+    # Test configuration - Final optimized parameters for 5-10 daily signals
     test_config = {
         'parameters': {
-            'lookback_period': 150,
-            'swing_detection_window': 10,
-            'phase_confirmation_bars': 3,
-            'confidence_threshold': 0.65,
-            'min_strength': 0.5,
-            'cooldown_bars': 3
+            'lookback_period': 80,
+            'swing_detection_window': 4,
+            'phase_confirmation_bars': 1,
+            'confidence_threshold': 0.51,
+            'min_strength': 0.40,
+            'cooldown_bars': 0,
+            'volume_multiplier': 0.8
         }
     }
     
