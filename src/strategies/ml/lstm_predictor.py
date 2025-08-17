@@ -96,6 +96,13 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
         self.lstm_units = [128, 64, 32]
         self.dropout_rate = 0.3
         self.learning_rate = 0.001
+        self.batch_size = 16  # Reduced from 32
+        self.max_epochs = 30  # Reduced from 50
+        
+        # Memory optimization settings
+        self.max_training_samples = 2000  # Limit training data size
+        self.feature_buffer_size = 500  # Limit feature buffer
+        self.prediction_batch_size = 5  # Process predictions in smaller batches
         
         # Data preprocessing
         self.price_scaler = MinMaxScaler(feature_range=(0, 1)) if ML_AVAILABLE else None
@@ -431,8 +438,8 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
             self.direction_model.fit(
                 X_train, y_dir_train,
                 validation_data=(X_val, y_dir_val),
-                epochs=50,
-                batch_size=32,
+                epochs=self.max_epochs,
+                batch_size=self.batch_size,
                 callbacks=self._get_callbacks(),
                 verbose=0
             )
@@ -442,8 +449,8 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
             self.magnitude_model.fit(
                 X_train, y_mag_train,
                 validation_data=(X_val, y_mag_val),
-                epochs=50,
-                batch_size=32,
+                epochs=self.max_epochs,
+                batch_size=self.batch_size,
                 callbacks=self._get_callbacks(),
                 verbose=0
             )
@@ -453,8 +460,8 @@ class LSTMPredictor(AbstractStrategy): # Inherit from AbstractStrategy
             self.volatility_model.fit(
                 X_train, y_vol_train,
                 validation_data=(X_val, y_vol_val),
-                epochs=50,
-                batch_size=32,
+                epochs=self.max_epochs,
+                batch_size=self.batch_size,
                 callbacks=self._get_callbacks(),
                 verbose=0
             )

@@ -147,13 +147,12 @@ class StrategyImporter:
         """Load available ML strategies"""
         strategies = {}
         
-        # Only LSTM for now, others for future
+        # All 4 ML strategies now implemented
         ml_strategies = {
             'lstm': ('src.strategies.ml.lstm_predictor', 'LSTMPredictor'),
-            # Future ML strategies (commented out for now)
-            # 'xgboost': ('src.strategies.ml.xgboost_classifier', 'XGBoostStrategy'),
-            # 'ensemble': ('src.strategies.ml.ensemble_nn', 'EnsembleNNStrategy'),
-            # 'rl_agent': ('src.strategies.ml.rl_agent', 'RLAgentStrategy')
+            'xgboost_classifier': ('src.strategies.ml.xgboost_classifier', 'XGBoostClassifierStrategy'),
+            'ensemble_nn': ('src.strategies.ml.ensemble_nn', 'EnsembleNNStrategy'),
+            'rl_agent': ('src.strategies.ml.rl_agent', 'RLAgentStrategy')
         }
         
         for strategy_name, (module_path, class_name) in ml_strategies.items():
@@ -164,17 +163,21 @@ class StrategyImporter:
         return strategies
     
     def load_fusion_strategies(self) -> Dict[str, Any]:
-        """Load available fusion strategies - FOR FUTURE USE"""
+        """Load available fusion strategies"""
         strategies = {}
         
-        # Fusion strategies for future implementation
-        # fusion_strategies = {
-        #     'weighted_voting': ('src.strategies.fusion.weighted_voting', 'WeightedVotingStrategy'),
-        #     'confidence_sizing': ('src.strategies.fusion.confidence_sizing', 'ConfidenceSizingStrategy'),
-        #     'regime_detection': ('src.strategies.fusion.regime_detection', 'RegimeDetectionStrategy')
-        # }
+        # All 4 fusion strategies now implemented
+        fusion_strategies = {
+            'weighted_voting': ('src.strategies.fusion.weighted_voting', 'WeightedVotingFusionStrategy'),
+            'confidence_sizing': ('src.strategies.fusion.confidence_sizing', 'ConfidenceSizingFusionStrategy'),
+            'regime_detection': ('src.strategies.fusion.regime_detection', 'RegimeDetectionFusionStrategy'),
+            'adaptive_ensemble': ('src.strategies.fusion.adaptive_ensemble', 'AdaptiveEnsembleFusionStrategy')
+        }
         
-        # Currently disabled - will be enabled in future phases
+        for strategy_name, (module_path, class_name) in fusion_strategies.items():
+            strategy_class = self.try_import_strategy(module_path, class_name, 'fusion')
+            if strategy_class:
+                strategies[strategy_name] = strategy_class
         
         return strategies
 
@@ -283,16 +286,21 @@ class SignalEngine:
             if strategy_name in self.available_strategies['smc']:
                 self._initialize_single_strategy('smc', strategy_name, smc_config)
         
-        # Initialize ML strategies (only LSTM for now)
+        # Initialize ML strategies (all 4 now implemented)
         ml_config = strategies_config.get('ml', {})
-        active_ml = ['lstm']  # Only LSTM enabled for now
+        active_ml = list(self.available_strategies['ml'].keys())
         
         for strategy_name in active_ml:
             if strategy_name in self.available_strategies['ml']:
                 self._initialize_single_strategy('ml', strategy_name, ml_config)
         
-        # Fusion strategies disabled for now (future implementation)
-        # fusion_config = strategies_config.get('fusion', {})
+        # Initialize fusion strategies (all 4 now implemented)
+        fusion_config = strategies_config.get('fusion', {})
+        active_fusion = list(self.available_strategies['fusion'].keys())
+        
+        for strategy_name in active_fusion:
+            if strategy_name in self.available_strategies['fusion']:
+                self._initialize_single_strategy('fusion', strategy_name, fusion_config)
         
         # Log initialization summary
         self._log_initialization_summary()
@@ -371,7 +379,7 @@ class SignalEngine:
         self.current_regime = self._detect_market_regime(symbol, timeframe)
         
         # Generate signals from each category
-        for category in ['technical', 'smc', 'ml']:  # Fusion disabled for now
+        for category in ['technical', 'smc', 'ml', 'fusion']:  
             for strategy_name, strategy in self.strategies[category].items():
                 try:
                     # Generate signals from strategy
@@ -750,6 +758,16 @@ def test_signal_engine():
                 'xgboost_classifier': {'lookback_bars': 200},
                 'ensemble_nn': {'lookback_bars': 200},
                 'rl_agent': {'lookback_bars': 200}
+            },
+            'fusion': {
+                'active_strategies': [
+                    'weighted_voting', 'confidence_sizing',
+                    'regime_detection', 'adaptive_ensemble'
+                ],
+                'weighted_voting': {'lookback_bars': 200},
+                'confidence_sizing': {'lookback_bars': 200},
+                'regime_detection': {'lookback_bars': 200},
+                'adaptive_ensemble': {'lookback_bars': 200}
             }
         },
         'risk_management': {
