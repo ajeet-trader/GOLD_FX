@@ -73,6 +73,7 @@ ajeet-trader-gold_fx/
 │   │   │   ├── confidence_sizing.py
 │   │   │   ├── regime_detection.py
 │   │   │   └── weighted_voting.py
+│   │   │   └── adaptive_ensemble.py
 │   │   ├── ml/
 │   │   │   ├── __init__.py
 │   │   │   ├── ensemble_nn.py
