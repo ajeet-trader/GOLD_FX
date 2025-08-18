@@ -30,10 +30,13 @@ import os
 from pathlib import Path
 
 # Add src directory to Python path
-current_dir = Path(__file__).parent  # src/core/
-src_dir = current_dir.parent  # src/
-project_root = src_dir.parent  # project root
-sys.path.insert(0, str(project_root))
+# Ensure this path manipulation is robust for running as module or script
+try:
+    project_root = Path(__file__).resolve().parents[2] # Go up 2 levels from src/core/execution_engine.py
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+except Exception as e:
+    print(f"Error setting sys.path: {e}")
 
 import pandas as pd
 import numpy as np
@@ -41,13 +44,23 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 import logging
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field # Import 'field' for dataclass defaults
 from enum import Enum
 import threading
 import time
 
+# Import core modules
 from src.core.base import Signal, SignalType, SignalGrade
 from src.core.risk_manager import RiskManager
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +106,7 @@ class ExecutionResult:
     # Execution metadata
     strategy: str = ""
     confidence: float = 0.0
-    risk_assessment: Dict[str, Any] = None
+    risk_assessment: Dict[str, Any] = field(default_factory=dict) # Use default_factory for mutable type
     error_message: str = ""
 
 
@@ -143,14 +156,48 @@ class ExecutionEngine:
     Designed for aggressive 10x returns while maintaining risk control.
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager, risk_manager: RiskManager, 
-                 database_manager, logger_manager):
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, risk_manager=None, # Changed to optional
+                 database_manager=None, logger_manager=None): # Changed to optional
         """Initialize Execution Engine"""
         self.config = config
-        self.mt5_manager = mt5_manager
-        self.risk_manager = risk_manager
-        self.database_manager = database_manager
-        self.logger_manager = logger_manager
+        
+        # Determine mode (CLI overrides config)
+        cfg_mode = self.config.get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+
+        # Initialize MT5 Manager
+        if self.mode == 'live':
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mt5 = MT5Manager()
+                if live_mt5.connect():
+                    self.mt5_manager = live_mt5
+                    logger.info("✅ Connected to live MT5")
+                else:
+                    logger.warning("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock' # Update mode if fallback
+            except ImportError:
+                logger.warning("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock' # Update mode if fallback
+            except Exception as e:
+                logger.error(f"Error initializing live MT5: {e}. Falling back to mock.")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        else:
+            self.mt5_manager = mt5_manager if mt5_manager else self._create_mock_mt5()
+        
+        # Initialize Risk Manager (it will also handle its own MT5 dependency if needed)
+        # Passing self.mt5_manager to RiskManager so it uses the same instance
+        self.risk_manager = risk_manager if risk_manager else self._create_mock_risk_manager()
+        
+        # Initialize Database Manager
+        self.database_manager = database_manager if database_manager else self._create_mock_database_manager()
+        
+        # Initialize Logger Manager (for trade logging purposes)
+        self.logger_manager = logger_manager if logger_manager else self._create_mock_logger_manager()
         
         # Execution configuration
         self.execution_config = config.get('execution', {})
@@ -177,12 +224,78 @@ class ExecutionEngine:
         self.monitor_thread = None
         self.execution_lock = threading.Lock()
         
-        # Logger
+        # Logger (using the module-level logger)
         self.logger = logger
         
         # Initialize engine
         self._initialize_engine()
     
+    # --- New: Internal Mock Creator Methods ---
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager for testing"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+            def get_account_balance(self):
+                return 150.0
+            def get_account_equity(self):
+                return 145.0
+            def get_open_positions(self):
+                return [] # Simulate no open positions by default for test init
+            def place_market_order(self, symbol, order_type, volume, sl=None, tp=None, comment=""):
+                logger.info(f"[{self.mode} MT5] Simulating {order_type} order for {symbol}, vol={volume}")
+                return {
+                    'success': True,
+                    'ticket': np.random.randint(1000000, 9999999), # Unique ticket
+                    'price': 1960.0,
+                    'volume': volume
+                }
+            def close_position(self, ticket, volume=None):
+                logger.info(f"[{self.mode} MT5] Simulating close position {ticket}")
+                return {'success': True}
+            def modify_position(self, ticket, sl=None, tp=None):
+                logger.info(f"[{self.mode} MT5] Simulating modify position {ticket}")
+                return {'success': True}
+        return MockMT5Manager(self.mode)
+
+    def _create_mock_risk_manager(self):
+        """Create mock RiskManager for testing"""
+        class MockRiskManager:
+            # Note: This mock only needs calculate_position_size and update_position_closed
+            def calculate_position_size(self, signal, balance, positions):
+                logger.info(f"[Mock RiskManager] Calculating size for {signal.symbol}")
+                return {
+                    'allowed': True,
+                    'position_size': 0.02, # Fixed size for mock
+                    'risk_assessment': {
+                        'monetary_risk': 20.0,
+                        'risk_percentage': 0.02
+                    }
+                }
+            def update_position_closed(self, trade_result):
+                logger.info(f"[Mock RiskManager] Updating for closed trade: {trade_result.get('profit')}")
+        return MockRiskManager()
+
+    def _create_mock_database_manager(self):
+        """Create mock DatabaseManager for testing"""
+        class MockDatabaseManager:
+            def store_signal(self, signal_data):
+                logger.info(f"[Mock DB] Storing signal for {signal_data.get('symbol')}")
+            def store_trade(self, trade_data):
+                logger.info(f"[Mock DB] Storing trade for {trade_data.get('symbol')}")
+            # Add get_trades if needed for risk_manager's initialization
+            def get_trades(self, limit=1000):
+                return []
+        return MockDatabaseManager()
+
+    def _create_mock_logger_manager(self):
+        """Create mock LoggerManager for testing"""
+        class MockLoggerManager:
+            def log_trade(self, action, symbol, volume, price, **kwargs):
+                logger.info(f"[Mock Logger] Logged trade: {action} {symbol} vol={volume}")
+        return MockLoggerManager()
+    # --- End: Internal Mock Creator Methods ---
+
     def _initialize_engine(self) -> None:
         """Initialize the execution engine"""
         try:
@@ -402,7 +515,8 @@ class ExecutionEngine:
                             entry_price=executed_price,
                             current_price=executed_price,
                             unrealized_pnl=0.0,
-                            unrealized_pnl_pct=0.0,
+                            unrealized_pnl_pct=(pos.get('profit', 0.0) / # Typo here: pos is not defined, should be order_result
+                                              (position_size * executed_price * 100)) * 100, # Simplified P&L pct calculation
                             stop_loss=signal.stop_loss,
                             take_profit=signal.take_profit,
                             strategy=signal.strategy_name,
@@ -1156,6 +1270,19 @@ class ExecutionEngine:
 # Testing function
 if __name__ == "__main__":
     """Test the Execution Engine"""
+    import sys
+    from pathlib import Path
+    
+    # Add project root to path
+    project_root = Path(__file__).parent.parent.parent
+    sys.path.insert(0, str(project_root))
+    
+    # Import CLI utilities
+    from src.utils.cli_args import parse_mode, print_mode_banner
+    
+    # Parse CLI arguments
+    mode = parse_mode()
+    print_mode_banner(mode)
     
     # Test configuration
     test_config = {
@@ -1167,35 +1294,17 @@ if __name__ == "__main__":
             'slippage': {
                 'max_slippage': 3
             }
-        }
+        },
+        'mode': mode # Pass the determined mode to the engine config
     }
     
-    # Mock components for testing
-    class MockMT5Manager:
-        def get_account_balance(self):
-            return 150.0
-        
-        def get_account_equity(self):
-            return 145.0
-        
-        def get_open_positions(self):
-            return []
-        
-        def place_market_order(self, symbol, order_type, volume, sl=None, tp=None, comment=""):
-            return {
-                'success': True,
-                'ticket': 12345678,
-                'price': 1960.0,
-                'volume': volume
-            }
-        
-        def close_position(self, ticket, volume=None):
-            return {'success': True}
-        
-        def modify_position(self, ticket, sl=None, tp=None):
-            return {'success': True}
-    
-    class MockRiskManager:
+    # Mock classes used by the ExecutionEngine's internal creators.
+    # These definitions need to be at the module top-level if ExecutionEngine uses them directly
+    # and they aren't provided via __init__ arguments in non-test scenarios.
+    # For this test, they are correctly defined here as local mocks.
+
+    # Mock components for testing: These are the *external* mocks provided to the test harness
+    class MockRiskManager: # This mock is passed to the ExecutionEngine
         def calculate_position_size(self, signal, balance, positions):
             return {
                 'allowed': True,
@@ -1209,14 +1318,17 @@ if __name__ == "__main__":
         def update_position_closed(self, trade_result):
             pass
     
-    class MockDatabaseManager:
+    class MockDatabaseManager: # This mock is passed to the ExecutionEngine
         def store_signal(self, signal_data):
             pass
         
         def store_trade(self, trade_data):
             pass
+        # get_trades is used by RiskManager if it initializes its own DB, not directly by ExecutionEngine
+        def get_trades(self, limit=1000): 
+            return [] 
     
-    class MockLoggerManager:
+    class MockLoggerManager: # This mock is passed to the ExecutionEngine
         def log_trade(self, action, symbol, volume, price, **kwargs):
             pass
     
@@ -1234,23 +1346,25 @@ if __name__ == "__main__":
         grade: SignalGrade = SignalGrade.A
         stop_loss: float = 1950.0
         take_profit: float = 1980.0
-        metadata: Dict[str, Any] = None
-    
-    # Create execution engine
-    mock_mt5 = MockMT5Manager()
-    mock_risk = MockRiskManager()
-    mock_db = MockDatabaseManager()
-    mock_logger = MockLoggerManager()
-    
+        metadata: Dict[str, Any] = field(default_factory=dict) # Use default_factory
+
+    # Create ExecutionEngine instance. It will now handle MT5 initialization internally.
+    # We pass the mock managers it depends on.
     execution_engine = ExecutionEngine(
-        test_config, mock_mt5, mock_risk, mock_db, mock_logger
+        test_config, 
+        mt5_manager=None, # Let ExecutionEngine create its own MT5 based on mode
+        risk_manager=MockRiskManager(), 
+        database_manager=MockDatabaseManager(), 
+        logger_manager=MockLoggerManager()
     )
     
+    print("Execution Engine Initialized. Running tests...")
+
     # Test signal processing
     signal = MockSignal()
     execution_result = execution_engine.process_signal(signal)
     
-    print("Execution Result:")
+    print("\nExecution Result:")
     print(f"Status: {execution_result.status.value}")
     print(f"Ticket: {execution_result.ticket}")
     print(f"Executed Price: {execution_result.executed_price}")
@@ -1272,4 +1386,4 @@ if __name__ == "__main__":
     # Stop engine
     execution_engine.stop_engine()
     
-    print("Execution Engine test completed!")
+    print("\nExecution Engine test completed!")

@@ -1316,9 +1316,24 @@ class MT5Manager:
 # Command-line interface for testing
     
 if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    
+    # Add project root to path
+    project_root = Path(__file__).parent.parent.parent
+    sys.path.insert(0, str(project_root))
+    
+    # Import CLI utilities
+    from src.utils.cli_args import parse_mode, print_mode_banner
+    
+    # Parse CLI arguments and mode
+    mode = parse_mode()
+    print_mode_banner(mode)
+    
     import argparse
     
     parser = argparse.ArgumentParser(description='MT5 Manager CLI')
+    parser.add_argument('--mode', choices=['mock', 'live'], default=mode, help='Execution mode')
     parser.add_argument('--test', action='store_true', help='Test MT5 connection')
     parser.add_argument('--fetch-history', action='store_true', help='Fetch historical data')
     parser.add_argument('--account-info', action='store_true', help='Display account info')
@@ -1329,16 +1344,31 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Create manager with simple symbol string
-    mt5_mgr = MT5Manager(symbol=args.symbol)
-    
-    # Rest of your code remains the same    
-    
-    # Create manager
-    mt5_mgr = MT5Manager(symbol=args.symbol)
+    # Create manager based on mode
+    if args.mode == 'mock':
+        print("📝 Running MT5 Manager in MOCK mode")
+        print("⚠️  No real MT5 connection will be made")
+        # Create manager but don't attempt connection
+        mt5_mgr = MT5Manager(symbol=args.symbol)
+        mt5_mgr.connected = False  # Explicitly set to mock mode
+    else:
+        print("🚀 Running MT5 Manager in LIVE mode")
+        mt5_mgr = MT5Manager(symbol=args.symbol)
     
     if args.test:
-        mt5_mgr.test_connection()
+        if args.mode == 'mock':
+            print("📝 MOCK MODE - Simulating MT5 connection test")
+            print("\n" + "="*60)
+            print("MT5 CONNECTION TEST (MOCK MODE)")
+            print("="*60)
+            print("📝 Environment: Mock/Test")
+            print("✅ Mock connection: SUCCESS")
+            print("💰 Mock Balance: $1,000.00")
+            print("📈 Mock Symbol: XAUUSDm")
+            print("✅ Mock data fetch: SUCCESS")
+            print("="*60)
+        else:
+            mt5_mgr.test_connection()
     
     elif args.check_env:
         print("\n" + "="*50)
@@ -1364,7 +1394,16 @@ if __name__ == "__main__":
             print("MT5_TERMINAL_PATH=path_to_terminal64.exe  # Optional")
     
     elif args.fetch_history:
-        if mt5_mgr.connect():
+        if args.mode == 'mock':
+            print("📝 MOCK MODE - Simulating historical data fetch")
+            print(f"Mock data for {args.symbol} {args.timeframe} - {args.bars} bars")
+            print("\nMock OHLCV Data:")
+            print("Time                 Open     High     Low      Close    Volume")
+            print("-" * 65)
+            for i in range(5):
+                price = 1950 + i * 2
+                print(f"2025-08-19 {10+i:02d}:00:00  {price:.2f}   {price+5:.2f}   {price-3:.2f}   {price+2:.2f}   1500")
+        elif mt5_mgr.connect():
             # Get valid symbol
             valid_symbol = mt5_mgr.get_valid_symbol(args.symbol)
             print(f"Using symbol: {valid_symbol}")
@@ -1380,7 +1419,19 @@ if __name__ == "__main__":
             mt5_mgr.disconnect()
     
     elif args.account_info:
-        if mt5_mgr.connect():
+        if args.mode == 'mock':
+            print("\n" + "="*40)
+            print("ACCOUNT INFORMATION (MOCK)")
+            print("="*40)
+            print("Login: 12345678")
+            print("Server: MockServer")
+            print("Balance: 1,000.00")
+            print("Equity: 1,000.00")
+            print("Free Margin: 1,000.00")
+            print("Leverage: 1:500")
+            print("Currency: USD")
+            print("Trading Allowed: Yes")
+        elif mt5_mgr.connect():
             info = mt5_mgr._get_account_info()
             print("\n" + "="*40)
             print("ACCOUNT INFORMATION")
@@ -1393,4 +1444,7 @@ if __name__ == "__main__":
             mt5_mgr.disconnect()
     
     else:
+        if args.mode == 'mock':
+            print("📝 Mock mode initialized successfully")
+            print("Use --test, --fetch-history, or --account-info with mock data")
         parser.print_help()

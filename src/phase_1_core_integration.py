@@ -32,6 +32,17 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent))
 
+# Import CLI args utility
+try:
+    from utils.cli_args import parse_mode, print_mode_banner
+    CLI_AVAILABLE = True
+except ImportError:
+    CLI_AVAILABLE = False
+    def parse_mode():
+        return "mock"
+    def print_mode_banner(mode):
+        pass
+
 
 import yaml
 import sys
@@ -96,6 +107,9 @@ class CoreSystem:
         self.config_path = Path(config_path)
         self.config = {}
         self.initialized = False
+        
+        # Parse CLI mode
+        self.mode = parse_mode() if CLI_AVAILABLE else "mock"
         
         # Component instances
         self.mt5_manager: Optional[MT5Manager] = None
@@ -194,6 +208,10 @@ class CoreSystem:
         print(f"System ID: {self.system_id}")
         print(f"Start Time: {self.start_time}")
         print(f"Config Path: {self.config_path}")
+        
+        # Print mode banner
+        if CLI_AVAILABLE:
+            print_mode_banner(self.mode)
         print()
         
         try:
@@ -224,10 +242,14 @@ class CoreSystem:
             
             # Step 4: Initialize MT5 Manager
             print("Step Step 4: Initializing MT5 Manager...")
-            #self.mt5_manager = MT5Manager(self.config)
             symbol = self.config.get('trading', {}).get('symbol', 'XAUUSDm')
             self.mt5_manager = MT5Manager(symbol=symbol, magic_number=123456)
-            print("OK - MT5 Manager initialized (connection will be established when needed)")
+            
+            # Store mode in MT5 manager for mock/live switching
+            if hasattr(self.mt5_manager, '_cli_mode'):
+                self.mt5_manager._cli_mode = self.mode
+            
+            print(f"OK - MT5 Manager initialized in {self.mode.upper()} mode")
             
             # Step 5: System Health Check
             print("Step Step 5: Performing System Health Check...")
@@ -355,23 +377,29 @@ class CoreSystem:
             return False
         
         try:
-            print(" Connecting to MT5...")
-            success = self.mt5_manager.connect()
-            
-            if success:
-                print("OK - MT5 connection established")
-                self.logger_manager.info("MT5 connection established successfully")
-                
-                # Store account information
-                if self.mt5_manager.account_info:
-                    account_id = self.database_manager.store_account_info(self.mt5_manager.account_info)
-                    self.logger_manager.info(f"Account information stored with ID: {account_id}")
-                
+            if self.mode == "mock":
+                print(" Using Mock MT5 mode...")
+                print("OK - Mock MT5 connection established")
+                self.logger_manager.info("Mock MT5 mode established successfully")
                 return True
             else:
-                print("ERROR - MT5 connection failed")
-                self.logger_manager.error("MT5 connection failed")
-                return False
+                print(" Connecting to MT5...")
+                success = self.mt5_manager.connect()
+                
+                if success:
+                    print("OK - MT5 connection established")
+                    self.logger_manager.info("MT5 connection established successfully")
+                    
+                    # Store account information
+                    if self.mt5_manager.account_info:
+                        account_id = self.database_manager.store_account_info(self.mt5_manager.account_info)
+                        self.logger_manager.info(f"Account information stored with ID: {account_id}")
+                    
+                    return True
+                else:
+                    print("ERROR - MT5 connection failed")
+                    self.logger_manager.error("MT5 connection failed")
+                    return False
                 
         except Exception as e:
             error_msg = f"MT5 connection error: {str(e)}"
@@ -656,5 +684,10 @@ def main():
 
 
 if __name__ == "__main__":
+    # Parse mode and print banner
+    if CLI_AVAILABLE:
+        mode = parse_mode()
+        print_mode_banner(mode)
+    
     success = main()
     sys.exit(0 if success else 1)

@@ -76,6 +76,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import CLI args utility first
+try:
+    from utils.cli_args import parse_mode, print_mode_banner
+    CLI_AVAILABLE = True
+except ImportError:
+    CLI_AVAILABLE = False
+    def parse_mode():
+        return "mock"
+    def print_mode_banner(mode):
+        pass
+
 # Import Phase 1 components
 try:
     from phase_1_core_integration import CoreSystem
@@ -247,7 +258,7 @@ class StrategyManager:
                         
                         # Provide mock MT5 manager if strategy needs it
                         if hasattr(strategy_instance, 'mt5_manager') and strategy_instance.mt5_manager is None:
-                            strategy_instance.mt5_manager = self._create_mock_mt5_manager()
+                            strategy_instance.mt5_manager = self._create_mock_mt5()
                         
                         self.logger.info(f"✅ Loaded {strategy_name} strategy")
                     else:
@@ -387,7 +398,7 @@ class StrategyManager:
             
             self.strategy_weights[strategy_name] = new_weight
     
-    def _create_mock_mt5_manager(self):
+    def _create_mock_mt5(self):
         """Create a mock MT5 manager for strategies in test mode"""
         class MockMT5Manager:
             def __init__(self):
@@ -706,7 +717,10 @@ class Phase2TradingSystem:
         self.config_path = config_path
         self.system_active = False
         self.emergency_stop = False
-        self.mode = TradingMode.PAPER
+        
+        # Parse CLI mode if available, otherwise default to paper
+        cli_mode = parse_mode() if CLI_AVAILABLE else "mock"
+        self.mode = TradingMode.PAPER if cli_mode == "mock" else TradingMode.LIVE
         
         # Core components
         self.core_system: Optional[CoreSystem] = None
@@ -778,6 +792,11 @@ class Phase2TradingSystem:
         print(f"Start Time: {datetime.now()}")
         print(f"Mode: {self.mode.value.upper()}")
         print(f"Config Path: {self.config_path}")
+        
+        # Print CLI mode banner
+        if CLI_AVAILABLE:
+            cli_mode = parse_mode()
+            print_mode_banner(cli_mode)
         print()
         
         try:

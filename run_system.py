@@ -8,6 +8,7 @@ Usage:
     python run_system.py           # Start system
     python run_system.py --test    # Run tests
     python run_system.py --setup   # Re-run setup
+    python run_system.py --mode mock/live  # Set mode
 """
 
 
@@ -18,6 +19,17 @@ from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+# Import CLI args utility
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+    CLI_AVAILABLE = True
+except ImportError:
+    CLI_AVAILABLE = False
+    def parse_mode():
+        return "mock"
+    def print_mode_banner(mode):
+        pass
 
 try:
     from src.core_system import CoreSystem
@@ -32,8 +44,14 @@ def main():
     parser.add_argument('--test', action='store_true', help='Run system tests')
     parser.add_argument('--setup', action='store_true', help='Re-run setup')
     parser.add_argument('--connect', action='store_true', help='Test MT5 connection')
+    parser.add_argument('--mode', choices=['mock', 'live'], help='Run mode (mock/live)')
     
     args = parser.parse_args()
+    
+    # Print mode banner if CLI is available
+    if CLI_AVAILABLE:
+        mode = parse_mode()
+        print_mode_banner(mode)
     
     if args.setup:
         from setup_phase1 import Phase1Setup
