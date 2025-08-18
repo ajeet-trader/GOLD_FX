@@ -24,6 +24,7 @@ import sys
 import os
 from pathlib import Path
 
+# Standardized sys.path manipulation
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pandas as pd
@@ -34,8 +35,17 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 
+# Standardized imports from src.core.base
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
+# Standardized cli_args import with fallback
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except ImportError:
+    def parse_mode(*_args, **_kwargs):  # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode):  # type: ignore
+        pass
 
 class PatternType(Enum):
     """Harmonic pattern types"""
@@ -89,7 +99,34 @@ class HarmonicStrategy(AbstractStrategy):
     
     def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         """Initialize Harmonic strategy"""
+        # Call parent class initialization
         super().__init__(config, mt5_manager, database)
+
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5(mode='mock') # Pass mode for seeding
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5(mode='mock') # Pass mode for seeding
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5(mode='mock') # Always mock if explicit or no manager
+        else:
+            self.mt5_manager = mt5_manager
         
         self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.55)  # Lower threshold
         self.lookback_period = self.config.get('parameters', {}).get('lookback_period', 200)
@@ -130,6 +167,62 @@ class HarmonicStrategy(AbstractStrategy):
         }
         
         self.detected_patterns_count = 0
+
+    def _create_mock_mt5(self, mode: str):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode_inner: str):
+                self.mode = mode_inner
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with different characteristics for mock vs live
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')
+                
+                # Ensure enough dates for the requested bars
+                if len(dates) < bars:
+                    # Extend dates if needed
+                    dates = pd.date_range(start=datetime.now() - timedelta(days=10 + (bars - len(dates)) // (24*4)), 
+                                         end=datetime.now(), freq='15Min')
+                
+                dates = dates[:bars] # Trim to exact bars
+                
+                # Use different seeds and base prices for mock vs live
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                
+                x = 0
+                prices = []
+                
+                for i in range(len(dates)):
+                    x += 0.1
+                    # Slightly vary the pattern generation for different modes
+                    if self.mode == 'mock':
+                        if i % 50 < 10:
+                            price = 1950 + 10 * np.sin(x) + np.random.normal(0, 0.5)
+                        elif i % 50 < 20:
+                            price = 1960 - 8 * np.sin(x) + np.random.normal(0, 0.5)
+                        elif i % 50 < 30:
+                            price = 1955 + 12 * np.sin(x) + np.random.normal(0, 0.5)
+                        elif i % 50 < 40:
+                            price = 1965 - 10 * np.sin(x) + np.random.normal(0, 0.5)
+                        else:
+                            price = 1958 + 15 * np.sin(x) + np.random.normal(0, 0.5)
+                    else: # Live-like data (more random, less clear patterns)
+                        price = 1975 + 5 * np.sin(x*0.5) + np.random.normal(0, 2)
+                        
+                    prices.append(price)
+                
+                data = pd.DataFrame({
+                    'Open': prices + np.random.normal(0, 0.5, len(dates)),
+                    'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
+                    'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
+                    'Close': prices,
+                    'Volume': np.random.randint(500, 1500, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(mode)
     
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """Generate harmonic pattern trading signals"""
@@ -276,8 +369,8 @@ class HarmonicStrategy(AbstractStrategy):
             bcd_ratio = abs((d_point[1] - c_point[1]) / bcd_denom) if bcd_denom != 0 else 0.0
             
             xad_denom = (a_point[1] - x_point[1])
-            xad_ratio = abs((d_point[1] - a_point[1]) / xad_denom) if xad_denom != 0 else 0.0
-            
+            xad_ratio = abs((d_point[1] - x_point[1]) / xad_denom) if xad_denom != 0 else 0.0 # Fix: Should be (D-X)/(A-X)
+
             for pattern_type, ratios in self.pattern_ratios.items():
                 if self._check_pattern_ratios(xab_ratio, abc_ratio, bcd_ratio, xad_ratio, ratios):
                     pattern_score = self._calculate_pattern_score(
@@ -459,19 +552,19 @@ class HarmonicStrategy(AbstractStrategy):
         xa_distance = abs(a_point[1] - x_point[1])
         
         if pattern_type == PatternType.GARTLEY:
-            prz_center = a_point[1] + (xa_distance * 0.786)
+            prz_center = x_point[1] + (xa_distance * 0.786) if x_point[1] < a_point[1] else x_point[1] - (xa_distance * 0.786)
             prz_range = xa_distance * 0.03
         elif pattern_type == PatternType.BUTTERFLY:
-            prz_center = a_point[1] + (xa_distance * 1.27)
+            prz_center = x_point[1] + (xa_distance * 1.27) if x_point[1] < a_point[1] else x_point[1] - (xa_distance * 1.27)
             prz_range = xa_distance * 0.05
         elif pattern_type == PatternType.BAT:
-            prz_center = a_point[1] + (xa_distance * 0.886)
+            prz_center = x_point[1] + (xa_distance * 0.886) if x_point[1] < a_point[1] else x_point[1] - (xa_distance * 0.886)
             prz_range = xa_distance * 0.03
         elif pattern_type == PatternType.CRAB:
-            prz_center = a_point[1] + (xa_distance * 1.618)
+            prz_center = x_point[1] + (xa_distance * 1.618) if x_point[1] < a_point[1] else x_point[1] - (xa_distance * 1.618)
             prz_range = xa_distance * 0.05
-        else:
-            prz_center = a_point[1] + (xa_distance * 0.786)
+        else: # Cypher and default
+            prz_center = x_point[1] + (xa_distance * 0.786) if x_point[1] < a_point[1] else x_point[1] - (xa_distance * 0.786)
             prz_range = xa_distance * 0.03
         
         return (prz_center - prz_range, prz_center + prz_range)
@@ -481,7 +574,9 @@ class HarmonicStrategy(AbstractStrategy):
         """Calculate confidence based on pattern quality and market context"""
         confidence = pattern_score * 0.5
         
-        if len(data) - d_index < 10:
+        # Consider how recent the pattern D point is
+        # If the D point is the most recent bar (or very recent), it's more actionable
+        if len(data) - 1 - d_index < 5: # D point is within last 5 bars
             confidence += 0.2
         
         if 'Volume' in data.columns and d_index > 20:
@@ -490,11 +585,17 @@ class HarmonicStrategy(AbstractStrategy):
             if recent_volume > avg_volume * 1.2:
                 confidence += 0.1
         
-        sma_20 = data['Close'].rolling(20).mean().iloc[d_index]
-        sma_50 = data['Close'].rolling(50).mean().iloc[d_index] if len(data) > 50 else sma_20
-        
-        if sma_20 > sma_50:
-            confidence += 0.1
+        # Ensure we have enough data for SMAs before calculating
+        if len(data) > d_index and d_index >= 50:
+            sma_20 = data['Close'].rolling(20).mean().iloc[d_index]
+            sma_50 = data['Close'].rolling(50).mean().iloc[d_index]
+            
+            # Add confidence if price aligns with trend from SMAs
+            current_price_at_d = data['Close'].iloc[d_index]
+            if current_price_at_d > sma_50 and sma_20 > sma_50: # Bullish alignment
+                confidence += 0.1
+            elif current_price_at_d < sma_50 and sma_20 < sma_50: # Bearish alignment
+                confidence += 0.1
         
         return min(confidence, 0.95)
     
@@ -513,34 +614,35 @@ class HarmonicStrategy(AbstractStrategy):
                     abs(current_price - pattern.completion_zone[1])
                 )
                 
-                prz_width = pattern.completion_zone[1] - pattern.completion_zone[0]
+                prz_width = abs(pattern.completion_zone[1] - pattern.completion_zone[0])
                 if prz_width == 0:
-                    prz_width = 10  # Default width
+                    prz_width = 10  # Default width if PRZ is a single point
                 
-                # Allow signals up to 5x PRZ width away (very lenient)
-                if distance_from_prz > prz_width * 5:
+                # Allow signals up to 2x PRZ width away, with penalty
+                if distance_from_prz > prz_width * 2: # Reduced leniency for distance from PRZ
                     return None
                 
                 # Reduce confidence based on distance from PRZ
-                distance_penalty = min(0.3, distance_from_prz / prz_width * 0.1)
-                pattern.confidence = max(0.5, pattern.confidence - distance_penalty)
+                distance_penalty = min(0.3, (distance_from_prz / prz_width) * 0.15) # Increased penalty
+                pattern.confidence = max(self.min_confidence, pattern.confidence - distance_penalty) # Ensure it stays above min_confidence
             
+            signal_type = None
+            stop_loss = 0.0
+            take_profit = 0.0
+
             if pattern.direction == 'bullish':
                 signal_type = SignalType.BUY
-                stop_loss = pattern.x_point[1] * 0.995
-                
-                if pattern.pattern_type in [PatternType.BUTTERFLY, PatternType.CRAB]:
-                    take_profit = pattern.a_point[1]
-                else:
-                    take_profit = pattern.b_point[1]
-            else:
+                # Stop loss below X point for safety
+                stop_loss = pattern.x_point[1] * 0.995 
+                # Take profit at C point or A point retracement
+                take_profit = max(pattern.c_point[1], pattern.a_point[1] - abs(pattern.a_point[1] - pattern.b_point[1]) * 0.5)
+
+            elif pattern.direction == 'bearish':
                 signal_type = SignalType.SELL
-                stop_loss = pattern.x_point[1] * 1.005
-                
-                if pattern.pattern_type in [PatternType.BUTTERFLY, PatternType.CRAB]:
-                    take_profit = pattern.a_point[1]
-                else:
-                    take_profit = pattern.b_point[1]
+                # Stop loss above X point for safety
+                stop_loss = pattern.x_point[1] * 1.005 
+                # Take profit at C point or A point retracement
+                take_profit = min(pattern.c_point[1], pattern.a_point[1] + abs(pattern.a_point[1] - pattern.b_point[1]) * 0.5)
             
             if pattern.confidence < self.min_confidence:
                 return None
@@ -583,10 +685,12 @@ class HarmonicStrategy(AbstractStrategy):
         filtered = []
         
         if buy_signals:
+            # Sort by combined strength and confidence
             best_buy = max(buy_signals, key=lambda s: s.confidence * s.strength)
             filtered.append(best_buy)
         
         if sell_signals:
+            # Sort by combined strength and confidence
             best_sell = max(sell_signals, key=lambda s: s.confidence * s.strength)
             filtered.append(best_sell)
         
@@ -631,57 +735,22 @@ class HarmonicStrategy(AbstractStrategy):
 if __name__ == "__main__":
     """Test the Harmonic strategy"""
     
+    # Test configuration
     test_config = {
         'parameters': {
             'confidence_threshold': 0.72,
-            'lookback_period': 200
+            'lookback_period': 200,
+            'mode': 'mock' # Default to mock for direct script execution
         }
     }
     
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                 end=datetime.now(), freq='15Min')
-            
-            np.random.seed(42)
-            x = 0
-            prices = []
-            
-            for i in range(len(dates)):
-                x += 0.1
-                if i % 50 < 10:
-                    price = 1950 + 10 * np.sin(x) + np.random.normal(0, 0.5)
-                elif i % 50 < 20:
-                    price = 1960 - 8 * np.sin(x) + np.random.normal(0, 0.5)
-                elif i % 50 < 30:
-                    price = 1955 + 12 * np.sin(x) + np.random.normal(0, 0.5)
-                elif i % 50 < 40:
-                    price = 1965 - 10 * np.sin(x) + np.random.normal(0, 0.5)
-                else:
-                    price = 1958 + 15 * np.sin(x) + np.random.normal(0, 0.5)
-                
-                prices.append(price)
-            
-            data = pd.DataFrame({
-                'Open': prices + np.random.normal(0, 0.5, len(dates)),
-                'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
-                'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
-                'Close': prices,
-                'Volume': np.random.randint(500, 1500, len(dates))
-            }, index=dates)
-            
-            return data
+    # Create strategy instance with mode-aware MT5 manager
+    strategy = HarmonicStrategy(test_config, mt5_manager=None) # Pass None to trigger internal MT5 creation
     
-    mock_mt5 = MockMT5Manager()
-    strategy = HarmonicStrategy(test_config, mock_mt5, database=None)
-    
-    print("============================================================")
+    print("="*60)
     print("TESTING MODIFIED HARMONIC STRATEGY")
-    print("============================================================")
+    print("="*60)
+    print(f"Running in {strategy.mode.upper()} mode")
 
     print("\n1. Testing signal generation:")
     signals = strategy.generate_signal("XAUUSDm", "M15")
@@ -693,7 +762,8 @@ if __name__ == "__main__":
         print(f"     Pattern Score: {signal.metadata.get('pattern_score', 0)}")
     
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    # Get mock data from the strategy's own MT5 manager instance
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     if 'patterns' in analysis_results:
@@ -720,6 +790,6 @@ if __name__ == "__main__":
     print(f"     Profit Factor: {strategy_info['performance']['profit_factor']:.2f}")
     # --- End of new section ---
     
-    print("\n============================================================")
-    print("HARMONIC STRATEGY TEST COMPLETED!")
-    print("============================================================")
+    print("\n" + "="*60)
+    print(f"HARMONIC STRATEGY TEST COMPLETED IN {strategy.mode.upper()} MODE!")
+    print("="*60)

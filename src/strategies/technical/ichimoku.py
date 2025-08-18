@@ -29,12 +29,7 @@ import sys
 import os
 from pathlib import Path
 
-# Add src to path
-#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
-# Add project root to path - FIXED PATH
-project_root = Path(__file__).resolve().parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 
 import pandas as pd

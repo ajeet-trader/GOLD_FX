@@ -1,3 +1,4 @@
+
 """
 XGBoost Classifier Strategy - Machine Learning Trading Strategy
 ==============================================================
@@ -12,7 +13,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Add src to path for module resolution when run as script
-#sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pandas as pd
@@ -35,6 +35,15 @@ except ImportError:
 # Import base classes directly
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 
 class XGBoostClassifierStrategy(AbstractStrategy):
     """XGBoost-based trading strategy for signal classification"""
@@ -43,6 +52,32 @@ class XGBoostClassifierStrategy(AbstractStrategy):
         """Initialize XGBoost classifier strategy - 8GB RAM optimized"""
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # self.strategy_name is already set by AbstractStrategy
         self.lookback_bars = self.config.get('parameters', {}).get('lookback_bars', 120)
         self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.60)
@@ -83,6 +118,39 @@ class XGBoostClassifierStrategy(AbstractStrategy):
         
         self.logger.info(f"{self.strategy_name} initialized (XGBoost available: {XGBOOST_AVAILABLE})")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                import pandas as pd
+                import numpy as np
+                from datetime import datetime, timedelta
+                
+                dates = pd.date_range(start=datetime.now() - timedelta(days=7), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                close_prices = (1950 if self.mode == 'mock' else 1975) + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                # Ensure High >= Close >= Low
+                data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
+                data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def _initialize_model(self):
         """Initialize XGBoost model"""
         try:
@@ -367,8 +435,8 @@ class XGBoostClassifierStrategy(AbstractStrategy):
             y_list = []
             
             # Generate features and labels for training
-            # Ensure window_data is large enough for feature extraction
-            for i in range(50, len(data) - 5): # Ensure there's enough data for future price, and past 50 bars for features
+            # Ensure window_data is large enough for future price, and past 50 bars for features
+            for i in range(50, len(data) - 5): 
                 window_data = data.iloc[i-50:i]
                 features = self._extract_simple_features(window_data)
                 
@@ -688,56 +756,24 @@ if __name__ == "__main__":
         'parameters': { # Group parameters under 'parameters' key
             'confidence_threshold': 0.60,
             'lookback_bars': 120,
-            'max_training_samples': 500, # Reduce for faster test
-            'memory_cleanup_interval': 10, # Reduce for faster test
+            'max_training_samples': 500, # Reduced for faster test
+            'memory_cleanup_interval': 10, # Reduced for faster test
             'xgb_params': { # Specific XGBoost params override
                 'n_estimators': 10, # Very small for fast test
                 'max_depth': 3,     # Small for fast test
                 'learning_rate': 0.2
-            }
+            },
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=7), 
-                                 end=datetime.now(), freq='15Min')
-            
-            # Ensure enough data for lookback_bars
-            if len(dates) < bars:
-                dates = pd.date_range(start=datetime.now() - timedelta(minutes=bars*15), 
-                                 end=datetime.now(), freq='15Min')
-            dates = dates[:bars] # Trim to exact bars needed
-            
-            np.random.seed(42) # For consistent mock data
-            close_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
-            
-            data = pd.DataFrame({
-                'Open': close_prices + np.random.randn(len(dates)) * 0.5,
-                'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': close_prices,
-                'Volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            # Ensure High >= Close >= Low
-            data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
-            data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = XGBoostClassifierStrategy(test_config, mock_mt5, database=None)
+    strategy = XGBoostClassifierStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("============================================================")
     print("TESTING MODIFIED XGBOOST CLASSIFIER STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # 1. Testing signal generation
     print("\n1. Testing signal generation:")
@@ -751,7 +787,8 @@ if __name__ == "__main__":
     
     # 2. Testing analysis method
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 120)
+    # Get mock data using the strategy's internal MT5 manager
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 120)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   XGBoost Available: {analysis_results.get('xgboost_available')}")

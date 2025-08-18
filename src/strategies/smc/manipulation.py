@@ -40,6 +40,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 @dataclass
 class ManipulationEvent:
     """Data structure for manipulation events"""
@@ -80,6 +89,32 @@ class ManipulationStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Strategy parameters
         params = config.get('parameters', {})
         self.lookback_bars = params.get('lookback_bars', 250)
@@ -90,7 +125,7 @@ class ManipulationStrategy(AbstractStrategy):
         
         # Internal state
         self.last_signal_bar = -self.cooldown_bars - 1
-        self.logger = logging.getLogger('manipulation_strategy')
+        # self.logger = logging.getLogger('manipulation_strategy') # Handled by AbstractStrategy
         
         # Performance tracking (handled by parent class)
         self.success_rate = 0.65
@@ -98,6 +133,53 @@ class ManipulationStrategy(AbstractStrategy):
         
         self.logger.info("Manipulation Strategy initialized")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                close_prices = (1950 if self.mode == 'mock' else 1975) + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                # Create manipulation patterns (example, actual randomness may vary)
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                # Add synthetic stop hunts, fakeouts, displacement for testing
+                if self.mode == 'mock':
+                    # Add stop hunts (long wicks)
+                    stop_hunt_indices = [bars // 4, bars // 2, bars * 3 // 4]
+                    for idx in stop_hunt_indices:
+                        if idx < len(data):
+                            data.loc[data.index[idx], 'High'] = data.loc[data.index[idx], 'High'] * 1.05  # Upper wick
+                            data.loc[data.index[idx], 'Low'] = data.loc[data.index[idx], 'Low'] * 0.95    # Lower wick
+                    
+                    # Add fakeout
+                    fakeout_idx = bars - 10
+                    if fakeout_idx > 1 and fakeout_idx < len(data):
+                        data.loc[data.index[fakeout_idx-1], 'Close'] = data.loc[data.index[fakeout_idx-1], 'Close'] * 1.01
+                        data.loc[data.index[fakeout_idx], 'Close'] = data.loc[data.index[fakeout_idx], 'Close'] * 0.99
+                    
+                    # Add displacement
+                    displacement_idx = bars - 5
+                    if displacement_idx > 1 and displacement_idx < len(data):
+                        data.loc[data.index[displacement_idx-1], 'Close'] = data.loc[data.index[displacement_idx-1], 'Close'] * 1.02
+                        data.loc[data.index[displacement_idx], 'Close'] = data.loc[data.index[displacement_idx], 'Close'] * 0.98
+
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def _detect_swing_levels(self, data: pd.DataFrame) -> Dict[str, List[float]]:
         """Detect swing highs and lows in the data"""
         highs = []
@@ -128,7 +210,7 @@ class ManipulationStrategy(AbstractStrategy):
     def _detect_stop_hunt(self, data: pd.DataFrame, index: int, swing_levels: Dict) -> Optional[ManipulationEvent]:
         """Detect stop hunt patterns (long wicks through swing levels)"""
         row = data.iloc[index]
-        prev_row = data.iloc[index-1] if index > 0 else None
+        # prev_row = data.iloc[index-1] if index > 0 else None # prev_row not used
         swing_highs = swing_levels['highs']
         swing_lows = swing_levels['lows']
         
@@ -171,7 +253,8 @@ class ManipulationStrategy(AbstractStrategy):
         swing_lows = swing_levels['lows']
         
         # Bullish fakeout (break above high, then close below)
-        if swing_highs and any(prev_rows['Close'] > max(swing_highs)) and current_row['Close'] < max(swing_highs):
+        # Check if *any* previous close broke the high, AND current close is below it
+        if swing_highs and any(p_row['Close'] > max(swing_highs) for p_row in prev_rows.itertuples()) and current_row['Close'] < max(swing_highs):
             return ManipulationEvent(
                 type='fakeout',
                 level=max(swing_highs),
@@ -182,7 +265,8 @@ class ManipulationStrategy(AbstractStrategy):
             )
         
         # Bearish fakeout (break below low, then close above)
-        if swing_lows and any(prev_rows['Close'] < min(swing_lows)) and current_row['Close'] > min(swing_lows):
+        # Check if *any* previous close broke the low, AND current close is above it
+        if swing_lows and any(p_row['Close'] < min(swing_lows) for p_row in prev_rows.itertuples()) and current_row['Close'] > min(swing_lows):
             return ManipulationEvent(
                 type='fakeout',
                 level=min(swing_lows),
@@ -201,7 +285,16 @@ class ManipulationStrategy(AbstractStrategy):
             
         current_row = data.iloc[index]
         prev_row = data.iloc[index-1]
-        atr = data['Close'].rolling(14).std().iloc[index] if 'Close' in data else 5.0
+        
+        # Calculate ATR based on data available
+        if 'Close' in data and len(data) >= 14:
+            atr = data['Close'].rolling(14).std().iloc[index] 
+        else:
+            atr = 5.0 # Default value if not enough data
+        
+        # Ensure atr is not zero to avoid division by zero later
+        if atr == 0:
+            atr = 0.01 # Small non-zero value
         
         # Bullish displacement
         if (current_row['Close'] - prev_row['Close']) > 2 * atr and current_row['Close'] < prev_row['High']:
@@ -240,6 +333,8 @@ class ManipulationStrategy(AbstractStrategy):
         """
         signals = []
         try:
+            self.logger.info(f"Manipulation Strategy - Analyzing {symbol} on {timeframe}") # Consistent logging
+            
             # Fetch market data
             if not self.mt5_manager:
                 self.logger.warning("MT5 manager not available")
@@ -256,11 +351,15 @@ class ManipulationStrategy(AbstractStrategy):
             # Check cooldown to prevent signal clustering
             current_bar = len(data) - 1
             if current_bar - self.last_signal_bar < self.cooldown_bars:
+                self.logger.info(f"On cooldown for {self.cooldown_bars} bars. Skipping signal generation.")
                 return []
                 
             # Detect manipulation patterns
             events = []
-            for i in range(max(0, current_bar - self.fakeout_confirm_bars), current_bar + 1):
+            # Check a small window for events, typically current and recent bars
+            for i in range(max(0, current_bar - self.fakeout_confirm_bars - 2), current_bar + 1):
+                if i < 0: continue # Ensure index is valid
+                
                 # Stop hunt detection
                 stop_hunt = self._detect_stop_hunt(data, i, swing_levels)
                 if stop_hunt:
@@ -279,6 +378,11 @@ class ManipulationStrategy(AbstractStrategy):
             # Generate signals from events
             current_price = data['Close'].iloc[-1]
             for event in events:
+                # Only consider events from the very last bar if it's not a historical event from lookback
+                # This ensures we only act on the most recent pattern completion
+                if event.bar_index != current_bar:
+                    continue
+
                 if event.confidence < self.confidence_threshold:
                     continue
                     
@@ -286,13 +390,22 @@ class ManipulationStrategy(AbstractStrategy):
                 signal_type = SignalType.BUY if event.direction == 'bullish' else SignalType.SELL
                 
                 # Calculate stop loss and take profit
-                stop_loss = (event.level - 5.0) if signal_type == SignalType.BUY else (event.level + 5.0)
-                take_profit = current_price + (current_price - stop_loss) * 2 if signal_type == SignalType.BUY else current_price - (stop_loss - current_price) * 2
+                # Using current price for SL/TP calculation base, but distance from event level
+                # Assuming 5.0 points as a rough initial distance, adjust as needed
+                sl_distance_from_event = abs(event.level - current_price) * 1.5 # 1.5x current distance
+                tp_distance_from_event = abs(event.level - current_price) * 3.0 # 3.0x current distance
+
+                if signal_type == SignalType.BUY:
+                    stop_loss = current_price - sl_distance_from_event
+                    take_profit = current_price + tp_distance_from_event
+                else: # SELL
+                    stop_loss = current_price + sl_distance_from_event
+                    take_profit = current_price - tp_distance_from_event
                 
                 signal = Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,
-                    strategy_name='manipulation',
+                    strategy_name=self.strategy_name,
                     signal_type=signal_type,
                     confidence=event.confidence,
                     price=current_price,
@@ -313,6 +426,8 @@ class ManipulationStrategy(AbstractStrategy):
                     signals.append(signal)
                     self.last_signal_bar = current_bar
                     self.logger.info(f"Generated {signal_type.value} signal for {symbol} at {current_price:.2f}")
+            
+            self.logger.info(f"Generated {len(signals)} signals") # Consistent logging
             
             return signals
             
@@ -339,6 +454,7 @@ class ManipulationStrategy(AbstractStrategy):
             swing_levels = self._detect_swing_levels(data)
             events = []
             
+            # Look at a slightly larger window for analysis, not just current bar
             for i in range(max(0, len(data) - self.fakeout_confirm_bars - 10), len(data)):
                 stop_hunt = self._detect_stop_hunt(data, i, swing_levels)
                 if stop_hunt:
@@ -417,53 +533,18 @@ if __name__ == "__main__":
             'wick_ratio_threshold': 1.5,
             'fakeout_confirm_bars': 2,
             'confidence_threshold': 0.65,
-            'cooldown_bars': 3
+            'cooldown_bars': 3,
+            'mode': 'mock' # Added mode parameter
         }
     }
     
-    # Mock MT5 Manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                end=datetime.now(), freq='15Min')[:bars]
-            
-            np.random.seed(42)
-            close_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
-            
-            # Create manipulation patterns
-            data = pd.DataFrame({
-                'Open': close_prices + np.random.randn(len(dates)) * 0.5,
-                'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': close_prices,
-                'Volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            # Add stop hunts (long wicks)
-            stop_hunt_indices = [50, 100, 150]
-            for idx in stop_hunt_indices:
-                data.iloc[idx, data.columns.get_loc('High')] += 10  # Upper wick
-                data.iloc[idx, data.columns.get_loc('Low')] -= 10   # Lower wick
-            
-            # Add fakeout
-            fakeout_idx = 200
-            data.iloc[fakeout_idx-1, data.columns.get_loc('Close')] += 15
-            data.iloc[fakeout_idx, data.columns.get_loc('Close')] -= 10
-            
-            # Add displacement
-            displacement_idx = 220
-            data.iloc[displacement_idx-1, data.columns.get_loc('Close')] += 20
-            data.iloc[displacement_idx, data.columns.get_loc('Close')] -= 10
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = ManipulationStrategy(test_config, mock_mt5)
+    strategy = ManipulationStrategy(test_config, mt5_manager=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("============================================================")
     print("TESTING MANIPULATION STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
     print("\n1. Testing signal generation:")
     signals = strategy.generate_signal("XAUUSDm", "M15")
@@ -475,7 +556,7 @@ if __name__ == "__main__":
         print(f"     Level: {signal.metadata.get('level', 0):.2f}")
     
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 250)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 250) # Use strategy's mock manager
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     if 'manipulation_events' in analysis_results:

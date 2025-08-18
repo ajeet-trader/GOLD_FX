@@ -9,12 +9,8 @@ Combines multiple signals with dynamic position sizing.
 import sys
 import os
 from pathlib import Path
-import warnings
-warnings.filterwarnings('ignore')
 
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pandas as pd
 import numpy as np
@@ -22,49 +18,103 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 import logging
 
-# Import base classes
+from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+
 try:
-    from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
-except ImportError:
-    from core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs):  # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode):  # type: ignore
+        pass
 
 
 class ConfidenceSizing(AbstractStrategy):
     """Confidence-based position sizing fusion strategy"""
     
     def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
-        """Initialize confidence sizing fusion strategy - 8GB RAM optimized"""
+        """Initialize confidence sizing fusion strategy"""
         super().__init__(config, mt5_manager, database)
         
-        self.strategy_name = "ConfidenceSizing"
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
+        # Strategy parameters
         self.min_signals = config.get('min_signals', 2)
-        self.min_confidence = config.get('min_confidence', 0.55)  # Reduced for more signals
-        self.base_position_size = config.get('base_position_size', 0.01)  # 1% base size
-        self.max_position_size = config.get('max_position_size', 0.05)    # 5% max size
+        self.min_confidence = config.get('min_confidence', 0.55)
+        self.base_position_size = config.get('base_position_size', 0.01)
+        self.max_position_size = config.get('max_position_size', 0.05)
         self.confidence_multiplier = config.get('confidence_multiplier', 2.0)
         
         # Volatility adjustment parameters
-        self.volatility_window = config.get('volatility_window', 15)  # Reduced from 20
+        self.volatility_window = config.get('volatility_window', 15)
         self.volatility_threshold = config.get('volatility_threshold', 0.02)
         self.volatility_adjustment = config.get('volatility_adjustment', 0.5)
         
         # Signal correlation parameters
-        self.correlation_penalty = config.get('correlation_penalty', 0.25)  # Reduced from 0.3
-        self.max_correlation = config.get('max_correlation', 0.75)  # Reduced from 0.8
+        self.correlation_penalty = config.get('correlation_penalty', 0.25)
+        self.max_correlation = config.get('max_correlation', 0.75)
         
-        # Performance tracking - 8GB RAM optimized
-        self.position_history = []
-        self.max_history = config.get('max_history', 300)  # Reduced from 500
-        
-        # Memory optimization settings
+        # Performance tracking (handled by parent class)
+        self.success_rate = 0.65
+        self.profit_factor = 1.8
+
+        # Memory optimization settings (still relevant for this strategy's internal tracking)
+        self.position_history = [] # This is specific to ConfidenceSizing, not a general signal history
+        self.max_history = config.get('max_history', 300)
         self.memory_cleanup_interval = 20
         self.prediction_count = 0
-        
-        # Logger
-        self.logger = logging.getLogger(self.strategy_name)
-        
-        self.logger.info(f"{self.strategy_name} initialized")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with different characteristics for mock vs live
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                close_prices = base_price + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def fuse_signals(self, signals: List[Signal], data: pd.DataFrame = None, 
                     symbol: str = "XAUUSDm", timeframe: str = "M15") -> Optional[Signal]:
         """Fuse signals with confidence-based position sizing"""
@@ -167,7 +217,7 @@ class ConfidenceSizing(AbstractStrategy):
             return None
     
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
-        """Generate confidence-sized fusion signals - Enhanced like technical strategies"""
+        """Generate confidence-sized fusion signals"""
         signals = []
         try:
             # Print consistent status message like technical strategies
@@ -196,11 +246,11 @@ class ConfidenceSizing(AbstractStrategy):
                 return []
             
             # Apply confidence-based sizing to generate multiple signals
-            for i in range(3):  # Generate up to 3 signals with different sizing
+            for i in range(3):
                 sized_signal = self._fuse_signals_enhanced(strategy_signals, data, symbol, timeframe, i)
                 if sized_signal and self.validate_signal(sized_signal):
                     signals.append(sized_signal)
-                    self.signal_history.append(sized_signal)
+                    self.signal_history.append(sized_signal) # Store in parent's signal_history
             
             # Print results like technical strategies
             if signals:
@@ -411,15 +461,15 @@ class ConfidenceSizing(AbstractStrategy):
             else:
                 return current_price * 1.01, current_price * 0.98
     
-    def _store_position_record(self, signal: Signal, constituent_signals: List[Signal]):
+    def _store_position_record(self, fused_signal: Signal, constituent_signals: List[Signal]):
         """Store position record for performance tracking"""
         try:
             position_record = {
-                'timestamp': signal.timestamp,
-                'signal_type': signal.signal_type,
-                'confidence': signal.confidence,
-                'position_size': signal.metadata.get('position_size', 0),
-                'price': signal.price,
+                'timestamp': fused_signal.timestamp,
+                'signal_type': fused_signal.signal_type,
+                'confidence': fused_signal.confidence,
+                'position_size': fused_signal.metadata.get('position_size', 0),
+                'price': fused_signal.price,
                 'constituent_count': len(constituent_signals),
                 'strategy_names': [s.strategy_name for s in constituent_signals]
             }
@@ -461,7 +511,7 @@ class ConfidenceSizing(AbstractStrategy):
         """Generate simulated strategy signals for confidence sizing"""
         try:
             signals = []
-            current_price = data['close'].iloc[-1]
+            current_price = data['Close'].iloc[-1]
             timestamp = datetime.now()
             
             # Simulate various strategy signals with different confidence levels
@@ -520,7 +570,7 @@ class ConfidenceSizing(AbstractStrategy):
                     fused_signal.metadata['position_size'] = min(varied_size, self.max_position_size)
                 
                 # Update strategy name for variation
-                fused_signal.strategy_name = f"confidence_sizing_{variation_index+1}"
+                fused_signal.strategy_name = f"{self.strategy_name}_{variation_index+1}"
                 
                 # Update metadata
                 fused_signal.metadata.update({
@@ -592,54 +642,78 @@ class ConfidenceSizing(AbstractStrategy):
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
             }
+    
+    def get_strategy_info(self) -> Dict[str, Any]:
+        """
+        Get comprehensive information about the Confidence-Based Position Sizing Fusion Strategy,
+        including its parameters, position sizing insights, and overall performance.
+        """
+        # Get overall trading performance of the signals generated by this strategy
+        base_trading_performance = self.get_performance_summary()
+        
+        # Get position sizing statistics
+        position_stats = self.get_position_statistics()
+
+        info = {
+            'name': 'Confidence-Based Position Sizing Fusion Strategy',
+            'version': '2.0.0',
+            'type': 'Fusion',
+            'description': 'Adjusts position sizes based on signal confidence and market conditions.',
+            'parameters': {
+                'min_signals': self.min_signals,
+                'min_confidence': self.min_confidence,
+                'base_position_size': self.base_position_size,
+                'max_position_size': self.max_position_size,
+                'confidence_multiplier': self.confidence_multiplier,
+                'volatility_window': self.volatility_window,
+                'volatility_threshold': self.volatility_threshold,
+                'volatility_adjustment': self.volatility_adjustment,
+                'correlation_penalty': self.correlation_penalty,
+                'max_correlation': self.max_correlation,
+                'max_history_records': self.max_history
+            },
+            'overall_trading_performance': {
+                'total_signals_generated': base_trading_performance['total_signals'],
+                'win_rate': base_trading_performance['win_rate'],
+                'profit_factor': base_trading_performance['profit_factor']
+            },
+            'position_sizing_metrics': position_stats
+        }
+        return info
 
 
 # Testing function
 if __name__ == "__main__":
     """Test the Confidence Sizing strategy"""
     
+    # Setup logging for the test environment
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
     # Test configuration
     test_config = {
         'min_signals': 2,
         'min_confidence': 0.55,
         'base_position_size': 0.01,
-        'max_position_size': 0.05
+        'max_position_size': 0.05,
+        'parameters': { # Group parameters under 'parameters' for consistency
+            'min_signals': 2,
+            'min_confidence': 0.55,
+            'base_position_size': 0.01,
+            'max_position_size': 0.05,
+            'mode': 'mock' # Added mode parameter
+        }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=3), 
-                                 end=datetime.now(), freq='15Min')[:bars]
-            
-            # Generate sample OHLCV data
-            np.random.seed(42)
-            close_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
-            
-            data = pd.DataFrame({
-                'open': close_prices + np.random.randn(len(dates)) * 0.5,
-                'high': close_prices + np.abs(np.random.randn(len(dates)) * 3),
-                'low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
-                'close': close_prices,
-                'volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            # Ensure compatibility
-            data['Close'] = data['close']  # Add uppercase for compatibility
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = ConfidenceSizing(test_config, mock_mt5, database=None)
+    strategy = ConfidenceSizing(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("============================================================")
     print("TESTING OPTIMIZED CONFIDENCE SIZING STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # 1. Testing signal generation
     print("\n1. Testing signal generation:")
@@ -654,16 +728,30 @@ if __name__ == "__main__":
     
     # 2. Testing analysis method
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 80)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 80)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   Memory Optimized: {analysis_results.get('memory_optimized')}")
     
-    # 3. Testing performance tracking
+    # 3. Testing performance tracking (from AbstractStrategy)
     print("\n3. Testing performance tracking:")
     summary = strategy.get_performance_summary()
     print(f"   {summary}")
     
+    # 4. Strategy Information (comprehensive)
+    print("\n4. Strategy Information:")
+    info = strategy.get_strategy_info()
+    print(f"   Name: {info['name']}")
+    print(f"   Version: {info['version']}")
+    print(f"   Type: {info['type']}")
+    print(f"   Description: {info['description']}")
+    print(f"   Parameters: {info['parameters']}")
+    print(f"   Overall Trading Performance:")
+    print(f"     Total Signals Generated: {info['overall_trading_performance']['total_signals_generated']}")
+    print(f"     Win Rate: {info['overall_trading_performance']['win_rate']:.2%}")
+    print(f"     Profit Factor: {info['overall_trading_performance']['profit_factor']:.2f}")
+    print(f"   Position Sizing Metrics: {info['position_sizing_metrics']}")
+
     print("\n============================================================")
     print("CONFIDENCE SIZING STRATEGY TEST COMPLETED!")
     print("============================================================")

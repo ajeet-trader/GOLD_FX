@@ -9,12 +9,8 @@ Filters and weights signals based on regime-specific performance.
 import sys
 import os
 from pathlib import Path
-import warnings
-warnings.filterwarnings('ignore')
 
-# Add src to path for module resolution when run as script
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
 
 import pandas as pd
 import numpy as np
@@ -24,8 +20,15 @@ from enum import Enum
 import logging
 from collections import defaultdict
 
-# Import base classes directly
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
+
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs):  # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode):  # type: ignore
+        pass
 
 
 class MarketRegime(Enum):
@@ -46,6 +49,32 @@ class RegimeDetection(AbstractStrategy):
         """Initialize regime detection fusion strategy - 8GB RAM optimized"""
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # self.strategy_name is already set by AbstractStrategy to self.__class__.__name__
         self.min_signals = self.config.get('parameters', {}).get('min_signals', 2)
         self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.55)
@@ -78,6 +107,41 @@ class RegimeDetection(AbstractStrategy):
         # self.logger is provided by AbstractStrategy
         self.logger.info(f"{self.strategy_name} initialized")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample OHLCV data with different seeds for mock vs live
+                dates = pd.date_range(start=datetime.now() - timedelta(days=5), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                
+                # Create trending data (or other patterns)
+                trend = np.linspace(1950 if self.mode == 'mock' else 1975, 
+                                    1980 if self.mode == 'mock' else 2005, len(dates))
+                noise = np.cumsum(np.random.randn(len(dates)) * 1.5)
+                close_prices = trend + noise
+                
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                # Ensure High >= Close >= Low
+                data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
+                data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     # Keeping fuse_signals as a helper, but the primary entry for SignalEngine is generate_signal
     def fuse_signals(self, signals: List[Signal], data: pd.DataFrame = None, 
                     symbol: str = "XAUUSDm", timeframe: str = "M15") -> Optional[Signal]:
@@ -1054,50 +1118,19 @@ if __name__ == "__main__":
             'breakout_threshold': 1.5,
             'max_regime_history': 100,
             'max_history': 400,
-            'memory_cleanup_interval': 15
+            'memory_cleanup_interval': 15,
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=5), 
-                                 end=datetime.now(), freq='15Min')[:bars]
-            
-            # Generate sample OHLCV data with different regimes
-            np.random.seed(42)
-            
-            # Create trending data
-            trend = np.linspace(1950, 1980, len(dates))
-            noise = np.cumsum(np.random.randn(len(dates)) * 1.5)
-            close_prices = trend + noise
-            
-            data = pd.DataFrame({
-                'Open': close_prices + np.random.randn(len(dates)) * 0.5,
-                'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': close_prices,
-                'Volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            # Ensure High >= Close >= Low (already in original data, just for clarity)
-            data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
-            data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = RegimeDetection(test_config, mock_mt5, database=None)
+    strategy = RegimeDetection(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     # Output header matching other strategy files
     print("============================================================")
     print("TESTING MODIFIED REGIME DETECTION STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # 1. Testing signal generation
     print("\n1. Testing signal generation:")
@@ -1112,7 +1145,8 @@ if __name__ == "__main__":
     
     # 2. Testing analysis method
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 90)
+    # Get mock data using the strategy's internal MT5 manager
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 90)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   Current Regime Detected: {analysis_results.get('current_regime_detected', 'N/A')}")

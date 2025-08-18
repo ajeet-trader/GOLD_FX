@@ -1,3 +1,4 @@
+
 """
 LSTM Predictor - Advanced Machine Learning Strategy
 ==================================================
@@ -54,6 +55,15 @@ except ImportError:
 # Import base classes directly
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 # Fallback classes when ML libraries are not available
 if not ML_AVAILABLE:
     class Sequential:
@@ -83,6 +93,32 @@ class LSTMPredictorStrategy(AbstractStrategy): # Inherit from AbstractStrategy
     def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         """Initialize LSTM Predictor"""
         super().__init__(config, mt5_manager, database) # Call parent __init__
+        
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
         
         # Strategy parameters - access from self.config (which is the passed 'config')
         self.min_confidence = self.config.get('parameters', {}).get('confidence_threshold', 0.60)  # Reduced from 0.75
@@ -140,6 +176,39 @@ class LSTMPredictorStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         if not ML_AVAILABLE:
             self.logger.warning("ML libraries not available. Running in simulation mode.")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with different characteristics for mock vs live
+                dates = pd.date_range(start=datetime.now() - timedelta(days=30), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                trend = np.linspace(1950 if self.mode == 'mock' else 1975, 
+                                    1980 if self.mode == 'mock' else 2005, len(dates))
+                noise = np.cumsum(np.random.randn(len(dates)) * 2)
+                close_prices = trend + noise
+                
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                # Ensure High >= Close >= Low
+                data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
+                data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """Generate ML-based trading signals - Optimized for 8GB RAM"""
         signals = []
@@ -1149,48 +1218,19 @@ if __name__ == "__main__":
             'prediction_horizon': 12,
             'feature_lookback': 50,
             'retrain_frequency': 'weekly',
-            'min_training_samples': 1000
+            'min_training_samples': 1000,
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=30), 
-                                 end=datetime.now(), freq='15Min')
-            
-            # Generate sample OHLCV data with trend
-            np.random.seed(42)
-            trend = np.linspace(1950, 1980, len(dates))
-            noise = np.cumsum(np.random.randn(len(dates)) * 2)
-            close_prices = trend + noise
-            
-            data = pd.DataFrame({
-                'Open': close_prices + np.random.randn(len(dates)) * 0.5,
-                'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': close_prices,
-                'Volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            # Ensure High >= Close >= Low
-            data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
-            data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = LSTMPredictorStrategy(test_config, mock_mt5, database=None) # Added database=None
+    strategy = LSTMPredictorStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     # Output header matching other strategy files
     print("============================================================")
     print("TESTING MODIFIED LSTM PREDICTOR STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # 1. Testing signal generation
     print("\n1. Testing signal generation:")
@@ -1205,7 +1245,8 @@ if __name__ == "__main__":
     
     # 2. Testing analysis method
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    # Get mock data using the strategy's internal MT5 manager
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 500)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   ML Available: {analysis_results.get('ml_available')}")

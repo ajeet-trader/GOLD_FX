@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Adaptive Ensemble Fusion Strategy
 =================================
@@ -17,6 +16,9 @@ composition to maximize returns while minimizing risk.
 import sys
 import os
 from pathlib import Path
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+
 from typing import Dict, List, Optional, Any, Tuple
 import pandas as pd
 import numpy as np
@@ -25,11 +27,15 @@ import logging
 from dataclasses import dataclass, field
 from collections import defaultdict, deque
 
-# Add src to path for module resolution when run as script
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
-# Import base classes directly
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
+
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs):  # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode):  # type: ignore
+        pass
 
 
 @dataclass
@@ -72,6 +78,32 @@ class AdaptiveEnsembleFusionStrategy(AbstractStrategy):
     def __init__(self, config: Dict[str, Any], mt5_manager=None, database=None):
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Configuration - 8GB RAM optimized
         self.lookback_bars = self.config.get('parameters', {}).get('lookback_bars', 100)
         self.performance_window = self.config.get('parameters', {}).get('performance_window', 30)
@@ -106,6 +138,33 @@ class AdaptiveEnsembleFusionStrategy(AbstractStrategy):
         
         self.logger.info("Adaptive Ensemble Fusion Strategy initialized")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with different characteristics for mock vs live
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                close_prices = base_price + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def generate_signal(self, symbol: str, timeframe: str) -> List[Signal]:
         """
         Generate ensemble signals by adaptively combining strategy signals - 8GB RAM optimized
@@ -127,7 +186,7 @@ class AdaptiveEnsembleFusionStrategy(AbstractStrategy):
                 self._cleanup_memory()
             
             # Get market data for regime detection
-            market_data = self._get_market_data(symbol, timeframe)
+            market_data = self.mt5_manager.get_historical_data(symbol, timeframe, self.lookback_bars)
             if market_data is None or market_data.empty:
                 self.logger.warning("Market data unavailable")
                 return []
@@ -237,44 +296,6 @@ class AdaptiveEnsembleFusionStrategy(AbstractStrategy):
             self.logger.error(f"Error during Adaptive Ensemble analysis: {e}", exc_info=True)
             return {'error': str(e)}
 
-    def _get_market_data(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
-        """Get market data for analysis"""
-        try:
-            if self.mt5_manager:
-                return self.mt5_manager.get_historical_data(symbol, timeframe, self.lookback_bars)
-            else:
-                # Simulate market data for testing
-                dates = pd.date_range(end=datetime.now(), periods=self.lookback_bars, freq='15min')
-                np.random.seed(42) # For consistent mock data
-                
-                price = 2000.0
-                data = []
-                
-                for i in range(len(dates)):
-                    change = np.random.normal(0, 2)
-                    price += change
-                    
-                    high = price + abs(np.random.normal(0, 1))
-                    low = price - abs(np.random.normal(0, 1))
-                    open_price = price - np.random.normal(0, 0.5)
-                    close = price
-                    volume = np.random.randint(1000, 10000)
-                    
-                    data.append({
-                        'timestamp': dates[i],
-                        'open': open_price,
-                        'high': high,
-                        'low': low,
-                        'close': close,
-                        'volume': volume
-                    })
-                
-                return pd.DataFrame(data).set_index('timestamp') # Set timestamp as index for consistency
-                
-        except Exception as e:
-            self.logger.error(f"Error getting market data: {e}", exc_info=True)
-            return None
-    
     def _update_market_regime(self, data: pd.DataFrame) -> None:
         """Update current market regime"""
         try:
@@ -776,48 +797,19 @@ if __name__ == "__main__":
             'adaptation_rate': 0.1,
             'min_signals_for_weight': 5,
             'correlation_threshold': 0.7,
-            'decay_factor': 0.95
+            'decay_factor': 0.95,
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
 
-    # Mock MT5 manager for testing (re-used from _get_market_data)
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            dates = pd.date_range(end=datetime.now(), periods=bars, freq='15min')
-            np.random.seed(42)
-            
-            price = 2000.0
-            data = []
-            
-            for i in range(len(dates)):
-                change = np.random.normal(0, 2)
-                price += change
-                
-                high = price + abs(np.random.normal(0, 1))
-                low = price - abs(np.random.normal(0, 1))
-                open_price = price - np.random.normal(0, 0.5)
-                close = price
-                volume = np.random.randint(1000, 10000)
-                
-                data.append({
-                    'timestamp': dates[i],
-                    'open': open_price,
-                    'high': high,
-                    'low': low,
-                    'close': close,
-                    'volume': volume
-                })
-            
-            return pd.DataFrame(data).set_index('timestamp')
-
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = AdaptiveEnsembleFusionStrategy(test_config, mock_mt5, database=None)
+    strategy = AdaptiveEnsembleFusionStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     # Output header matching other strategy files
     print("============================================================")
     print("TESTING MODIFIED ADAPTIVE ENSEMBLE FUSION STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # 1. Testing signal generation
     print("\n1. Testing signal generation:")
@@ -832,7 +824,8 @@ if __name__ == "__main__":
     
     # 2. Testing analysis method
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200) # Use actual data, not just an empty DF
+    # Get mock data using the strategy's internal MT5 manager
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   Current Market Regime: {analysis_results.get('current_market_regime', {}).get('type', 'N/A')}")

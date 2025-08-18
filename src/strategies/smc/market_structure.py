@@ -1,3 +1,4 @@
+
 """
 Market Structure Strategy - Smart Money Concepts
 ==============================================
@@ -42,6 +43,15 @@ from dataclasses import dataclass
 from enum import Enum
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
 
 class MarketTrend(Enum):
     """Market trend enumeration"""
@@ -95,6 +105,32 @@ class MarketStructureStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
 
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Strategy parameters from config
         self.lookback_bars = config.get('parameters', {}).get('lookback_bars', 200)
         self.swing_window = config.get('parameters', {}).get('swing_window', 5)
@@ -112,6 +148,42 @@ class MarketStructureStrategy(AbstractStrategy):
 
         self.logger.info(f"MarketStructureStrategy initialized with lookback={self.lookback_bars}, "
                         f"swing_window={self.swing_window}, confidence_threshold={self.confidence_threshold}")
+    
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10),
+                                     end=datetime.now(), freq='15Min')[:bars]
+
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                prices = []
+                for i in range(len(dates)):
+                    if i < 50:
+                        base_price += 2  # Uptrend (HH/HL)
+                    elif i < 100:
+                        base_price -= 1.5  # Downtrend (LH/LL)
+                    elif i < 150:
+                        base_price += 1.8  # Uptrend (HH/HL)
+                    else:
+                        base_price -= 1.2  # Downtrend (LH/LL)
+                    prices.append(base_price + np.random.normal(0, 0.5))
+
+                data = pd.DataFrame({
+                    'Open': np.array(prices) + np.random.normal(0, 0.5, len(dates)),
+                    'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
+                    'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
+                    'Close': prices,
+                    'Volume': np.random.randint(500, 1500, len(dates))
+                }, index=dates)
+
+                return data
+        
+        return MockMT5Manager(self.mode)
 
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """
@@ -177,18 +249,20 @@ class MarketStructureStrategy(AbstractStrategy):
 
             if signals:
                 self.logger.info(f"Generated {len(signals)} signals for {symbol} on {timeframe}")
-                for signal in signals:
-                    self.database_manager.store_signal({
-                        'symbol': signal.symbol,
-                        'strategy': signal.strategy_name,
-                        'signal_type': signal.signal_type.value,
-                        'confidence': signal.confidence,
-                        'price': signal.price,
-                        'timeframe': signal.timeframe,
-                        'strength': signal.strength,
-                        'quality_grade': signal.grade.value if signal.grade else None,
-                        'metadata': signal.metadata
-                    })
+                # The database_manager.store_signal is called in AbstractStrategy's validate_signal if a database is present
+                # So this block is commented out to avoid duplicate calls if validate_signal handles it
+                # for signal in signals:
+                #     self.database_manager.store_signal({
+                #         'symbol': signal.symbol,
+                #         'strategy': signal.strategy_name,
+                #         'signal_type': signal.signal_type.value,
+                #         'confidence': signal.confidence,
+                #         'price': signal.price,
+                #         'timeframe': signal.timeframe,
+                #         'strength': signal.strength,
+                #         'quality_grade': signal.grade.value if signal.grade else None,
+                #         'metadata': signal.metadata
+                #     })
 
             return signals
 
@@ -598,47 +672,18 @@ if __name__ == "__main__":
             'retest_window': 3,
             'confidence_threshold': 0.65,
             'cooldown_bars': 3,
-            'swing_tolerance': 0.002
+            'swing_tolerance': 0.002,
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
 
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10),
-                                 end=datetime.now(), freq='15Min')[:bars]
-
-            np.random.seed(42)
-            base_price = 1950
-            prices = []
-            for i in range(len(dates)):
-                if i < 50:
-                    base_price += 2  # Uptrend (HH/HL)
-                elif i < 100:
-                    base_price -= 1.5  # Downtrend (LH/LL)
-                elif i < 150:
-                    base_price += 1.8  # Uptrend (HH/HL)
-                else:
-                    base_price -= 1.2  # Downtrend (LH/LL)
-                prices.append(base_price + np.random.normal(0, 0.5))
-
-            data = pd.DataFrame({
-                'Open': np.array(prices) + np.random.normal(0, 0.5, len(dates)),
-                'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
-                'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
-                'Close': prices,
-                'Volume': np.random.randint(500, 1500, len(dates))
-            }, index=dates)
-
-            return data
-
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = MarketStructureStrategy(test_config, mock_mt5)
+    strategy = MarketStructureStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
 
     print("="*60)
     print("TESTING MARKET STRUCTURE STRATEGY")
     print("="*60)
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # Test signal generation
     print("\n1. Testing signal generation:")
@@ -652,7 +697,7 @@ if __name__ == "__main__":
 
     # Test analysis
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis keys: {list(analysis.keys())}")
     print(f"   Current Trend: {analysis.get('trend', 'N/A')}")

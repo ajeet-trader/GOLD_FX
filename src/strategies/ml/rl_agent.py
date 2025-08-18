@@ -1,3 +1,4 @@
+
 """
 Reinforcement Learning Agent Strategy - Advanced ML Trading Strategy
 ====================================================================
@@ -13,7 +14,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Add src to path for module resolution when run as script
-#sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pandas as pd
@@ -39,6 +39,15 @@ except ImportError:
 # Import base classes directly
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 
 class RLAgentStrategy(AbstractStrategy):
     """Reinforcement Learning agent using Deep Q-Network for trading"""
@@ -47,6 +56,32 @@ class RLAgentStrategy(AbstractStrategy):
         """Initialize RL agent strategy - 8GB RAM optimized"""
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # self.strategy_name is already set by AbstractStrategy
         self.lookback_bars = self.config.get('parameters', {}).get('lookback_bars', 80)
         self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.55)
@@ -94,6 +129,40 @@ class RLAgentStrategy(AbstractStrategy):
         
         self.logger.info(f"{self.strategy_name} initialized (TensorFlow available: {TENSORFLOW_AVAILABLE})")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                import pandas as pd
+                import numpy as np
+                from datetime import datetime, timedelta
+                
+                dates = pd.date_range(start=datetime.now() - timedelta(days=5), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123) # For consistent mock data
+                
+                # Generate sample OHLCV data with some trend
+                price_series = (1950 if self.mode == 'mock' else 1975) + np.cumsum(np.random.randn(len(dates)) * 0.5)
+                
+                data = pd.DataFrame({
+                    'Open': price_series + np.random.randn(len(dates)) * 0.2,
+                    'High': price_series + np.abs(np.random.randn(len(dates)) * 0.5),
+                    'Low': price_series - np.abs(np.random.randn(len(dates)) * 0.5),
+                    'Close': price_series,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
+                data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def _initialize_networks(self):
         """Initialize Q-network and target network"""
         try:
@@ -724,46 +793,14 @@ if __name__ == "__main__":
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=5), 
-                                 end=datetime.now(), freq='15Min')
-            
-            np.random.seed(42) # For consistent mock data
-            
-            # Generate sample OHLCV data with some trend
-            price_series = 1950 + np.cumsum(np.random.randn(len(dates)) * 0.5)
-            # Ensure price series is long enough for lookback
-            if len(price_series) < bars:
-                price_series = np.concatenate((price_series, price_series[-1] + np.cumsum(np.random.randn(bars - len(price_series)) * 0.5)))
-            price_series = price_series[:bars] # Trim to exact bars needed
-            
-            data = pd.DataFrame({
-                'Open': price_series + np.random.randn(len(price_series)) * 0.2,
-                'High': price_series + np.abs(np.random.randn(len(price_series)) * 0.5),
-                'Low': price_series - np.abs(np.random.randn(len(price_series)) * 0.5),
-                'Close': price_series,
-                'Volume': np.random.randint(100, 1000, len(price_series))
-            }, index=dates[:len(price_series)]) # Ensure index matches length
-            
-            data['High'] = np.maximum(data['High'], data[['Open', 'Close']].max(axis=1))
-            data['Low'] = np.minimum(data['Low'], data[['Open', 'Close']].min(axis=1))
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = RLAgentStrategy(test_config, mock_mt5, database=None)
+    strategy = RLAgentStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     # Output header matching other strategy files
     print("============================================================")
     print("TESTING MODIFIED REINFORCEMENT LEARNING AGENT STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
     # 1. Testing signal generation
     print("\n1. Testing signal generation:")
@@ -778,7 +815,8 @@ if __name__ == "__main__":
     
     # 2. Testing analysis method
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 90) # Use slightly more data than lookback
+    # Get mock data using the strategy's internal MT5 manager
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 90) # Use slightly more data than lookback
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   TensorFlow Available: {analysis_results.get('tensorflow_available')}")
