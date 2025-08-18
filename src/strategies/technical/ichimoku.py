@@ -31,7 +31,10 @@ from pathlib import Path
 
 # Add src to path
 #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+# Add project root to path - FIXED PATH
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 
 import pandas as pd
@@ -43,7 +46,14 @@ from dataclasses import dataclass
 
 # Import from base module instead of local definitions
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
-print("sys.path:", sys.path)
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs):  # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode):  # type: ignore
+        pass
+# Removed debug print statement
 
 @dataclass
 class IchimokuComponents:
@@ -93,6 +103,32 @@ class IchimokuStrategy(AbstractStrategy):
         """
         # Call parent class initialization
         super().__init__(config, mt5_manager, database)
+
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
         
         # Ichimoku parameters
         self.tenkan_period = 9
@@ -118,6 +154,34 @@ class IchimokuStrategy(AbstractStrategy):
         
         # Logger is already set up by parent class
         # self.logger = logging.getLogger('ichimoku_strategy')
+    
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with different characteristics for live vs mock
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                # Use different seeds and base prices for mock vs live
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                close_prices = base_price + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                data = pd.DataFrame({
+                    'Open': close_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': close_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': close_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': close_prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
     
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """
@@ -891,13 +955,13 @@ if __name__ == "__main__":
             
             return data
     
-    # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = IchimokuStrategy(test_config, mock_mt5)
+    # Create strategy instance with mode-aware MT5 manager
+    strategy = IchimokuStrategy(test_config, mt5_manager=None)
     
     print("="*60)
     print("TESTING MODIFIED ICHIMOKU STRATEGY")
     print("="*60)
+    print(f"Running in {strategy.mode.upper()} mode")
     
     # Test signal generation
     print("\n1. Testing signal generation:")
@@ -908,7 +972,7 @@ if __name__ == "__main__":
     
     # Test analysis
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis keys: {list(analysis.keys())}")
     if 'current_values' in analysis:
@@ -921,5 +985,5 @@ if __name__ == "__main__":
     print(f"   {summary}")
     
     print("\n" + "="*60)
-    print("ICHIMOKU STRATEGY TEST COMPLETED!")
+    print(f"ICHIMOKU STRATEGY TEST COMPLETED IN {strategy.mode.upper()} MODE!")
     print("="*60)

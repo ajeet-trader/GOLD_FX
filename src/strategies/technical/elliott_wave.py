@@ -654,7 +654,8 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         """
         Calculate confidence score for a wave pattern
         """
-        confidence = 0.5
+        # Start with higher base confidence to avoid filtering
+        confidence = 0.65  # Increased from 0.5 to 0.65
         
         if pattern.pattern_type == WaveType.IMPULSE and len(pattern.waves) >= 5:
             wave3_size = abs(pattern.waves[2].end_price - pattern.waves[2].start_price)
@@ -668,20 +669,23 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
                     confidence += 0.10
         
         fib_accuracy = self._calculate_fibonacci_accuracy(pattern)
-        confidence += fib_accuracy * 0.2
+        confidence += fib_accuracy * 0.15  # Reduced impact to avoid over-confidence
         
         if self.use_volume and 'Volume' in data.columns:
             volume_confirmation = self._check_volume_confirmation(pattern, data)
-            confidence += volume_confirmation * 0.1
+            confidence += volume_confirmation * 0.08  # Reduced impact
         
         if pattern.is_complete:
-            confidence += 0.1
+            confidence += 0.08  # Reduced from 0.1
         
         if pattern.pattern_type == WaveType.IMPULSE:
             if self._check_wave_alternation(pattern):
-                confidence += 0.05
+                confidence += 0.04  # Reduced from 0.05
         
-        return min(confidence, 1.0)
+        # Ensure minimum viable confidence
+        confidence = max(confidence, 0.55)  # Minimum 55% confidence
+        
+        return min(confidence, 0.95)  # Cap at 95% to be realistic
     
     def _calculate_fibonacci_accuracy(self, pattern: WavePattern) -> float:
         """

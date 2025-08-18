@@ -84,7 +84,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
         self.lookback_bars = self.config.get('parameters', {}).get('lookback_bars', 300)
         self.equal_highs_tolerance = self.config.get('parameters', {}).get('equal_highs_tolerance', 0.12)
         self.approach_buffer = self.config.get('parameters', {}).get('approach_buffer', 0.2)
-        self.confidence_threshold = self.config.get('parameters', {}).get('confidence_threshold', 0.65)
+        self.confidence_threshold = self.config.get('parameters', {}).get('confidence_threshold', 0.75)  # Increased base confidence
         self.cooldown_bars = self.config.get('parameters', {}).get('cooldown_bars', 3)
         
         # Internal state
@@ -310,7 +310,8 @@ class LiquidityPoolsStrategy(AbstractStrategy):
                 # Bearish reversal after sweeping high
                 sl = pool_level + sl_distance
                 tp = pool_level - tp_distance
-                confidence = min(0.85, pool.strength * self.confidence_threshold)
+                # Fixed confidence calculation: use base confidence + strength bonus
+                confidence = min(0.85, self.confidence_threshold + (pool.strength * 0.1))
                 return Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -333,7 +334,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
             if pool_level - buffer < current_price < pool_level and last_close > data['Close'].iloc[-2]:
                 sl = pool_level + sl_distance
                 tp = pool_level - tp_distance
-                confidence = min(0.75, pool.strength * self.confidence_threshold * 0.9)
+                confidence = min(0.75, (self.confidence_threshold * 0.9) + (pool.strength * 0.05))
                 return Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -356,7 +357,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
             if last_close > pool_level + buffer and data['Close'].iloc[-2] < pool_level:
                 sl = pool_level - sl_distance
                 tp = pool_level + tp_distance
-                confidence = min(0.80, pool.strength * self.confidence_threshold * 0.95)
+                confidence = min(0.80, (self.confidence_threshold * 0.95) + (pool.strength * 0.05))
                 return Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -381,7 +382,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
                 # Bullish reversal after sweeping low
                 sl = pool_level - sl_distance
                 tp = pool_level + tp_distance
-                confidence = min(0.85, pool.strength * self.confidence_threshold)
+                confidence = min(0.85, self.confidence_threshold + (pool.strength * 0.1))
                 return Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -404,7 +405,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
             if pool_level < current_price < pool_level + buffer and last_close < data['Close'].iloc[-2]:
                 sl = pool_level - sl_distance
                 tp = pool_level + tp_distance
-                confidence = min(0.75, pool.strength * self.confidence_threshold * 0.9)
+                confidence = min(0.75, (self.confidence_threshold * 0.9) + (pool.strength * 0.05))
                 return Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -427,7 +428,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
             if last_close < pool_level - buffer and data['Close'].iloc[-2] > pool_level:
                 sl = pool_level + sl_distance
                 tp = pool_level - tp_distance
-                confidence = min(0.80, pool.strength * self.confidence_threshold * 0.95)
+                confidence = min(0.80, (self.confidence_threshold * 0.95) + (pool.strength * 0.05))
                 return Signal(
                     timestamp=datetime.now(),
                     symbol=symbol,

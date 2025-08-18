@@ -33,6 +33,21 @@ from collections import defaultdict
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+# Try to import live MT5 manager
+try:
+    from src.core.mt5_manager import MT5Manager  # type: ignore
+except Exception:
+    MT5Manager = None  # Fallback handled at runtime
+
+# CLI mode parsing utility
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs):  # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode):  # type: ignore
+        pass
+
 # Define base classes here to avoid circular imports
 class SignalType(Enum):
     """Signal types"""
@@ -330,8 +345,31 @@ class SignalEngine:
             database_manager: DatabaseManager instance
         """
         self.config = config
-        #self.mt5_manager = mt5_manager
-        self.mt5_manager = mt5_manager if mt5_manager else mock_mt5
+        # Decide data source based on configuration, then override by CLI if provided
+        cfg_mode = self.config.get('data', {}).get('mode', 'mock')
+        cli_mode = parse_mode()
+        self.data_mode = cli_mode or cfg_mode
+        print_mode_banner(self.data_mode)
+        # Initialize MT5 manager based on mode
+        if mt5_manager is not None:
+            self.mt5_manager = mt5_manager
+        else:
+            if self.data_mode == 'live' and MT5Manager is not None:
+                try:
+                    default_symbol = self.config.get('trading', {}).get('symbol', 'XAUUSD')
+                    # Instantiate and connect; MT5Manager reads credentials from env
+                    live_mgr = MT5Manager(symbol=default_symbol)
+                    if live_mgr.connect():
+                        self.mt5_manager = live_mgr
+                    else:
+                        self.logger = logging.getLogger('signal_engine')
+                        self.logger.warning("Falling back to MockMT5Manager: live MT5 connection failed")
+                        self.mt5_manager = mock_mt5
+                except Exception:
+                    # Any issue: fallback to mock
+                    self.mt5_manager = mock_mt5
+            else:
+                self.mt5_manager = mock_mt5
         self.database_manager = database_manager
         
         # Setup logging
@@ -352,6 +390,9 @@ class SignalEngine:
             'ml': {},
             'fusion': {}
         }
+
+        # Map concrete strategy class names to engine registry keys for metrics tracking
+        self.strategy_name_map = {}
         
         # Signal management
         self.active_signals = []
@@ -406,7 +447,10 @@ class SignalEngine:
         
         for strategy_name in active_technical:
             if strategy_name in self.available_strategies['technical']:
-                self._initialize_single_strategy('technical', strategy_name, technical_config)
+                instance = self._initialize_single_strategy('technical', strategy_name, technical_config)
+                if instance:
+                    # map class name to registry key
+                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
         
         # Initialize SMC strategies (enable all that are implemented)
         smc_config = strategies_config.get('smc', {})
@@ -418,7 +462,9 @@ class SignalEngine:
         
         for strategy_name in active_smc:
             if strategy_name in self.available_strategies['smc']:
-                self._initialize_single_strategy('smc', strategy_name, smc_config)
+                instance = self._initialize_single_strategy('smc', strategy_name, smc_config)
+                if instance:
+                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
         
         # Initialize ML strategies (all 4 now implemented)
         ml_config = strategies_config.get('ml', {})
@@ -426,7 +472,9 @@ class SignalEngine:
         
         for strategy_name in active_ml:
             if strategy_name in self.available_strategies['ml']:
-                self._initialize_single_strategy('ml', strategy_name, ml_config)
+                instance = self._initialize_single_strategy('ml', strategy_name, ml_config)
+                if instance:
+                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
         
         # Initialize fusion strategies (all 4 now implemented)
         fusion_config = strategies_config.get('fusion', {})
@@ -434,12 +482,14 @@ class SignalEngine:
         
         for strategy_name in active_fusion:
             if strategy_name in self.available_strategies['fusion']:
-                self._initialize_single_strategy('fusion', strategy_name, fusion_config)
+                instance = self._initialize_single_strategy('fusion', strategy_name, fusion_config)
+                if instance:
+                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
         
         # Log initialization summary
         self._log_initialization_summary()
     
-    def _initialize_single_strategy(self, category: str, strategy_name: str, category_config: Dict) -> None:
+    def _initialize_single_strategy(self, category: str, strategy_name: str, category_config: Dict) -> Optional[Any]:
         """
         Initialize a single strategy instance
         
@@ -484,8 +534,10 @@ class SignalEngine:
                 'last_update': datetime.now()
             }
             
+            return strategy_instance
         except Exception as e:
             self.logger.error(f"Failed to initialize {category} strategy {strategy_name}: {str(e)}")
+            return None
     
     def _log_initialization_summary(self) -> None:
         """Log summary of initialized strategies"""
@@ -600,6 +652,8 @@ class SignalEngine:
             
             # Get recent price data
             data = self.mt5_manager.get_historical_data(symbol, timeframe, 100)
+            # Validate and normalize
+            data = self._validate_market_data(data, symbol, timeframe)
             if data is None or data.empty:
                 return "NEUTRAL"
             
@@ -639,6 +693,78 @@ class SignalEngine:
         except Exception as e:
             self.logger.error(f"Error detecting market regime: {str(e)}")
             return "NEUTRAL"
+
+    def _validate_market_data(self, data: pd.DataFrame, symbol: str, timeframe: int) -> pd.DataFrame:
+        """Validate OHLCV data: missing bars, symbol mismatch, precision.
+
+        - Ensures lowercase columns exist alongside standard case
+        - Checks for gaps beyond config threshold
+        - Validates price precision against symbol digits (live mode)
+        """
+        try:
+            if data is None or data.empty:
+                return pd.DataFrame()
+
+            # Ensure index is datetime
+            if not isinstance(data.index, pd.DatetimeIndex):
+                # Try to coerce
+                if 'time' in data.columns:
+                    data['time'] = pd.to_datetime(data['time'])
+                    data.set_index('time', inplace=True)
+                else:
+                    return pd.DataFrame()
+
+            # Ensure lowercase aliases
+            for src, dst in [('Open','open'), ('High','high'), ('Low','low'), ('Close','close'), ('Volume','volume')]:
+                if src in data.columns and dst not in data.columns:
+                    data[dst] = data[src]
+                if dst in data.columns and src not in data.columns:
+                    data[src] = data[dst]
+
+            # Gap check
+            validation_cfg = self.config.get('data', {}).get('validation', {})
+            check_gaps = bool(validation_cfg.get('check_gaps', True))
+            max_gap_size = int(validation_cfg.get('max_gap_size', 5))
+            if check_gaps:
+                tf_str = self._convert_timeframe(timeframe)
+                expected_minutes = {
+                    'M1': 1, 'M5': 5, 'M15': 15, 'M30': 30,
+                    'H1': 60, 'H4': 240, 'D1': 1440
+                }.get(tf_str, 15)
+                expected_delta = pd.Timedelta(minutes=expected_minutes)
+                gaps = data.index.to_series().diff().dropna()
+                # Count how many missing bars implicit in gaps
+                missing_bars = int(sum(max(int((g / expected_delta)) - 1, 0) for g in gaps))
+                if missing_bars > 0:
+                    self.logger = getattr(self, 'logger', logging.getLogger('signal_engine'))
+                    if missing_bars > max_gap_size:
+                        self.logger.warning(f"Detected {missing_bars} missing bars in {symbol} {tf_str}")
+
+            # Precision check (only meaningful in live mode with MT5 symbol digits)
+            precision_tol = float(validation_cfg.get('precision_tolerance', 1e-6))
+            if self.data_mode == 'live' and hasattr(self.mt5_manager, 'get_symbol_info'):
+                try:
+                    info = self.mt5_manager.get_symbol_info(symbol)
+                    digits = int(info.get('digits', 0)) if info else 0
+                except Exception:
+                    digits = 0
+                if digits > 0:
+                    def round_series(s: pd.Series) -> pd.Series:
+                        return s.round(digits)
+                    for col in ['Open','High','Low','Close']:
+                        if col in data.columns:
+                            rounded = round_series(data[col])
+                            drift = (data[col] - rounded).abs()
+                            if (drift > precision_tol).any():
+                                # Auto-correct by rounding
+                                data[col] = rounded
+                                # Keep lowercase in sync
+                                data[col.lower()] = rounded
+            return data
+        except Exception as e:
+            self.logger = getattr(self, 'logger', logging.getLogger('signal_engine'))
+            self.logger.error(f"Data validation error: {str(e)}")
+            return pd.DataFrame()
     
     def _calculate_adx(self, data: pd.DataFrame, period: int = 14) -> pd.Series:
         """Calculate Average Directional Index"""
@@ -705,10 +831,22 @@ class SignalEngine:
         quality_signals = []
         
         for signal in signals:
+            # FIRST: Track grade distribution for ALL signals before filtering
+            self._track_signal_grade(signal)
+            
             # Basic quality checks
             if signal.confidence < 0.5:
                 self._track_invalid_signal(signal.strategy_name, "Low confidence")
                 continue
+            
+            # Filter out poor-quality grade D signals explicitly
+            try:
+                grade_value = getattr(getattr(signal, 'grade', None), 'value', None)
+                if grade_value == 'D':
+                    self._track_invalid_signal(signal.strategy_name, "Low grade (D)")
+                    continue
+            except Exception:
+                pass
             
             # Check signal conflicts
             if self._has_conflict(signal, quality_signals):
@@ -722,8 +860,15 @@ class SignalEngine:
             
             quality_signals.append(signal)
         
-        # Sort by confidence and grade
-        quality_signals.sort(key=lambda x: (x.grade.value, x.confidence), reverse=True)
+        # Sort by grade rank (A>B>C>D) then by confidence
+        grade_rank = {'A': 3, 'B': 2, 'C': 1, 'D': 0}
+        quality_signals.sort(
+            key=lambda x: (
+                grade_rank.get(getattr(getattr(x, 'grade', None), 'value', 'C'), 1),
+                x.confidence
+            ),
+            reverse=True
+        )
         
         # Limit number of signals based on configuration
         max_signals = self.config.get('signal_generation', {}).get('max_signals_per_bar', 5)
@@ -781,24 +926,58 @@ class SignalEngine:
                 }
                 self.database_manager.store_signal(signal_data)
             
-            # Update performance tracking
-            strategy_name = signal.strategy_name
-            if strategy_name in self.strategy_performance:
-                # Update grade distribution
-                grade_key = signal.grade.value if signal.grade else 'C'
-                if grade_key in self.strategy_performance[strategy_name]['grade_distribution']:
-                    self.strategy_performance[strategy_name]['grade_distribution'][grade_key] += 1
+            # Update performance tracking - FIXED: This was being called after signals were filtered
+            # but we need to track ALL stored signals, not just during generation
+            # Normalize performance key (map class name to registry key)
+            perf_key = self.strategy_name_map.get(signal.strategy_name, signal.strategy_name)
+            if perf_key in self.strategy_performance:
+                # Update grade distribution - ensure signal has a grade
+                if signal.grade:
+                    grade_key = signal.grade.value
+                    if grade_key in self.strategy_performance[perf_key]['grade_distribution']:
+                        self.strategy_performance[perf_key]['grade_distribution'][grade_key] += 1
+                        self.logger.debug(f"Updated grade distribution for {perf_key}: {grade_key}")
+                else:
+                    # Fallback if no grade
+                    self.strategy_performance[perf_key]['grade_distribution']['C'] += 1
+                    self.logger.debug(f"Updated grade distribution for {perf_key}: C (fallback)")
             
             # Log signal
-            self.logger.info(f"📊 Storing signal: {signal.strategy_name} - {signal.signal_type.value}")
+            self.logger.info(f"📊 Storing signal: {signal.strategy_name} - {signal.signal_type.value} - Grade: {signal.grade.value if signal.grade else 'None'}")
             
         except Exception as e:
             self.logger.error(f"Error storing signal: {str(e)}")
     
     def _track_invalid_signal(self, strategy_name: str, reason: str = "Quality filter") -> None:
         """Track invalid signal for performance metrics"""
-        if strategy_name in self.strategy_performance:
-            self.strategy_performance[strategy_name]['invalid_signals'] += 1
+        perf_key = self.strategy_name_map.get(strategy_name, strategy_name)
+        if perf_key in self.strategy_performance:
+            self.strategy_performance[perf_key]['invalid_signals'] += 1
+    
+    def _track_signal_grade(self, signal: Signal) -> None:
+        """Track signal grade distribution for performance metrics"""
+        try:
+            strategy_name = signal.strategy_name
+            if strategy_name in self.strategy_performance:
+                # Ensure signal has a grade
+                if signal.grade:
+                    grade_key = signal.grade.value
+                    if grade_key in self.strategy_performance[strategy_name]['grade_distribution']:
+                        self.strategy_performance[strategy_name]['grade_distribution'][grade_key] += 1
+                        self.logger.debug(f"Tracked grade {grade_key} for {strategy_name}")
+                else:
+                    # Fallback if no grade - assign based on confidence
+                    if signal.confidence >= 0.8:
+                        grade_key = 'A'
+                    elif signal.confidence >= 0.6:
+                        grade_key = 'B'
+                    else:
+                        grade_key = 'C'
+                    
+                    self.strategy_performance[strategy_name]['grade_distribution'][grade_key] += 1
+                    self.logger.debug(f"Tracked fallback grade {grade_key} for {strategy_name}")
+        except Exception as e:
+            self.logger.error(f"Error tracking signal grade: {str(e)}")
     
     def _convert_timeframe(self, timeframe_minutes: int) -> str:
         """Convert timeframe from minutes to MT5 format"""
@@ -859,16 +1038,20 @@ class SignalEngine:
 def test_signal_engine():
     """Test the Signal Engine functionality with clean structured output"""
     
-    # Suppress ALL verbose logging and TensorFlow warnings
+    # Configure logging to show warnings and errors but suppress debug/info
     import os
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Show warnings and errors
     import warnings
-    warnings.filterwarnings('ignore')
+    # Don't suppress all warnings - we want to see important ones
+    warnings.filterwarnings('ignore', category=FutureWarning)
+    warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
     
     import logging
-    logging.getLogger('tensorflow').setLevel(logging.CRITICAL)
-    logging.getLogger('signal_engine').setLevel(logging.CRITICAL)
-    logging.getLogger().setLevel(logging.CRITICAL)
+    # Set logging to WARNING level to see issues
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s:%(name)s:%(message)s')
+    logging.getLogger('tensorflow').setLevel(logging.ERROR)
+    logging.getLogger('signal_engine').setLevel(logging.WARNING)
+    logging.getLogger().setLevel(logging.WARNING)
     
     # Redirect stdout temporarily to suppress prints during initialization
     import sys
@@ -876,6 +1059,18 @@ def test_signal_engine():
     
     # Initialize console reporter
     reporter = ConsoleReporter()
+
+    # Attach a logging capture handler to collect warnings/errors emitted via logging
+    class LogCaptureHandler(logging.Handler):
+        def __init__(self):
+            super().__init__(level=logging.WARNING)
+            self.records = []
+        def emit(self, record):
+            self.records.append(record)
+
+    root_logger = logging.getLogger()
+    capture_handler = LogCaptureHandler()
+    root_logger.addHandler(capture_handler)
     
     # Session header
     print("SIGNAL ENGINE SESSION - {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
@@ -941,16 +1136,19 @@ def test_signal_engine():
     # Phase 1: Initialization
     reporter.phase_header(1, "Initialization", "OK")
     try:
-        # Capture stdout to get strategy loading messages but suppress sys.path spam
+        # Capture stdout/stderr to get strategy loading messages but suppress sys.path spam
         old_stdout = sys.stdout
+        old_stderr = sys.stderr
         captured_output = StringIO()
         sys.stdout = captured_output
+        sys.stderr = captured_output
         
         engine = SignalEngine(config, mt5_manager=None, database_manager=None)
         
         # Get captured output and filter for important messages
         output = captured_output.getvalue()
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
         
         # Look for important warnings/errors in the captured output
         lines = output.split('\n')
@@ -977,6 +1175,7 @@ def test_signal_engine():
     except Exception as e:
         # Restore stdout if error
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
         reporter.add_warning("System Initialization", f"Critical error: {str(e)}")
         print(f"  - ERROR: {str(e)}")
         return
@@ -991,16 +1190,19 @@ def test_signal_engine():
     # Phase 3: Signal Generation
     reporter.phase_header(3, "Signal Generation")
     try:
-        # Capture signal generation output to filter for warnings
+        # Capture signal generation output (stdout/stderr) to filter for warnings
         old_stdout = sys.stdout
+        old_stderr = sys.stderr
         captured_output = StringIO()
         sys.stdout = captured_output
+        sys.stderr = captured_output
         
         signals = engine.generate_signals("XAUUSDm", 15)
         
         # Process captured output for warnings
         output = captured_output.getvalue()
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
         
         # Look for all warnings and errors in signal generation
         lines = output.split('\n')
@@ -1032,9 +1234,21 @@ def test_signal_engine():
     except Exception as e:
         # Restore stdout if error
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
         reporter.add_warning("Signal Generation", f"Critical error: {str(e)}")
         print(f"  - ERROR: Signal generation failed - {str(e)}")
         signals = []
+
+    # Add captured log warnings/errors to reporter before performance section
+    try:
+        for rec in capture_handler.records:
+            name = rec.name or "System"
+            if rec.levelno >= logging.ERROR:
+                reporter.add_warning(f"ERROR-{name}", rec.getMessage())
+            else:
+                reporter.add_warning(name, rec.getMessage())
+    except Exception:
+        pass
 
     # Phase 4: Strategy Performance  
     reporter.phase_header(4, "Strategy Performance")
@@ -1102,6 +1316,12 @@ def test_signal_engine():
     reporter.phase_header(5, "Issues & Warnings") 
     reporter.show_warnings()
 
+    # Detach capture handler
+    try:
+        root_logger.removeHandler(capture_handler)
+    except Exception:
+        pass
+
     # Phase 6: Final Dashboard
     reporter.phase_header(6, "Final Dashboard", "COMPLETE")
     signals_count = len(signals) if hasattr(signals, '__len__') else 0
@@ -1111,8 +1331,5 @@ def test_signal_engine():
 
 
 if __name__ == "__main__":
-    # Suppress all logging for clean test output
-    logging.basicConfig(level=logging.CRITICAL)
-    
-    # Run test
+    # Run test with proper logging configuration (handled in test_signal_engine)
     test_signal_engine()

@@ -295,6 +295,8 @@ sessions:
 # DATA MANAGEMENT
 # ==========================================
 data:
+  # Data source mode: 'mock' uses random OHLCV bars, 'live' streams from MT5
+  mode: "mock"                    # Options: mock, live
   # Historical data settings
   history:
     min_bars_required: 500          # Minimum bars for strategy
@@ -313,6 +315,8 @@ data:
     max_gap_size: 5                 # Maximum gap in bars
     remove_outliers: true           # Remove price outliers
     outlier_threshold: 5            # Standard deviations for outlier
+    # Precision validation
+    precision_tolerance: 0.000001   # Max fractional drift after rounding by symbol digits
 
 # ==========================================
 # SIGNAL GENERATION

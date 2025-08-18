@@ -384,6 +384,15 @@ class MT5Manager:
         
         logger.warning(f"No valid symbol found for {base_symbol}")
         return base_symbol
+
+    # ----- Public accessor used by signal engine validation -----
+    def get_symbol_info(self, symbol: str) -> Dict:
+        """
+        Public wrapper to retrieve symbol info as a dict for external modules.
+        """
+        if not self.connected:
+            raise ConnectionError("Not connected to MT5. Call connect() first.")
+        return self._get_symbol_info(symbol)
     
     def get_all_symbols(self, pattern: Optional[str] = None) -> List[str]:
         """
@@ -535,6 +544,15 @@ class MT5Manager:
             df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
             
             logger.info(f"Retrieved {len(df)} bars for {symbol} {timeframe}")
+            # Add lowercase aliases to standardize downstream usage
+            try:
+                df['open'] = df['Open']
+                df['high'] = df['High']
+                df['low'] = df['Low']
+                df['close'] = df['Close']
+                df['volume'] = df['Volume']
+            except Exception:
+                pass
             return df
             
         except Exception as e:
@@ -1009,6 +1027,39 @@ class MT5Manager:
         
         account_info = mt5.account_info()
         return account_info.balance if account_info else 0.0
+
+    # ----- Data validation helpers -------------------------------------------------
+    def validate_bars(self, df: pd.DataFrame, symbol: str, timeframe: str,
+                      max_gap_bars: int = 5) -> Dict[str, Union[bool, int, str]]:
+        """
+        Validate OHLCV bars for gaps and precision consistency.
+
+        Returns a dict with:
+          - ok (bool)
+          - missing_bars (int)
+          - message (str)
+        """
+        try:
+            if df is None or df.empty:
+                return {"ok": False, "missing_bars": 0, "message": "Empty dataframe"}
+
+            if not isinstance(df.index, pd.DatetimeIndex):
+                return {"ok": False, "missing_bars": 0, "message": "Index is not DatetimeIndex"}
+
+            tf_minutes = {
+                'M1': 1, 'M5': 5, 'M15': 15, 'M30': 30,
+                'H1': 60, 'H4': 240, 'D1': 1440
+            }.get(timeframe, 15)
+
+            expected_delta = pd.Timedelta(minutes=tf_minutes)
+            gaps = df.index.to_series().diff().dropna()
+            missing_bars = int(sum(max(int((g / expected_delta)) - 1, 0) for g in gaps))
+
+            ok = missing_bars <= max_gap_bars
+            msg = f"Missing bars: {missing_bars}" if missing_bars else "OK"
+            return {"ok": ok, "missing_bars": missing_bars, "message": msg}
+        except Exception as e:
+            return {"ok": False, "missing_bars": 0, "message": f"Validation error: {str(e)}"}
     
     def get_account_equity(self) -> float:
         """
