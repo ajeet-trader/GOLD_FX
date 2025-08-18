@@ -40,6 +40,15 @@ from enum import Enum
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 
 class DayType(Enum):
     """Market Profile day type classification"""
@@ -94,6 +103,32 @@ class MarketProfileStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Market Profile parameters - OPTIMIZED for 5-10 daily signals
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
         self.value_area_pct = config.get('parameters', {}).get('value_area_pct', 0.7)
@@ -118,6 +153,54 @@ class MarketProfileStrategy(AbstractStrategy):
         
         self.logger.info("Market Profile Strategy initialized")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with clear patterns
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 3338 if self.mode == 'mock' else 3345  # Current XAUUSD price level
+                prices = []
+                
+                # Create diverse synthetic data to trigger multiple signal types
+                for i in range(len(dates)):
+                    if i < 24:  # First 6 hours (IB period)
+                        price = base_price + np.random.normal(0, 4)  # Tight IB range
+                    elif i < 50:  # Early value area
+                        price = base_price + 8 + np.random.normal(0, 6)  # Value area formation
+                    elif i < 100:  # Middle session - various levels
+                        if i % 10 < 3:  # POC proximity
+                            price = base_price + 5 + np.random.normal(0, 3)  
+                        elif i % 10 < 6:  # VAH area
+                            price = base_price + 15 + np.random.normal(0, 4)  
+                        else:  # VAL area
+                            price = base_price + 2 + np.random.normal(0, 4)  
+                    elif i < 150:  # Late session - momentum building
+                        momentum_factor = (i - 100) / 50.0
+                        price = base_price + 20 + momentum_factor * 10 + np.random.normal(0, 5)
+                    else:  # End session - clear directional move
+                        trend = (i - 150) / 20.0  
+                        price = base_price + 35 + trend * 5 + np.random.normal(0, 3)
+                    prices.append(price)
+                
+                data = pd.DataFrame({
+                    'Open': np.array(prices) + np.random.normal(0, 2, len(dates)),
+                    'High': np.array(prices) + np.abs(np.random.normal(8, 4, len(dates))),
+                    'Low': np.array(prices) - np.abs(np.random.normal(8, 4, len(dates))),
+                    'Close': prices,
+                    'Volume': np.random.randint(1000, 5000, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """
         Generate Market Profile-based trading signals
@@ -1045,70 +1128,23 @@ if __name__ == "__main__":
             'ib_period': 60,
             'confidence_threshold': 0.55,  # LOWERED
             'min_price_distance': 0.08,  # REDUCED
-            'breakout_buffer': 0.0005  # REDUCED
+            'breakout_buffer': 0.0005,  # REDUCED
+            'mode': 'mock' # Added mode parameter
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            # Generate sample data with clear patterns
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                end=datetime.now(), freq='15Min')[:bars]
-            
-            np.random.seed(42)
-            base_price = 3338  # Current XAUUSD price level
-            prices = []
-            
-            # Create diverse synthetic data to trigger multiple signal types
-            for i in range(len(dates)):
-                if i < 24:  # First 6 hours (IB period)
-                    price = base_price + np.random.normal(0, 4)  # Tight IB range
-                elif i < 50:  # Early value area
-                    price = base_price + 8 + np.random.normal(0, 6)  # Value area formation
-                elif i < 100:  # Middle session - various levels
-                    if i % 10 < 3:  # POC proximity
-                        price = base_price + 5 + np.random.normal(0, 3)  
-                    elif i % 10 < 6:  # VAH area
-                        price = base_price + 15 + np.random.normal(0, 4)  
-                    else:  # VAL area
-                        price = base_price + 2 + np.random.normal(0, 4)  
-                elif i < 150:  # Late session - momentum building
-                    momentum_factor = (i - 100) / 50.0
-                    price = base_price + 20 + momentum_factor * 10 + np.random.normal(0, 5)
-                else:  # End session - clear directional move
-                    trend = (i - 150) / 20.0  
-                    price = base_price + 35 + trend * 5 + np.random.normal(0, 3)
-                prices.append(price)
-            
-            data = pd.DataFrame({
-                'Open': np.array(prices) + np.random.normal(0, 2, len(dates)),
-                'High': np.array(prices) + np.abs(np.random.normal(8, 4, len(dates))),
-                'Low': np.array(prices) - np.abs(np.random.normal(8, 4, len(dates))),
-                'Close': prices,
-                'Volume': np.random.randint(1000, 5000, len(dates))
-            }, index=dates)
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = MarketProfileStrategy(test_config, mock_mt5)
-    
-    # Enable logging (disabled for testing)
-    # import logging
-    # logging.basicConfig(level=logging.INFO)
-    # strategy.logger = logging.getLogger("MarketProfile")
+    strategy = MarketProfileStrategy(test_config, mt5_manager=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("="*60)
     print("TESTING MARKET PROFILE STRATEGY")
-    print("="*60)
+    print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
-    # Test signal generation
     print("\n1. Testing signal generation:")
     
     # Get test data for debugging
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     current_price = mock_data['Close'].iloc[-1]
     print(f"   Current price: {current_price:.2f}")
     
@@ -1127,7 +1163,7 @@ if __name__ == "__main__":
     
     # Test analysis
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis keys: {list(analysis.keys())}")
     if analysis:
@@ -1143,7 +1179,6 @@ if __name__ == "__main__":
     summary = strategy.get_performance_summary()
     print(f"   {summary}")
     
-    # Test strategy info
     print("\n4. Strategy Information:")
     strategy_info = strategy.get_strategy_info()
     print(f"   Name: {strategy_info['name']}")
@@ -1156,4 +1191,4 @@ if __name__ == "__main__":
     
     print("\n" + "="*60)
     print("MARKET PROFILE STRATEGY TEST COMPLETED!")
-    print("="*60)
+    print("============================================================")

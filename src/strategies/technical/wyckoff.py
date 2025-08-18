@@ -1,3 +1,4 @@
+
 """
 Wyckoff Strategy - Advanced Market Phase Analysis
 ================================================
@@ -41,6 +42,15 @@ from dataclasses import dataclass
 from enum import Enum
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
 
 class WyckoffPhase(Enum):
     """Wyckoff phase enumeration"""
@@ -108,6 +118,32 @@ class WyckoffStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+        
         # Wyckoff parameters - Optimized for 5-10 daily signals
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 80)  # Further reduced
         self.swing_detection_window = config.get('parameters', {}).get('swing_detection_window', 4)  # More sensitive
@@ -124,6 +160,43 @@ class WyckoffStrategy(AbstractStrategy):
         self.logger.info(f"WyckoffStrategy initialized with lookback={self.lookback_period}, "
                         f"confidence_threshold={self.confidence_threshold}")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                prices = []
+                
+                # Create synthetic data with clear Wyckoff patterns
+                for i in range(bars):
+                    if i < bars//3:  # Downtrend to accumulation
+                        base_price -= 0.5
+                        prices.append(base_price + np.random.normal(0, 1.5))
+                    elif i < 2*bars//3:  # Range-bound accumulation
+                        prices.append(base_price + np.random.normal(0, 2))
+                    else:  # Breakout (SOS)
+                        base_price += 0.7
+                        prices.append(base_price + np.random.normal(0, 1.5))
+                
+                data = pd.DataFrame({
+                    'Open': prices + np.random.normal(0, 0.5, len(dates)),
+                    'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
+                    'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
+                    'Close': prices,
+                    'Volume': np.random.randint(500, 1500, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def _detect_swings(self, data: pd.DataFrame) -> Tuple[List[int], List[int]]:
         """Detect swing highs and lows"""
         highs = []
@@ -153,8 +226,8 @@ class WyckoffStrategy(AbstractStrategy):
             # Calculate range characteristics with increased tolerance
             range_high = recent_highs.max()
             range_low = recent_lows.min()
-            range_width = range_high - range_low
-            atr = (data['High'] - data['Low']).mean()
+            # range_width = range_high - range_low # Not used
+            # atr = (data['High'] - data['Low']).mean() # Not used
             
             # Determine trend context
             trend_context = self._get_trend_context(data)
@@ -234,7 +307,7 @@ class WyckoffStrategy(AbstractStrategy):
             
             # Very permissive volume requirements
             vol_threshold_low = 0.9  # Even below average volume
-            vol_threshold_high = 1.1  # Minimal volume increase
+            # vol_threshold_high = 1.1 # Not used
             
             # Spring detection (false breakdown in accumulation)
             if phase in [WyckoffPhase.ACCUMULATION, WyckoffPhase.RE_ACCUMULATION]:
@@ -245,7 +318,7 @@ class WyckoffStrategy(AbstractStrategy):
                     return WyckoffEvent.SPRING, confidence, len(data) - 1
             
             # Upthrust detection (false breakout in distribution)
-            if phase in [WyckoffPhase.DISTRIBUTION, WyckoffPhase.RE_DISTRIBUTION]:
+            if phase in [WyckoffPhase.DISTumlATION, WyckoffPhase.RE_DISTRIBUTION]:
                 if (data['High'].iloc[-1] >= range_high - atr * 0.1 and 
                     data['Close'].iloc[-1] < range_high + atr * 0.05 and
                     volume_ratio > vol_threshold_low):
@@ -453,7 +526,7 @@ class WyckoffStrategy(AbstractStrategy):
                     signal = Signal(
                         timestamp=datetime.now(),
                         symbol=symbol,
-                        strategy_name="wyckoff",
+                        strategy_name=self.strategy_name,
                         signal_type=signal_type,
                         confidence=confidence,
                         price=current_price,
@@ -590,48 +663,18 @@ if __name__ == "__main__":
             'confidence_threshold': 0.51,
             'min_strength': 0.40,
             'cooldown_bars': 0,
-            'volume_multiplier': 0.8
+            'volume_multiplier': 0.8,
+            'mode': 'mock' # Added mode parameter
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                end=datetime.now(), freq='15Min')[:bars]
-            
-            np.random.seed(42)
-            base_price = 1950
-            prices = []
-            
-            # Create synthetic data with clear Wyckoff patterns
-            for i in range(bars):
-                if i < bars//3:  # Downtrend to accumulation
-                    base_price -= 0.5
-                    prices.append(base_price + np.random.normal(0, 1.5))
-                elif i < 2*bars//3:  # Range-bound accumulation
-                    prices.append(base_price + np.random.normal(0, 2))
-                else:  # Breakout (SOS)
-                    base_price += 0.7
-                    prices.append(base_price + np.random.normal(0, 1.5))
-            
-            data = pd.DataFrame({
-                'Open': prices + np.random.normal(0, 0.5, bars),
-                'High': np.array(prices) + np.abs(np.random.normal(2, 1, bars)),
-                'Low': np.array(prices) - np.abs(np.random.normal(2, 1, bars)),
-                'Close': prices,
-                'Volume': np.random.randint(500, 1500, bars)
-            }, index=dates)
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = WyckoffStrategy(test_config, mock_mt5)
+    strategy = WyckoffStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("="*60)
     print("TESTING WYCKOFF STRATEGY")
     print("="*60)
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
     # Test signal generation
     print("\n1. Testing signal generation:")
@@ -645,7 +688,7 @@ if __name__ == "__main__":
     
     # Test analysis
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 150)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 150)
     analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis keys: {list(analysis.keys())}")
     print(f"   Current Phase: {analysis['current_phase']}")

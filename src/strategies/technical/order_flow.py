@@ -42,6 +42,15 @@ from enum import Enum
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, TradingSession
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 
 @dataclass
 class OrderFlowMetrics:
@@ -86,6 +95,32 @@ class OrderFlowStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Strategy parameters
         self.lookback_period = self.config.get('parameters', {}).get('lookback_period', 150)
         self.imbalance_threshold = self.config.get('parameters', {}).get('imbalance_threshold', 1.3)
@@ -101,6 +136,43 @@ class OrderFlowStrategy(AbstractStrategy):
         
         self.logger.info("OrderFlowStrategy initialized successfully")
     
+    def _create_mock_mt5(self):
+        """Generate mock data with clear order flow patterns"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                prices = (1950 if self.mode == 'mock' else 1975) + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                # Create artificial order flow patterns
+                volume = np.random.randint(100, 2000, len(dates))
+                for i in range(len(volume)):
+                    if i % 20 < 5:  # Simulate absorption
+                        volume[i] *= 3
+                    elif i % 20 < 10:  # Simulate buy imbalance
+                        volume[i] *= 1.5
+                        prices[i] += 2
+                    elif i % 20 < 15:  # Simulate sell imbalance
+                        volume[i] *= 1.5
+                        prices[i] -= 2
+                
+                data = pd.DataFrame({
+                    'Open': prices + np.random.randn(len(dates)) * 0.5,
+                    'High': prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': prices,
+                    'Volume': volume
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def generate_signal(self, symbol: str, timeframe: str = "M15") -> List[Signal]:
         """
         Generate order flow-based trading signals
@@ -468,48 +540,18 @@ if __name__ == "__main__":
             'absorption_threshold': 1.5,
             'confidence_threshold': 0.65,
             'min_bar_volume': 100,
-            'cooldown_bars': 3
+            'cooldown_bars': 3,
+            'mode': 'mock' # Added mode parameter
         }
     }
     
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            """Generate mock data with clear order flow patterns"""
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                 end=datetime.now(), freq='15Min')[:bars]
-            
-            np.random.seed(42)
-            prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
-            
-            # Create artificial order flow patterns
-            volume = np.random.randint(100, 2000, len(dates))
-            for i in range(len(volume)):
-                if i % 20 < 5:  # Simulate absorption
-                    volume[i] *= 3
-                elif i % 20 < 10:  # Simulate buy imbalance
-                    volume[i] *= 1.5
-                    prices[i] += 2
-                elif i % 20 < 15:  # Simulate sell imbalance
-                    volume[i] *= 1.5
-                    prices[i] -= 2
-            
-            data = pd.DataFrame({
-                'Open': prices + np.random.randn(len(dates)) * 0.5,
-                'High': prices + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': prices - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': prices,
-                'Volume': volume
-            }, index=dates)
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = OrderFlowStrategy(test_config, mock_mt5)
+    strategy = OrderFlowStrategy(test_config, mt5_manager=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("============================================================")
     print("TESTING ORDER FLOW STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
     print("\n1. Testing signal generation:")
     signals = strategy.generate_signal("XAUUSDm", "M15")
@@ -521,7 +563,7 @@ if __name__ == "__main__":
         print(f"     Imbalance Ratio: {signal.metadata.get('imbalance_ratio', 0):.2f}")
     
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 150)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 150)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     if 'recent_imbalances' in analysis_results:

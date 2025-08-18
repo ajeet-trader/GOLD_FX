@@ -1,3 +1,4 @@
+
 """
 Elliott Wave Analysis Strategy - Advanced Wave Pattern Recognition
 ================================================================
@@ -47,6 +48,15 @@ from enum import Enum
 
 # Import base classes from src.core.base
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade, StrategyPerformance
+
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
 
 
 # Configure logging
@@ -128,6 +138,32 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         """
         super().__init__(config, mt5_manager, database) # Call parent __init__
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+        
         # Wave parameters - use self.config from AbstractStrategy
         # Access parameters from the 'parameters' key in the config dict
         self.min_wave_size = self.config.get('parameters', {}).get('min_wave_size', 10)  # Reduced minimum wave size
@@ -154,6 +190,67 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
         
         self.logger.info(f"Elliott Wave Strategy initialized with min_wave_size={self.min_wave_size}, lookback={self.lookback_periods}")
     
+    def _create_mock_mt5(self):
+        """Generate synthetic wave-like price data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+            
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     periods=bars, freq='15min')
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 2000.0 if self.mode == 'mock' else 1975.0
+                
+                prices = []
+                
+                # Simulate wave-like data based on mode
+                if self.mode == 'mock':
+                    # Example: Simple impulse-correction pattern for mock
+                    wave1 = np.linspace(0, 50, bars // 8)
+                    wave2 = np.linspace(wave1[-1], wave1[-1] - 19, bars // 8)
+                    wave3 = np.linspace(wave2[-1], wave2[-1] + 81, bars // 8)
+                    wave4 = np.linspace(wave3[-1], wave3[-1] - 31, bars // 8)
+                    wave5 = np.linspace(wave4[-1], wave4[-1] + 50, bars // 8)
+                    waveA = np.linspace(wave5[-1], wave5[-1] - 40, bars // 8)
+                    waveB = np.linspace(waveA[-1], waveA[-1] + 25, bars // 8)
+                    waveC = np.linspace(waveB[-1], waveB[-1] - 40, bars // 8)
+                    
+                    prices.extend(wave1)
+                    prices.extend(wave2)
+                    prices.extend(wave3)
+                    prices.extend(wave4)
+                    prices.extend(wave5)
+                    prices.extend(waveA)
+                    prices.extend(waveB)
+                    prices.extend(waveC)
+                    
+                    remaining = bars - len(prices)
+                    if remaining > 0:
+                        prices.extend([prices[-1] + np.random.normal(0, 2) for _ in range(remaining)])
+                    prices = prices[:bars]
+                else:
+                    # Simple random walk for live simulation
+                    prices = base_price + np.cumsum(np.random.normal(0, 1, bars))
+
+                prices = np.array(prices) + np.random.normal(0, 1, len(prices))
+                
+                data = pd.DataFrame({
+                    'Open': prices - np.random.uniform(0, 2, len(prices)),
+                    'High': prices + np.random.uniform(2, 5, len(prices)),
+                    'Low': prices - np.random.uniform(2, 5, len(prices)),
+                    'Close': prices,
+                    'Volume': np.random.uniform(1000, 5000, len(prices))
+                }, index=dates)
+                
+                data['High'] = data[['Open', 'Close', 'High']].max(axis=1)
+                data['Low'] = data[['Open', 'Close', 'Low']].min(axis=1)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     # Renamed from generate_signals to generate_signal to match AbstractStrategy
     def generate_signal(self, symbol: str = "XAUUSDm", timeframe: str = "M15") -> List[Signal]:
         """
@@ -1302,67 +1399,6 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
 if __name__ == "__main__":
     """Test Elliott Wave strategy functionality"""
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            """Generate synthetic wave-like price data"""
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
-            
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                 periods=bars, freq='15min')
-            
-            x = np.linspace(0, 4*np.pi, bars)
-            
-            prices = []
-            base_price = 2000.0
-            
-            wave1 = base_price + np.linspace(0, 50, bars//8)
-            prices.extend(wave1)
-            
-            wave2 = wave1[-1] - np.linspace(0, 19, bars//8)
-            prices.extend(wave2)
-            
-            wave3 = wave2[-1] + np.linspace(0, 81, bars//8)
-            prices.extend(wave3)
-            
-            wave4 = wave3[-1] - np.linspace(0, 31, bars//8)
-            prices.extend(wave4)
-            
-            wave5 = wave4[-1] + np.linspace(0, 50, bars//8)
-            prices.extend(wave5)
-            
-            waveA = wave5[-1] - np.linspace(0, 40, bars//8)
-            prices.extend(waveA)
-            
-            waveB = waveA[-1] + np.linspace(0, 25, bars//8)
-            prices.extend(waveB)
-            
-            waveC = waveB[-1] - np.linspace(0, 40, bars//8)
-            prices.extend(waveC)
-            
-            remaining = bars - len(prices)
-            if remaining > 0:
-                prices.extend([prices[-1] + np.random.normal(0, 2) for _ in range(remaining)])
-            
-            prices = prices[:bars]
-            
-            prices = np.array(prices) + np.random.normal(0, 1, len(prices))
-            
-            data = pd.DataFrame({
-                'Open': prices - np.random.uniform(0, 2, len(prices)),
-                'High': prices + np.random.uniform(2, 5, len(prices)),
-                'Low': prices - np.random.uniform(2, 5, len(prices)),
-                'Close': prices,
-                'Volume': np.random.uniform(1000, 5000, len(prices))
-            }, index=dates)
-            
-            data['High'] = data[['Open', 'Close', 'High']].max(axis=1)
-            data['Low'] = data[['Open', 'Close', 'Low']].min(axis=1)
-            
-            return data
-    
     # Test configuration
     test_config = {
         'parameters': {
@@ -1371,24 +1407,24 @@ if __name__ == "__main__":
             'min_confidence': 0.60,
             'use_volume': True,
             'strict_rules': False,
-            'fibonacci_tolerance': 0.10
+            'fibonacci_tolerance': 0.10,
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
     
     try:
         # Initialize strategy
-        mock_mt5 = MockMT5Manager()
-        # Pass test_config directly, AbstractStrategy will assign it to self.config
-        elliott_strategy = ElliottWaveStrategy(test_config, mock_mt5, database=None)
+        strategy = ElliottWaveStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
         
         # Output header matching other strategy files
         print("============================================================")
         print("TESTING MODIFIED ELLIOTT WAVE STRATEGY")
         print("============================================================")
+        print(f"Running in {strategy.mode.upper()} mode") # Print mode
 
         # 1. Testing signal generation
         print("\n1. Testing signal generation:")
-        signals = elliott_strategy.generate_signal("XAUUSDm", "M15")
+        signals = strategy.generate_signal("XAUUSDm", "M15")
         print(f"   Generated {len(signals)} signals")
         for i, signal in enumerate(signals, 1):
             print(f"   - Signal {i}:")
@@ -1410,8 +1446,9 @@ if __name__ == "__main__":
         
         # 2. Testing analysis method
         print("\n2. Testing analysis method:")
-        mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
-        analysis = elliott_strategy.analyze(mock_data, "XAUUSDm", "M15")
+        # Get mock data using the strategy's internal MT5 manager
+        mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
+        analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
         print(f"   Analysis results keys: {analysis.keys()}")
         if 'detailed_patterns' in analysis:
             print(f"   Detected patterns in analysis: {len(analysis['detailed_patterns'])}")
@@ -1420,12 +1457,12 @@ if __name__ == "__main__":
         
         # 3. Testing performance tracking
         print("\n3. Testing performance tracking:")
-        summary = elliott_strategy.get_performance_summary()
+        summary = strategy.get_performance_summary()
         print(f"   {summary}")
         
         # 4. Strategy Information
         print("\n4. Strategy Information:")
-        strategy_info = elliott_strategy.get_strategy_info()
+        strategy_info = strategy.get_strategy_info()
         print(f"   Name: {strategy_info['name']}")
         print(f"   Version: {strategy_info['version']}")
         print(f"   Description: {strategy_info['description']}")

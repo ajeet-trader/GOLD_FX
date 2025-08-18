@@ -41,6 +41,15 @@ from dataclasses import dataclass
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
 
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
+
 
 @dataclass
 class FibonacciLevel:
@@ -83,6 +92,32 @@ class FibonacciAdvancedStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Fibonacci parameters
         self.lookback_period = self.config.get('parameters', {}).get('lookback_period', 200)
         self.fib_levels = self.config.get('parameters', {}).get('fib_levels', 
@@ -103,6 +138,43 @@ class FibonacciAdvancedStrategy(AbstractStrategy):
         self.logger.info(f"Initialized FibonacciAdvancedStrategy with lookback={self.lookback_period}, "
                         f"cluster_tolerance={self.cluster_tolerance*100:.1f}%")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(
+                    start=datetime.now() - timedelta(days=10), 
+                    end=datetime.now(), 
+                    freq='15Min' if timeframe == 'M15' else 'h'
+                )[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                prices = []
+                for i in range(len(dates)):
+                    if i % 50 < 10:
+                        price = base_price + 20 * np.sin(i/10) + np.random.normal(0, 2)
+                    elif i % 50 < 20:
+                        price = base_price - 15 * np.sin(i/10) + np.random.normal(0, 2)
+                    else:
+                        price = base_price + 10 * np.sin(i/10) + np.random.normal(0, 2)
+                    prices.append(price)
+                
+                data = pd.DataFrame({
+                    'Open': prices + np.random.normal(0, 0.5, len(dates)),
+                    'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
+                    'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
+                    'Close': prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def _find_swing_points(self, data: pd.DataFrame, window: int = 5) -> List[Tuple[int, float, str]]:
         """
         Find swing highs and lows in price data
@@ -505,55 +577,35 @@ if __name__ == "__main__":
             'multi_timeframe': True,
             'cooldown_bars': 3,
             'timeframe_primary': 'M15',
-            'timeframe_secondary': 'H1'
+            'timeframe_secondary': 'H1',
+            'mode': 'mock' # Added mode parameter to test config
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            dates = pd.date_range(
-                start=datetime.now() - timedelta(days=10), 
-                end=datetime.now(), 
-                freq='15Min' if timeframe == 'M15' else 'h'
-            )[:bars]
-            
-            np.random.seed(42)
-            base_price = 1950
-            prices = []
-            for i in range(len(dates)):
-                if i % 50 < 10:
-                    price = base_price + 20 * np.sin(i/10) + np.random.normal(0, 2)
-                elif i % 50 < 20:
-                    price = base_price - 15 * np.sin(i/10) + np.random.normal(0, 2)
-                else:
-                    price = base_price + 10 * np.sin(i/10) + np.random.normal(0, 2)
-                prices.append(price)
-            
-            data = pd.DataFrame({
-                'Open': prices + np.random.normal(0, 0.5, len(dates)),
-                'High': np.array(prices) + np.abs(np.random.normal(2, 1, len(dates))),
-                'Low': np.array(prices) - np.abs(np.random.normal(2, 1, len(dates))),
-                'Close': prices,
-                'Volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = FibonacciAdvancedStrategy(test_config, mock_mt5)
+    strategy = FibonacciAdvancedStrategy(test_config, mt5_manager=None, database=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("============================================================")
     print("TESTING FIBONACCI ADVANCED STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
     print("\n1. Testing signal generation (Multiple runs to simulate daily signals):")
     all_signals = []
     
     # Simulate multiple runs throughout the day with different random seeds
     for run in range(8):  # Simulate 8 different time periods
-        np.random.seed(42 + run)  # Different seed for each run
+        # Use strategy's internal mock MT5 manager for consistent data
+        mock_data_run = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
+        
+        # Override random seed for price generation consistency in mock
+        original_seed = np.random.get_state()
+        np.random.seed(42 + run)
+        
+        # Note: FibonacciStrategy relies on getting fresh data in generate_signal,
+        # so this loop will always regenerate signals based on slightly varied mock data.
+        # For a truly isolated test per run, you'd feed pre-generated data into generate_signal.
+        
         strategy.last_signal_time = None  # Reset cooldown for testing
         
         signals = strategy.generate_signal("XAUUSDm", "M15")
@@ -568,6 +620,8 @@ if __name__ == "__main__":
                 print(f"       Risk/Reward: {abs(signal.take_profit - signal.price) / abs(signal.price - signal.stop_loss):.2f}")
         else:
             print(f"   Run {run+1}: No signals generated")
+        
+        np.random.set_state(original_seed) # Restore original random state
     
     print(f"\n   TOTAL DAILY SIGNALS: {len(all_signals)}")
     print(f"   Signal Distribution:")
@@ -587,7 +641,7 @@ if __name__ == "__main__":
         print(f"     Grade distribution: {grade_counts}")
     
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {list(analysis_results.keys())}")
     print(f"   Recent swings: {len(analysis_results.get('recent_swings', []))}")

@@ -1,3 +1,4 @@
+
 """
 Momentum Divergence Strategy - Advanced Divergence Detection
 ===========================================================
@@ -43,6 +44,15 @@ from dataclasses import dataclass
 from enum import Enum
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
 
 
 class DivergenceType(Enum):
@@ -95,6 +105,32 @@ class MomentumDivergenceStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Strategy parameters
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
         self.oscillator = config.get('parameters', {}).get('oscillator', 'RSI').upper()
@@ -113,6 +149,45 @@ class MomentumDivergenceStrategy(AbstractStrategy):
         # Logger (inherited from parent)
         self.logger.info(f"Initialized MomentumDivergenceStrategy with oscillator: {self.oscillator}")
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                # Generate sample data with synthetic divergences and different seeds
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_price = 1950 if self.mode == 'mock' else 1975
+                prices = []
+                for i in range(len(dates)):
+                    if i % 50 < 10:  # Create lower lows for bullish divergence
+                        base_price -= 2
+                    elif i % 50 < 20:  # Create higher lows for hidden bullish
+                        base_price += 1
+                    elif i % 50 < 30:  # Create higher highs for bearish divergence
+                        base_price += 2
+                    elif i % 50 < 40:  # Create lower highs for hidden bearish
+                        base_price -= 1
+                    else:
+                        base_price += np.random.randn() * 0.5
+                    prices.append(base_price)
+                
+                data = pd.DataFrame({
+                    'Open': np.array(prices) + np.random.randn(len(dates)) * 0.5,
+                    'High': np.array(prices) + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': np.array(prices) - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': prices,
+                    'Volume': np.random.randint(100, 1000, len(dates))
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def _calculate_rsi(self, data: pd.DataFrame, period: int) -> pd.Series:
         """Calculate RSI indicator"""
         try:
@@ -450,50 +525,18 @@ if __name__ == "__main__":
             'macd_signal': 9,
             'divergence_tolerance': 2,
             'confidence_threshold': 0.65,
-            'cooldown_bars': 3
+            'cooldown_bars': 3,
+            'mode': 'mock' # Added mode parameter
         }
     }
     
-    # Mock MT5 manager for testing
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            # Generate sample data with synthetic divergences
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                end=datetime.now(), freq='15Min')[:bars]
-            
-            np.random.seed(42)
-            base_price = 1950
-            prices = []
-            for i in range(len(dates)):
-                if i % 50 < 10:  # Create lower lows for bullish divergence
-                    base_price -= 2
-                elif i % 50 < 20:  # Create higher lows for hidden bullish
-                    base_price += 1
-                elif i % 50 < 30:  # Create higher highs for bearish divergence
-                    base_price += 2
-                elif i % 50 < 40:  # Create lower highs for hidden bearish
-                    base_price -= 1
-                else:
-                    base_price += np.random.randn() * 0.5
-                prices.append(base_price)
-            
-            data = pd.DataFrame({
-                'Open': np.array(prices) + np.random.randn(len(dates)) * 0.5,
-                'High': np.array(prices) + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': np.array(prices) - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': prices,
-                'Volume': np.random.randint(100, 1000, len(dates))
-            }, index=dates)
-            
-            return data
-    
     # Create strategy instance
-    mock_mt5 = MockMT5Manager()
-    strategy = MomentumDivergenceStrategy(test_config, mock_mt5)
+    strategy = MomentumDivergenceStrategy(test_config, mt5_manager=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("============================================================")
     print("TESTING MOMENTUM DIVERGENCE STRATEGY")
     print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
     # Test signal generation
     print("\n1. Testing signal generation:")
@@ -507,7 +550,7 @@ if __name__ == "__main__":
     
     # Test analysis
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis_results = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis results keys: {analysis_results.keys()}")
     print(f"   Detected divergences: {len(analysis_results['divergences_detected'])}")

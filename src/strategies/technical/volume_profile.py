@@ -1,3 +1,4 @@
+
 """
 Volume Profile Strategy - Volume-Based Support/Resistance
 =======================================================
@@ -40,6 +41,15 @@ from dataclasses import dataclass
 from enum import Enum
 
 from src.core.base import AbstractStrategy, Signal, SignalType, SignalGrade
+
+# Import CLI args for mode selection
+try:
+    from src.utils.cli_args import parse_mode, print_mode_banner
+except Exception:
+    def parse_mode(*_args, **_kwargs): # type: ignore
+        return 'mock'
+    def print_mode_banner(_mode): # type: ignore
+        pass
 
 
 @dataclass
@@ -86,6 +96,32 @@ class VolumeProfileStrategy(AbstractStrategy):
         """
         super().__init__(config, mt5_manager, database)
         
+        # Determine mode (CLI overrides config)
+        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
+        self.mode = parse_mode() or cfg_mode
+        print_mode_banner(self.mode)
+        
+        # Create appropriate MT5 manager based on mode
+        if self.mode == 'live' and mt5_manager is None:
+            try:
+                from src.core.mt5_manager import MT5Manager
+                live_mgr = MT5Manager()
+                if hasattr(live_mgr, 'connect') and live_mgr.connect():
+                    self.mt5_manager = live_mgr
+                    print("✅ Connected to live MT5")
+                else:
+                    print("⚠️  Failed to connect to live MT5, falling back to mock data")
+                    self.mt5_manager = self._create_mock_mt5()
+                    self.mode = 'mock'
+            except ImportError:
+                print("⚠️  MT5Manager not available, using mock data")
+                self.mt5_manager = self._create_mock_mt5()
+                self.mode = 'mock'
+        elif self.mode == 'mock' or mt5_manager is None:
+            self.mt5_manager = self._create_mock_mt5()
+        else:
+            self.mt5_manager = mt5_manager
+
         # Strategy parameters - More lenient for more signals
         self.lookback_period = config.get('parameters', {}).get('lookback_period', 200)
         self.value_area_pct = config.get('parameters', {}).get('value_area_pct', 0.7)
@@ -102,6 +138,36 @@ class VolumeProfileStrategy(AbstractStrategy):
         self.success_rate = 0.65
         self.profit_factor = 1.8
     
+    def _create_mock_mt5(self):
+        """Create mock MT5 manager with mode-specific data"""
+        class MockMT5Manager:
+            def __init__(self, mode):
+                self.mode = mode
+                
+            def get_historical_data(self, symbol, timeframe, bars):
+                dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
+                                     end=datetime.now(), freq='15Min')[:bars]
+                
+                np.random.seed(42 if self.mode == 'mock' else 123)
+                base_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
+                
+                # Create clustered volumes: high around 1950-1960, low around 1940-1950
+                volumes = np.where((base_prices > 1950) & (base_prices < 1960), 
+                                   np.random.uniform(800, 1200, len(dates)),
+                                   np.random.uniform(200, 500, len(dates)))
+                
+                data = pd.DataFrame({
+                    'Open': base_prices + np.random.randn(len(dates)) * 0.5,
+                    'High': base_prices + np.abs(np.random.randn(len(dates)) * 3),
+                    'Low': base_prices - np.abs(np.random.randn(len(dates)) * 3),
+                    'Close': base_prices,
+                    'Volume': volumes
+                }, index=dates)
+                
+                return data
+        
+        return MockMT5Manager(self.mode)
+
     def generate_signal(self, symbol: str, timeframe: str) -> List[Signal]:
         """
         Generate volume profile-based trading signals
@@ -425,39 +491,18 @@ if __name__ == "__main__":
             'value_area_pct': 0.7,
             'volume_node_threshold': 1.3,
             'confidence_threshold': 0.65,
-            'min_price_distance': 0.2
+            'min_price_distance': 0.2,
+            'mode': 'mock' # Added mode parameter
         }
     }
     
-    class MockMT5Manager:
-        def get_historical_data(self, symbol, timeframe, bars):
-            dates = pd.date_range(start=datetime.now() - timedelta(days=10), 
-                                 end=datetime.now(), freq='15Min')[:bars]
-            
-            np.random.seed(42)
-            base_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
-            
-            # Create clustered volumes: high around 1950-1960, low around 1940-1950
-            volumes = np.where((base_prices > 1950) & (base_prices < 1960), 
-                               np.random.uniform(800, 1200, len(dates)),
-                               np.random.uniform(200, 500, len(dates)))
-            
-            data = pd.DataFrame({
-                'Open': base_prices + np.random.randn(len(dates)) * 0.5,
-                'High': base_prices + np.abs(np.random.randn(len(dates)) * 3),
-                'Low': base_prices - np.abs(np.random.randn(len(dates)) * 3),
-                'Close': base_prices,
-                'Volume': volumes
-            }, index=dates)
-            
-            return data
-    
-    mock_mt5 = MockMT5Manager()
-    strategy = VolumeProfileStrategy(test_config, mock_mt5)
+    # Create strategy instance
+    strategy = VolumeProfileStrategy(test_config, mt5_manager=None) # Pass mt5_manager=None to trigger internal mock creation
     
     print("="*60)
     print("TESTING VOLUME PROFILE STRATEGY")
-    print("="*60)
+    print("============================================================")
+    print(f"Running in {strategy.mode.upper()} mode") # Print mode
     
     print("\n1. Testing signal generation:")
     signals = strategy.generate_signal("XAUUSDm", "M15")
@@ -468,7 +513,7 @@ if __name__ == "__main__":
         print(f"     Metadata: {signal.metadata}")
     
     print("\n2. Testing analysis method:")
-    mock_data = mock_mt5.get_historical_data("XAUUSDm", "M15", 200)
+    mock_data = strategy.mt5_manager.get_historical_data("XAUUSDm", "M15", 200)
     analysis = strategy.analyze(mock_data, "XAUUSDm", "M15")
     print(f"   Analysis keys: {list(analysis.keys())}")
     print(f"   POC: {analysis.get('poc', 'N/A'):.2f}")
@@ -497,4 +542,4 @@ if __name__ == "__main__":
     
     print("\n" + "="*60)
     print("VOLUME PROFILE STRATEGY TEST COMPLETED!")
-    print("="*60)
+    print("============================================================")

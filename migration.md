@@ -1,127 +1,71 @@
-🔹 Ordered Chunks (Ascending)
+Here’s a clean bullet list of what we’ve done so far ✅
 
-Here’s a clean sequence for Phase 3 readiness:
+* **Defined a migration process** for strategies to match the standardized structure used in `ichimoku.py`.
+* **Generalized the migration prompt** so the same process applies to *all strategies* (fusion, ml, smc, technical).
+* **Added checklist system**: AI should maintain a list of migrated files and verify none are missed.
+* **Updated strategy list** from your latest project tree (`src/strategies/`) to ensure accuracy.
+* **Marked `ichimoku.py` and `harmonic.py` as already migrated** and specified they should be used as reference templates.
+* **Wrote a unified migration prompt** with the correct, updated strategy list.
+* **Generated a Python orchestrator script (`run_all_strategies.py`)** that:
 
-Chunk 1: Live Data Integration
+  * Runs all strategies dynamically.
+  * Executes them in both **mock** and **live** modes.
+  * Collects results (`signals`, `analysis`, `performance`).
+  * Saves everything in a structured text file (`strategy_run_results.txt`) at project root.
 
-Goal: Allow switching between MockMT5Manager and real MT5Manager.
+---
+Got it 👍 — here’s a structured breakdown with **main bullets** (overall progress) and **sub-bullets** (what exactly we did inside the migration work):
 
-Add a data_mode flag (mock / live) in master_config.yaml.
+---
 
-Update signal_engine.py to load the right manager based on config.
+### ✅ Overall Progress
 
-Add data validation (missing bars, symbol mismatch, decimal precision).
+* Defined and documented the **migration process** for strategies.
+* Generalized the migration prompt to cover all strategies.
+* Updated the strategy list from your latest repo tree.
+* Marked `ichimoku.py` and `harmonic.py` as **already migrated reference files**.
+* Created a **checklist system** for tracking migrations.
+* Built a **runner script (`run_all_strategies.py`)** to test all strategies in both modes and save structured results.
 
-Chunk 2: Strategy Live Testing
+---
 
-Goal: Validate strategies on real bars instead of mock.
+### 🔄 Migration Work (Details)
 
-Run 1–2 strategies first (e.g., Ichimoku + Order Blocks).
+* **Imports & sys.path fixes**
 
-Compare mock outputs vs live outputs for consistency.
+  * Replaced ad-hoc `sys.path` manipulation with a clean, standardized snippet using `Path`.
+  * Centralized imports:
 
-Add logs for “data quality warnings.”
+    * `AbstractStrategy`, `Signal`, `SignalType`, `SignalGrade` from `src.core.base`.
+    * `parse_mode`, `print_mode_banner` from `src.utils.cli_args`, with safe fallback stubs.
+  * Removed leftover debug prints (like `print(sys.path)`).
 
-Chunk 3: Risk Manager Live Checks
+* **Live/Mock switching logic**
 
-Goal: Dry-run risk control before live execution.
+  * Inside `__init__`:
 
-Ensure RiskManager checks capital, drawdown, exposure before any trade.
+    * Read mode from config + CLI overrides.
+    * Printed a banner for current mode.
+    * If live: attempted to connect `MT5Manager` (with fallback to mock if it fails).
+    * If mock/unavailable: created mock MT5 using `_create_mock_mt5()`.
+  * `_create_mock_mt5()` built fake OHLCV DataFrame with slight variations for mock vs live.
 
-Add “journal-only mode”: logs trades but doesn’t send them.
+* **Standardized test harness** (at bottom of each file)
 
-Simulate different account balances (50, 100, 1000) and confirm risk caps work.
+  * Added `if __name__ == "__main__":` block.
+  * Created a simple `test_config`.
+  * Initialized strategy with mode-aware MT5 manager.
+  * Printed mode banner.
+  * Ran and displayed results for:
 
-Chunk 4: Execution Engine Dry Run
+    1. Signal generation.
+    2. Analysis (a few indicator values).
+    3. Performance summary.
 
-Goal: Process live signals into execution logs (no broker trade yet).
+* **Preserved strategy-specific logic**
 
-Extend ExecutionEngine with dry_run=True flag.
+  * Did **not** touch the math, indicators, or core trading logic.
+  * Only wrapped them in standardized imports, mode handling, and test harness.
 
-Log execution flow: order sizing, stop-loss/take-profit levels, slippage handling.
+---
 
-Add emergency stop test (max_drawdown trigger).
-
-Chunk 5: End-to-End Live Dry Run
-
-Goal: Full pipeline test with live MT5 bars but no trade placement.
-
-Strategies → Signal Engine → Risk Manager → Execution Engine (dry-run mode).
-
-Verify logs for consistency, no crashes, correct strategy counts.
-
-Build summary dashboard: active strategies, signals generated, risk metrics.
-
-Chunk 6: Controlled Live Trading
-
-Goal: First real trade — low risk.
-
-Set max_positions=1, risk_per_trade=0.01.
-
-Enable only one technical strategy (Ichimoku).
-
-Place single trade, monitor execution, journal results.
-
-Emergency stop should trigger correctly if thresholds hit.
-
-🔹 AI Prompts for Each Chunk
-
-Here are ready-to-use prompts you can feed into AI (like me, or another coding agent).
-Each prompt assumes you’re pasting code + config along with it.
-
-Prompt 1: Live Data Integration
-You are helping me extend my MT5 manager system.  
-Goal: add a "mock/live" switch so strategies can run on either random bars or real MT5 data.  
-Files to modify: master_config.yaml, signal_engine.py, mt5_manager.py.  
-Steps needed:  
-1. Add `data_mode` config option ("mock" / "live").  
-2. In signal_engine.py, decide whether to load MockMT5Manager or MT5Manager.  
-3. Add data validation: missing bars, wrong symbol, precision mismatch.  
-Please generate clean Python code updates for those files, showing me exactly what to insert.
-
-Prompt 2: Strategy Live Testing
-You are helping me test my trading strategies with real MT5 bars.  
-Goal: run IchimokuStrategy and OrderBlocksStrategy on live data and compare outputs with mock mode.  
-Steps needed:  
-1. Add command-line flag `--live` to strategies for quick testing.  
-2. Fetch last 200 bars from MT5 and run analysis.  
-3. Print both mock signals and live signals side by side for comparison.  
-Please generate modifications for ichimoku.py and order_blocks.py that enable this dual testing.
-
-Prompt 3: Risk Manager Live Checks
-You are helping me upgrade RiskManager for dry-run live mode.  
-Goal: enforce capital limits and stop trading when thresholds are breached.  
-Steps:  
-1. Add a `dry_run` flag to RiskManager.  
-2. If dry_run=True, log trades but don’t send them.  
-3. Simulate balances of $50, $100, $1000 and confirm risk_per_trade, max_drawdown, and portfolio_risk rules apply.  
-Please extend risk_manager.py to handle this and give me testing code to simulate 3 balances.
-
-Prompt 4: Execution Engine Dry Run
-You are helping me extend ExecutionEngine for live signals.  
-Goal: add dry-run mode where execution is logged but not sent to broker.  
-Steps:  
-1. Add a dry_run flag to ExecutionEngine.__init__.  
-2. If dry_run=True, print order details instead of placing trades.  
-3. Log slippage, stop-loss, and take-profit calculations.  
-Please generate modifications for execution_engine.py with examples of both normal mode and dry-run mode.
-
-Prompt 5: End-to-End Live Dry Run
-You are helping me test the full trading pipeline in dry-run live mode.  
-Goal: strategies → signal_engine → risk_manager → execution_engine should all work on live MT5 bars without sending trades.  
-Steps:  
-1. Add a test harness `test_live_pipeline.py`.  
-2. Load config with data_mode=live, dry_run=True.  
-3. Run 3 cycles of signal generation + risk check + execution logging.  
-4. Print final dashboard of strategies, signals, and risk metrics.  
-Please generate this test harness with clean code and console-friendly output.
-
-Prompt 6: Controlled Live Trading
-You are helping me transition from dry-run to controlled live trading.  
-Goal: place one real trade at very low risk.  
-Steps:  
-1. In config, set max_positions=1 and risk_per_trade=0.01.  
-2. Enable only IchimokuStrategy.  
-3. Modify execution_engine.py so that dry_run=False triggers real order placement.  
-4. Add emergency stop if equity drawdown exceeds 5%.  
-Please update execution_engine.py and show how to configure master_config.yaml for this test.
