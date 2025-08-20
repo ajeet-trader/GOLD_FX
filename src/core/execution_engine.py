@@ -164,7 +164,6 @@ class ExecutionEngine:
         # Determine mode (CLI overrides config)
         cfg_mode = self.config.get('mode') or 'mock'
         self.mode = parse_mode() or cfg_mode
-        print_mode_banner(self.mode)
 
         # Initialize MT5 Manager
         if self.mode == 'live':
@@ -606,17 +605,21 @@ class ExecutionEngine:
             )
     
     def _load_existing_positions(self) -> None:
-        """Load existing open positions from MT5"""
+        """Load existing open positions from MT5 (only system-created positions)"""
         try:
             if not self.mt5_manager:
                 return
             
             open_positions = self.mt5_manager.get_open_positions()
+            system_magic = getattr(self.mt5_manager, 'magic_number', 123456)
             
             for pos in open_positions:
                 try:
                     ticket = pos.get('ticket', 0)
-                    if ticket > 0:
+                    magic = pos.get('magic', 0)
+                    
+                    # Only load positions created by this system (matching magic number)
+                    if ticket > 0 and magic == system_magic:
                         position_info = PositionInfo(
                             ticket=ticket,
                             symbol=pos.get('symbol', ''),
@@ -642,7 +645,7 @@ class ExecutionEngine:
                 except Exception as e:
                     self.logger.error(f"Error loading position {pos}: {str(e)}")
             
-            self.logger.info(f"Loaded {len(self.active_positions)} existing positions")
+            self.logger.info(f"Loaded {len(self.active_positions)} system-managed positions (magic: {getattr(self.mt5_manager, 'magic_number', 123456)})")
         except Exception as e:
             self.logger.error(f"Failed to load existing positions: {str(e)}")
     
@@ -705,7 +708,12 @@ class ExecutionEngine:
             # Try to get positions from MT5
             try:
                 current_positions = self.mt5_manager.get_open_positions()
-                current_tickets = {pos.get('ticket', 0) for pos in current_positions}
+                system_magic = getattr(self.mt5_manager, 'magic_number', 123456)
+                
+                # Filter to only system-created positions
+                system_positions = [pos for pos in current_positions 
+                                  if pos.get('magic', 0) == system_magic]
+                current_tickets = {pos.get('ticket', 0) for pos in system_positions}
             except Exception as e:
                 if "Not connected to MT5" in str(e):
                     # In test mode, just update time in position for existing positions
@@ -715,8 +723,8 @@ class ExecutionEngine:
                 else:
                     raise e
             
-            # Update existing positions
-            for pos in current_positions:
+            # Update existing positions (only system positions)
+            for pos in system_positions:
                 ticket = pos.get('ticket', 0)
                 if ticket in self.active_positions:
                     position_info = self.active_positions[ticket]

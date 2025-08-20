@@ -37,7 +37,7 @@ def run_core_file(core_file: Path, mode: str):
             cmd,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=1200,
             cwd=BASE_PATH,   # run inside core folder
             env=env,
             encoding='utf-8',
