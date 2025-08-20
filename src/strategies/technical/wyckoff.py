@@ -318,7 +318,7 @@ class WyckoffStrategy(AbstractStrategy):
                     return WyckoffEvent.SPRING, confidence, len(data) - 1
             
             # Upthrust detection (false breakout in distribution)
-            if phase in [WyckoffPhase.DISTumlATION, WyckoffPhase.RE_DISTRIBUTION]:
+            if phase in [WyckoffPhase.DISTRIBUTION, WyckoffPhase.RE_DISTRIBUTION]:
                 if (data['High'].iloc[-1] >= range_high - atr * 0.1 and 
                     data['Close'].iloc[-1] < range_high + atr * 0.05 and
                     volume_ratio > vol_threshold_low):

@@ -733,12 +733,32 @@ class EnsembleNNStrategy(AbstractStrategy):
                         dense_input = np.asarray(scaled_dense_features, dtype=np.float32).reshape(1, -1)
                         pred = model.predict(dense_input, verbose=0)[0]
                     elif i == 1:  # LSTM model
+                        # Validate lstm_features before processing
+                        if lstm_features is None:
+                            self.logger.warning(f"Invalid LSTM features for model {i+1}, skipping")
+                            continue
+                        
                         # Ensure concrete numpy shape (1, timesteps, features)
                         lstm_input = np.asarray(lstm_features, dtype=np.float32)
-                        if lstm_input.ndim == 2:
+                        
+                        # Validate shape dimensions
+                        if lstm_input.size == 0:
+                            self.logger.warning(f"Empty LSTM input for model {i+1}, skipping")
+                            continue
+                        
+                        # The _extract_lstm_features already returns (1, 30, 1) shape
+                        # Only reshape if not already in correct 3D shape
+                        if lstm_input.ndim == 3 and lstm_input.shape == (1, 30, 1):
+                            # Already correct shape from _extract_lstm_features
+                            pass
+                        elif lstm_input.ndim == 2:
                             lstm_input = lstm_input.reshape(1, lstm_input.shape[0], lstm_input.shape[1])
                         elif lstm_input.ndim == 1:
                             lstm_input = lstm_input.reshape(1, 30, 1)
+                        else:
+                            self.logger.warning(f"Unexpected LSTM input shape {lstm_input.shape} for model {i+1}, skipping")
+                            continue
+                            
                         pred = model.predict(lstm_input, verbose=0)[0]
                     else: # Fallback for hybrid if re-enabled/misconfigured (should not happen with current models list)
                         self.logger.warning(f"Unexpected model index {i} during prediction, skipping.")
@@ -899,12 +919,32 @@ class EnsembleNNStrategy(AbstractStrategy):
                             dense_input = np.asarray(scaled_dense_features, dtype=np.float32).reshape(1, -1)
                             pred = model.predict(dense_input, verbose=0)[0]
                         elif i == 1:  # LSTM model
+                            # Validate lstm_features before processing
+                            if lstm_features is None:
+                                self.logger.warning(f"Invalid LSTM features for model {i+1}, skipping")
+                                continue
+                            
                             # Ensure numpy array with shape (1, timesteps, features)
                             lstm_input = np.asarray(lstm_features, dtype=np.float32)
-                            if lstm_input.ndim == 2:
+                            
+                            # Validate shape dimensions
+                            if lstm_input.size == 0:
+                                self.logger.warning(f"Empty LSTM input for model {i+1}, skipping")
+                                continue
+                            
+                            # The _extract_lstm_features already returns (1, 30, 1) shape
+                            # Only reshape if not already in correct 3D shape
+                            if lstm_input.ndim == 3 and lstm_input.shape == (1, 30, 1):
+                                # Already correct shape from _extract_lstm_features
+                                pass
+                            elif lstm_input.ndim == 2:
                                 lstm_input = lstm_input.reshape(1, lstm_input.shape[0], lstm_input.shape[1])
                             elif lstm_input.ndim == 1:
                                 lstm_input = lstm_input.reshape(1, 30, 1)
+                            else:
+                                self.logger.warning(f"Unexpected LSTM input shape {lstm_input.shape} for model {i+1}, skipping")
+                                continue
+                                
                             pred = model.predict(lstm_input, verbose=0)[0]
                         else:
                             continue # Skip unexpected models

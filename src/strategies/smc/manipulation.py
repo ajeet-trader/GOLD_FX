@@ -254,7 +254,7 @@ class ManipulationStrategy(AbstractStrategy):
         
         # Bullish fakeout (break above high, then close below)
         # Check if *any* previous close broke the high, AND current close is below it
-        if swing_highs and any(p_row['Close'] > max(swing_highs) for p_row in prev_rows.itertuples()) and current_row['Close'] < max(swing_highs):
+        if swing_highs and any(p_row.Close > max(swing_highs) for p_row in prev_rows.itertuples()) and current_row['Close'] < max(swing_highs):
             return ManipulationEvent(
                 type='fakeout',
                 level=max(swing_highs),
@@ -266,7 +266,7 @@ class ManipulationStrategy(AbstractStrategy):
         
         # Bearish fakeout (break below low, then close above)
         # Check if *any* previous close broke the low, AND current close is above it
-        if swing_lows and any(p_row['Close'] < min(swing_lows) for p_row in prev_rows.itertuples()) and current_row['Close'] > min(swing_lows):
+        if swing_lows and any(p_row.Close < min(swing_lows) for p_row in prev_rows.itertuples()) and current_row['Close'] > min(swing_lows):
             return ManipulationEvent(
                 type='fakeout',
                 level=min(swing_lows),

@@ -161,6 +161,13 @@ class AdaptiveEnsembleFusionStrategy(AbstractStrategy):
                     'Volume': np.random.randint(100, 1000, len(dates))
                 }, index=dates)
                 
+                # Add lowercase aliases like the real MT5 manager
+                data['open'] = data['Open']
+                data['high'] = data['High'] 
+                data['low'] = data['Low']
+                data['close'] = data['Close']
+                data['volume'] = data['Volume']
+                
                 return data
         
         return MockMT5Manager(self.mode)
@@ -648,6 +655,10 @@ class AdaptiveEnsembleFusionStrategy(AbstractStrategy):
         """Get enhanced signals from various strategies for multiple signal generation"""
         try:
             signals = []
+            # Check if required columns exist
+            if 'close' not in data.columns:
+                self.logger.warning("Missing 'close' column in data for enhanced signals")
+                return signals
             current_price = data['close'].iloc[-1]
             timestamp = datetime.now()
             

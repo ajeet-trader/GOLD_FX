@@ -1,4 +1,4 @@
-# run_all_strategies.py
+# src_core_outputs.py
 import sys
 import os
 import subprocess
@@ -6,59 +6,39 @@ from pathlib import Path
 from datetime import datetime
 import pytz
 
+# Base path where core files are located
+BASE_PATH = Path("J:/Gold_FX/src/core")
+
 def get_output_filename():
     """Generate filename with IST timestamp"""
     ist = pytz.timezone('Asia/Kolkata')
     now_ist = datetime.now(ist)
     timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
-    return Path(__file__).parent / f"strategy_results_{timestamp}.txt"
+    return Path(__file__).parent / f"core_results_{timestamp}.txt"
 
-# Strategy files to run
-STRATEGY_FILES = [
-    "src/strategies/fusion/confidence_sizing.py",
-    "src/strategies/fusion/regime_detection.py", 
-    "src/strategies/fusion/weighted_voting.py",
-    "src/strategies/fusion/adaptive_ensemble.py",
-    "src/strategies/ml/ensemble_nn.py",
-    "src/strategies/ml/lstm_predictor.py",
-    "src/strategies/ml/rl_agent.py",
-    "src/strategies/ml/xgboost_classifier.py",
-    "src/strategies/smc/liquidity_pools.py",
-    "src/strategies/smc/manipulation.py",
-    "src/strategies/smc/market_structure.py",
-    "src/strategies/smc/order_blocks.py",
-    "src/strategies/technical/elliott_wave.py",
-    "src/strategies/technical/fibonacci_advanced.py",
-    "src/strategies/technical/gann.py",
-    "src/strategies/technical/harmonic.py",
-    "src/strategies/technical/ichimoku.py",
-    "src/strategies/technical/market_profile.py",
-    "src/strategies/technical/momentum_divergence.py",
-    "src/strategies/technical/order_flow.py",
-    "src/strategies/technical/volume_profile.py",
-    "src/strategies/technical/wyckoff.py",
+# Core files to run
+CORE_FILES = [
+    BASE_PATH / "execution_engine.py",
+    BASE_PATH / "risk_manager.py",
+    BASE_PATH / "signal_engine.py",
 ]
 
-def run_strategy_file(strategy_file: str, mode: str):
+def run_core_file(core_file: Path, mode: str):
     """
-    Run a strategy file as subprocess and capture output
+    Run a core file as subprocess and capture output
     """
     try:
-        # Construct the command
-        cmd = [sys.executable, strategy_file, "--mode", mode]
-        
-        # Set environment variables for UTF-8 encoding
+        cmd = [sys.executable, str(core_file), "--mode", mode]
         env = os.environ.copy()
         env['PYTHONIOENCODING'] = 'utf-8'
         env['PYTHONLEGACYWINDOWSSTDIO'] = '1'
         
-        # Run the command and capture output
         result = subprocess.run(
-            cmd, 
-            capture_output=True, 
-            text=True, 
-            timeout=60,  # 60 second timeout
-            cwd=Path(__file__).parent,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=BASE_PATH,   # run inside core folder
             env=env,
             encoding='utf-8',
             errors='replace'
@@ -77,12 +57,11 @@ def run_strategy_file(strategy_file: str, mode: str):
                 "errors": result.stderr,
                 "return_code": result.returncode
             }
-            
     except subprocess.TimeoutExpired:
         return {
             "status": "timeout",
             "output": "",
-            "errors": "Strategy execution timed out after 60 seconds"
+            "errors": "Execution timed out after 60 seconds"
         }
     except Exception as e:
         return {
@@ -96,35 +75,34 @@ def main():
     ist = pytz.timezone('Asia/Kolkata')
     timestamp = datetime.now(ist).strftime("%Y-%m-%d %H:%M:%S IST")
     
-    print(f"Starting strategy execution at {timestamp}")
+    print(f"Starting core execution at {timestamp}")
     print(f"Output will be saved to: {output_file}")
     
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"Strategy Run Results ({timestamp})\n")
+        f.write(f"Core Run Results ({timestamp})\n")
         f.write("=" * 80 + "\n\n")
         
-        total_strategies = len(STRATEGY_FILES)
-        current_strategy = 0
+        total_files = len(CORE_FILES)
+        current_file = 0
         
-        for strategy_file in STRATEGY_FILES:
-            current_strategy += 1
-            strategy_name = Path(strategy_file).stem
+        for core_file in CORE_FILES:
+            current_file += 1
+            core_name = core_file.stem
             
-            print(f"Running strategy {current_strategy}/{total_strategies}: {strategy_name}")
+            print(f"Running core {current_file}/{total_files}: {core_name}")
             
-            f.write(f"### Strategy: {strategy_file}\n")
-            f.write(f"### Strategy Name: {strategy_name}\n\n")
+            f.write(f"### Core File: {core_file}\n")
+            f.write(f"### Core Name: {core_name}\n\n")
             
             for mode in ["mock", "live"]:
                 f.write(f"--- Mode: {mode.upper()} ---\n")
                 
-                result = run_strategy_file(strategy_file, mode)
+                result = run_core_file(core_file, mode)
                 
                 if result["status"] == "success":
                     f.write("STDOUT OUTPUT:\n")
                     f.write(result["output"])
                     f.write("\n")
-                    
                     if result["errors"]:
                         f.write("STDERR OUTPUT:\n")
                         f.write(result["errors"])
@@ -142,15 +120,14 @@ def main():
                     
                 elif result["status"] == "timeout":
                     f.write(f"EXECUTION TIMEOUT: {result['errors']}\n\n")
-                    
-                else:  # exception
+                else:
                     f.write(f"EXCEPTION: {result['errors']}\n\n")
                 
                 f.write("-" * 60 + "\n\n")
             
             f.write("=" * 80 + "\n\n")
     
-    print(f"All strategies executed. Results saved to {output_file}")
+    print(f"All core modules executed. Results saved to {output_file}")
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,7 @@
 **Phase**: Phase 2 - Strategy Development  
 **Status**: ✅ COMPLETE (95% Complete)  
 **Start Date**: 08 August 2025  
-**Last Updated**: 18 August 2025  
+**Last Updated**: 20 August 2025  
 **Developer**: Ajeet  
 
 ---
@@ -18,7 +18,7 @@
 | Technical Strategies | ✅ Complete | 10/10 | ⏳ | ✅ | ✅ |
 | SMC Strategies | ✅ Complete | 4/4 | ⏳ | ✅ | ✅ |
 | ML Strategies | ✅ Complete | 4/4 | ⏳ | ✅ | ✅ |
-| Fusion Strategies | ✅ Complete | 3/4 | ⏳ | ✅ | ✅ |
+| Fusion Strategies | ✅ Complete | 4/4 | ⏳ | ✅ | ✅ |
 | Risk Manager | ✅ Complete | 1/1 | ⏳ | ✅ | ✅ |
 | Execution Engine | ✅ Complete | 1/1 | ⏳ | ✅ | ✅ |
 | Phase 2 Integration | ✅ Complete | 1/1 | ⏳ | ✅ | ✅ |
@@ -220,113 +220,7 @@ def test_signal_engine():
 python src/core/signal_engine.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\core\signal_engine.py --test   
 
-Testing Updated Signal Engine...
-============================================================
-
-1. Testing initialization...
-INFO:signal_engine:Loading available strategies...
-sys.path: ['J:\\Gold_FX', 'J:\\Gold_FX\\src\\core', 'C:\\Python313\\python313.zip', 'C:\\Python313\\DLLs', 'C:\\Python313\\Lib', 'C:\\Python313', 'J:\\Gold_FX\\venv', 'J:\\Gold_FX\\venv\\Lib\\site-packages', 'J:\\Gold_FX']
-INFO:root:Successfully imported technical strategy: IchimokuStrategy
-INFO:root:Successfully imported technical strategy: HarmonicStrategy
-INFO:root:Successfully imported technical strategy: ElliottWaveStrategy
-INFO:root:Successfully imported technical strategy: VolumeProfileStrategy
-INFO:root:Successfully imported technical strategy: MarketProfileStrategy
-INFO:root:Successfully imported technical strategy: OrderFlowStrategy
-INFO:root:Successfully imported technical strategy: WyckoffStrategy
-INFO:root:Successfully imported technical strategy: GannStrategy
-INFO:root:Successfully imported technical strategy: FibonacciAdvancedStrategy
-INFO:root:Successfully imported technical strategy: MomentumDivergenceStrategy
-INFO:root:Successfully imported smc strategy: OrderBlocksStrategy
-INFO:root:Successfully imported smc strategy: LiquidityPoolsStrategy
-INFO:root:Successfully imported smc strategy: MarketStructureStrategy
-INFO:root:Successfully imported smc strategy: ManipulationStrategy
-WARNING:root:Could not import smc strategy ImbalanceStrategy: No module named 'src.strategies.smc.imbalance'
-TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.
-INFO:root:Successfully imported ml strategy: LSTMPredictor
-INFO:signal_engine:Loaded 15 available strategy classes
-INFO:signal_engine:  TECHNICAL: ['ichimoku', 'harmonic', 'elliott_wave', 'volume_profile', 'market_profile', 'order_flow', 'wyckoff', 'gann', 'fibonacci_advanced', 'momentum_divergence']     
-INFO:signal_engine:  SMC: ['order_blocks', 'liquidity_pools', 'market_structure', 'manipulation']
-INFO:signal_engine:  ML: ['lstm']
-INFO:signal_engine:Initializing active strategies...
-INFO:signal_engine:Initialized technical strategy: ichimoku
-INFO:signal_engine:Initialized technical strategy: harmonic
-INFO:ElliottWaveStrategy:Elliott Wave Strategy initialized with min_wave_size=30, lookback=200
-INFO:signal_engine:Initialized technical strategy: elliott_wave
-INFO:signal_engine:Initialized technical strategy: volume_profile
-INFO:MarketProfileStrategy:Market Profile Strategy initialized
-INFO:signal_engine:Initialized technical strategy: market_profile
-INFO:OrderFlowStrategy:OrderFlowStrategy initialized successfully
-INFO:signal_engine:Initialized technical strategy: order_flow
-INFO:WyckoffStrategy:WyckoffStrategy initialized with lookback=150, confidence_threshold=0.65
-INFO:signal_engine:Initialized technical strategy: wyckoff
-INFO:signal_engine:Initialized technical strategy: gann
-INFO:FibonacciAdvancedStrategy:Initialized FibonacciAdvancedStrategy with lookback=200, cluster_tolerance=0.3%
-INFO:signal_engine:Initialized technical strategy: fibonacci_advanced
-INFO:MomentumDivergenceStrategy:Initialized MomentumDivergenceStrategy with oscillator: RSI
-INFO:signal_engine:Initialized technical strategy: momentum_divergence
-INFO:signal_engine:Initialized smc strategy: order_blocks
-INFO:MarketStructureStrategy:MarketStructureStrategy initialized with lookback=200, swing_window=5, confidence_threshold=0.65
-INFO:signal_engine:Initialized smc strategy: market_structure
-INFO:signal_engine:Initialized smc strategy: liquidity_pools
-INFO:manipulation_strategy:Manipulation Strategy initialized
-INFO:signal_engine:Initialized smc strategy: manipulation
-WARNING:LSTMPredictor:ML libraries not available. Running in simulation mode.
-INFO:signal_engine:Initialized ml strategy: lstm
-INFO:signal_engine:Signal Engine initialized successfully with 15 strategies:
-INFO:signal_engine:  Technical: 10 / 10 available
-INFO:signal_engine:  Smc: 4 / 4 available
-INFO:signal_engine:  Ml: 1 / 1 available
-INFO:signal_engine:  Fusion: 0 / 0 available
-   Initialization: ✅ Success
-
-2. Available strategies:
-   TECHNICAL: ['ichimoku', 'harmonic', 'elliott_wave', 'volume_profile', 'market_profile', 'order_flow', 'wyckoff', 'gann', 'fibonacci_advanced', 'momentum_divergence']
-   SMC: ['order_blocks', 'market_structure', 'liquidity_pools', 'manipulation']
-   ML: ['lstm']
-
-3. Testing signal generation...
-WARNING:IchimokuStrategy:MT5 manager not available
-WARNING:HarmonicStrategy:MT5 manager not available for signal generation.
-WARNING:ElliottWaveStrategy:No MT5 manager available, returning empty signals
-WARNING:VolumeProfileStrategy:MT5 manager not available
-WARNING:MarketProfileStrategy:MT5 manager not available
-WARNING:OrderFlowStrategy:MT5 manager not available
-ERROR:WyckoffStrategy:Signal generation failed: 'NoneType' object has no attribute 'get_historical_data'
-WARNING:GannStrategy:MT5 manager not available
-WARNING:FibonacciAdvancedStrategy:MT5 manager not available
-WARNING:MomentumDivergenceStrategy:MT5 manager not available
-WARNING:OrderBlocksStrategy:MT5 manager not available for signal generation.
-WARNING:MarketStructureStrategy:MT5 manager not available
-WARNING:liquidity_pools_strategy:MT5 manager not available
-WARNING:manipulation_strategy:MT5 manager not available
-WARNING:LSTMPredictor:MT5 manager not available for signal generation.
-INFO:signal_engine:Generated 0 quality signals from 0 raw signals
-   Generated 0 signals
-
-4. Strategy performance:
-   ichimoku: Signals: 0, Win Rate: 0.00%
-   harmonic: Signals: 0, Win Rate: 0.00%
-   elliott_wave: Signals: 0, Win Rate: 0.00%
-   volume_profile: Signals: 0, Win Rate: 0.00%
-   market_profile: Signals: 0, Win Rate: 0.00%
-   order_flow: Signals: 0, Win Rate: 0.00%
-   wyckoff: Signals: 0, Win Rate: 0.00%
-   gann: Signals: 0, Win Rate: 0.00%
-   fibonacci_advanced: Signals: 0, Win Rate: 0.00%
-   momentum_divergence: Signals: 0, Win Rate: 0.00%
-   order_blocks: Signals: 0, Win Rate: 0.00%
-   market_structure: Signals: 0, Win Rate: 0.00%
-   liquidity_pools: Signals: 0, Win Rate: 0.00%
-   manipulation: Signals: 0, Win Rate: 0.00%
-   lstm: Signals: 0, Win Rate: 0.00%
-
-✅ Signal Engine test completed successfully!
-============================================================
-```
 
 #### Integration Points:
 - **Used by**: `execution_engine.py`, `phase_2_core_integration.py`
@@ -514,19 +408,7 @@ class RiskManager:
 python src/core/risk_manager.py --test
 ```
 
-#### Expected Output:
-```
-Position Sizing Result:
-Position Size: 0.01
-Allowed: True
-Risk Assessment: {'monetary_risk': 10.0, 'risk_percentage': 0.06666666666666667, 'reward_risk_ratio': 2.0, 'portfolio_risk_pct': 0.3, 'position_value': 1960.0000000000002, 'correlation_impact': 2, 'risk_level': 'EXTREME'}
 
-Risk Summary:
-Risk Level: MODERATE
-Account Status: {'balance': 150.0, 'equity': 145.0, 'equity_peak': 100.0, 'current_drawdown': 0, 'daily_pnl': 0, 'weekly_pnl': 0, 'monthly_pnl': 0}
-Position Metrics: {'open_positions': 2, 'max_positions': 3, 'total_exposure': 5875.0, 'unrealized_pnl': 15.0}
-Risk Manager test completed!
-```
 
 #### Integration Points:
 - **Used by**: `execution_engine.py`, `signal_engine.py`
@@ -672,25 +554,7 @@ class ExecutionEngine:
 python src/core/execution_engine.py --test
 ```
 
-#### Expected Output:
-```
-Execution Result:
-Status: EXECUTED
-Ticket: 12345678
-Executed Price: 1960.0
-Slippage: 0.0
 
-Execution Summary:
-Active Positions: 1
-Total Trades: 1
-Engine Active: True
-EMERGENCY CLOSE ALL POSITIONS INITIATED
-
-Emergency Close Result:
-Total Positions: 1
-Successful Closes: 1
-Execution Engine test completed!
-```
 
 #### Integration Points:
 - **Used by**: `phase_2_core_integration.py`
@@ -876,49 +740,7 @@ def merge_signals(signals: List[Signal], weights: Dict[str, float] = None) -> Op
 python src/core/base.py
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\core\base.py                
-============================================================
-BASE MODULE TEST
-============================================================
 
-1. Testing SignalType:
-   SignalType.BUY: BUY
-   From string 'sell': SELL
-
-2. Testing SignalGrade:
-   Grade for 0.9 confidence: A
-   Grade for 0.75 confidence: B
-   Grade for 0.65 confidence: C
-   Grade for 0.5 confidence: D
-
-3. Testing Signal:
-   Created signal: BUY at 1950.5
-   Signal grade: A
-   Risk/Reward: 1.73
-   Is valid: True
-
-4. Testing MarketCondition:
-   Market regime: TRENDING_UP
-   Trading session: TradingSession.EUROPEAN
-   Favorable for trading: True
-
-5. Testing Signal Merging:
-   Consensus: HOLD with confidence 0.50
-   Metadata: {'source_signals': 3, 'buy_score': 0.5, 'sell_score': 0.19999999999999998, 'strategies': ['Strategy1', 'Strategy2', 'Strategy3'], 'original_timestamp': datetime.datetime(2025, 8, 15, 23, 7, 15, 940359)}
-
-6. Testing Position Sizing:
-   Position size for $10,000 balance with 2% risk: 40.0 lots
-
-7. Example Strategy Implementation:
-   Generated 1 signals
-   Strategy summary: ExampleStrategy(enabled=True, signals=0)
-
-============================================================
-BASE MODULE TEST COMPLETED SUCCESSFULLY!
-============================================================
-```
 
 #### Integration Points:
 - **Used by**: Not sure
@@ -1037,29 +859,7 @@ class IchimokuStrategy(AbstractStrategy):
 python src/strategies/technical/ichimoku.py --test
 ```
 
-#### Expected Output:
-```
-sys.path: ['J:\\Gold_FX\\src\\strategies\\technical', 'C:\\Python313\\python313.zip', 'C:\\Python313\\DLLs', 'C:\\Python313\\Lib', 'C:\\Python313', 'J:\\Gold_FX\\venv', 'J:\\Gold_FX\\venv\\Lib\\site-packages', 'J:\\Gold_FX']
-============================================================
-TESTING MODIFIED ICHIMOKU STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 1 signals
-   - BUY at 1933.69, Confidence: 0.70
-
-2. Testing analysis method:
-   Analysis keys: ['strategy', 'symbol', 'timeframe', 'analysis_time', 'data_points', 'current_values', 'market_position', 'signals', 'support_resistance', 'trend_strength', 'recommendation']
-   Current Tenkan: 1936.25
-   Current Kijun: 1938.34
-
-3. Testing performance tracking:
-   {'strategy_name': 'IchimokuStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-============================================================
-ICHIMOKU STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -1172,40 +972,7 @@ class HarmonicStrategy(AbstractStrategy):
 python src/strategies/technical/harmonic.py --test
 ```
 
-#### Expected Output:
-```
-============================================================
-TESTING MODIFIED HARMONIC STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'analysis_time', 'data_points', 'pivots_detected', 'harmonic_patterns_detected_count', 'patterns'])
-   Detected patterns in analysis: 0
-
-3. Testing performance tracking:
-   {'strategy_name': 'HarmonicStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Harmonic Patterns Strategy
-   Version: 2.0.0
-   Description: Advanced harmonic pattern recognition with Fibonacci validation
-   Type: Technical
-   Patterns Supported: GARTLEY, BUTTERFLY, BAT, CRAB, CYPHER, ABCD, THREE_DRIVES
-   Minimum Confidence: 0.72
-   Fibonacci Tolerance: 0.05
-   Minimum Pattern Score: 0.70
-   Detected Patterns Count (Last Run): 0
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-HARMONIC STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -1318,64 +1085,7 @@ class ElliottWaveStrategy(AbstractStrategy):
 python src/strategies/technical/elliott_wave.py --test
 ```
 
-#### Expected Output:
-```
-INFO:ElliottWaveStrategy:Elliott Wave Strategy initialized with min_wave_size=10, lookback=200
-============================================================
-TESTING MODIFIED ELLIOTT WAVE STRATEGY
-============================================================
 
-1. Testing signal generation:
-INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.70
-INFO:ElliottWaveStrategy:Found triangle corrective pattern with confidence 0.70
-INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.67
-INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.69
-   Generated 1 signals
-   - Signal 1:
-     Type: SELL
-     Confidence: 70.24%
-     Grade: B
-     Price: 2077.45
-     Stop Loss: 2107.35
-     Take Profit: 2042.40
-     Pattern: corrective
-     Degree: MINOR
-     Current Wave: Wave C complete - Awaiting new impulse
-
-2. Testing analysis method:
-INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.70
-INFO:ElliottWaveStrategy:Found triangle corrective pattern with confidence 0.70
-INFO:ElliottWaveStrategy:Found corrective corrective pattern with confidence 0.72
-INFO:ElliottWaveStrategy:Found flat corrective pattern with confidence 0.77
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'analysis_time', 'swings_detected', 'total_patterns_found', 'valid_patterns_count', 'detailed_patterns'])
-   Detected patterns in analysis: 4
-   First pattern type: corrective
-
-3. Testing performance tracking:
-   {'strategy_name': 'ElliottWaveStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Elliott Wave Analysis Strategy
-   Version: 2.0.0
-   Description: Advanced Elliott Wave pattern recognition with Fibonacci validation
-   Type: Technical
-   Wave Types Supported: impulse, corrective, diagonal, triangle, flat, zigzag, complex
-   Wave Degrees: GRAND_SUPERCYCLE, SUPERCYCLE, CYCLE, PRIMARY, INTERMEDIATE, MINOR, MINUTE, MINUETTE, SUBMINUETTE
-   Parameters:
-     - min_wave_size: 10
-     - lookback_periods: 200
-     - min_confidence: 0.6
-     - fibonacci_tolerance: 0.1
-   Performance Summary:
-     Total Signals Generated: 0
-     Successful Signals: 0
-     Win Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-ELLIOTT WAVE STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -1460,57 +1170,7 @@ class VolumeProfileStrategy(AbstractStrategy):
 python src/strategies/technical/volume_profile.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\volume_profile.py
-============================================================
-TESTING VOLUME PROFILE STRATEGY
-============================================================
 
-1. Testing signal generation:
-J:\Gold_FX\src\strategies\technical\volume_profile.py:269: FutureWarning: The default of observed=False is deprecated and will be changed to True in a future version of pandas. Pass observed=False to retain current behavior or observed=True to adopt the future default and silence this warning.
-  volume_dist = data.groupby('bin')['Volume'].sum().to_dict()
-   Generated 3 signals
-   - SELL at 1933.69, Confidence: 0.778, Grade: B
-     Metadata: {'level_type': 'HVN_reversal', 'level': 1928.196513648254, 'original_timestamp': datetime.datetime(2025, 8, 15, 23, 19, 41, 925359)}
-   - SELL at 1933.69, Confidence: 0.780, Grade: B
-     Metadata: {'level_type': 'HVN_reversal', 'level': 1928.696513648254, 'original_timestamp': datetime.datetime(2025, 8, 15, 23, 19, 41, 925628)}
-   - SELL at 1933.69, Confidence: 0.873, Grade: A
-     Metadata: {'level_type': 'POC_reversal', 'level': 1929.196513648254, 'original_timestamp': datetime.datetime(2025, 8, 15, 23, 19, 41, 925644)}
-
-2. Testing analysis method:
-J:\Gold_FX\src\strategies\technical\volume_profile.py:269: FutureWarning: The default of observed=False is deprecated and will be changed to True in a future version of pandas. Pass observed=False to retain current behavior or observed=True to adopt the future default and silence this warning.
-  volume_dist = data.groupby('bin')['Volume'].sum().to_dict()
-   Analysis keys: ['poc', 'vah', 'val', 'high_volume_nodes', 'low_volume_nodes', 'current_price', 'position_vs_value_area', 'volume_distribution']
-   POC: 1929.20
-   VAH: 1958.70
-   VAL: 1924.70
-   HVNs: [1924.696513648254, 1926.196513648254, 1927.196513648254, 1927.696513648254, 1928.196513648254, 1928.696513648254, 1929.196513648254, 1929.696513648254, 1930.196513648254, 1930.696513648254, 1931.196513648254, 1931.696513648254, 1932.196513648254, 1933.196513648254, 1933.696513648254, 1934.196513648254, 1934.696513648254, 1936.196513648254, 1938.196513648254, 1941.696513648254, 1950.696513648254, 1953.696513648254, 1957.196513648254, 1957.696513648254, 1958.696513648254]
-   LVNs: [1919.196513648254, 1919.696513648254, 1920.196513648254, 1920.696513648254, 1921.196513648254, 1921.696513648254, 1922.196513648254, 1922.696513648254, 1923.696513648254, 1935.196513648254, 1937.696513648254, 1938.696513648254, 1939.196513648254, 1942.196513648254, 1942.696513648254, 1943.196513648254, 1943.696513648254, 1944.196513648254, 1944.696513648254, 1945.196513648254, 1946.196513648254, 1946.696513648254, 1947.196513648254, 1947.696513648254, 1948.196513648254, 1948.696513648254, 1949.196513648254, 1949.696513648254, 1951.196513648254, 1952.196513648254, 1952.696513648254, 1953.196513648254, 1955.196513648254, 1955.696513648254, 1956.196513648254, 1958.196513648254, 1959.196513648254, 1959.696513648254, 1960.196513648254, 1960.696513648254]
-   Position vs VA: within
-
-3. Testing performance tracking:
-   {'strategy_name': 'VolumeProfileStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Volume Profile
-   Version: 1.0.0
-   Description: Identifies high/low volume nodes, POC, and value areas for support/resistance and breakout signals.
-   Type: Technical
-   Parameters:
-     lookback_period: 200
-     value_area_pct: 0.7
-     volume_node_threshold: 1.3
-     confidence_threshold: 0.65
-     min_price_distance: 0.2
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-VOLUME PROFILE STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -1622,45 +1282,7 @@ class MarketProfileStrategy(AbstractStrategy):
 python src/strategies/technical/market_profile.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\market_profile.py
-============================================================
-TESTING MARKET PROFILE STRATEGY
-============================================================
 
-1. Testing signal generation:
-J:\Gold_FX\src\strategies\technical\market_profile.py:186: FutureWarning: pandas.value_counts is deprecated and will be removed in a future version. Use pd.Series(obj).value_counts() instead.
-  tpo_counts = pd.value_counts(prices).to_dict()
-   Generated 0 signals
-
-2. Testing analysis method:
-J:\Gold_FX\src\strategies\technical\market_profile.py:186: FutureWarning: pandas.value_counts is deprecated and will be removed in a future version. Use pd.Series(obj).value_counts() instead.
-  tpo_counts = pd.value_counts(prices).to_dict()
-   Analysis keys: ['poc', 'vah', 'val', 'ib_high', 'ib_low', 'day_type', 'current_price', 'position_vs_value_area', 'tpo_distribution']
-   POC: 1955.99
-   VAH: 1961.73
-   VAL: 1950.70
-   IB High: 1963.42
-   IB Low: 1953.62
-   Day Type: TREND
-
-3. Testing performance tracking:
-   {'strategy_name': 'MarketProfileStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Market Profile Strategy
-   Type: Technical
-   Description: Trades breakouts, rotations, and reversals based on Market Profile analysis
-   Parameters: {'lookback_period': 200, 'value_area_pct': 0.7, 'ib_period': 60, 'confidence_threshold': 0.65, 'min_price_distance': 0.15, 'breakout_buffer': 0.001}
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-MARKET PROFILE STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -1765,44 +1387,7 @@ class OrderFlowStrategy(AbstractStrategy):
 python src/strategies/technical/order_flow.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\order_flow.py    
-============================================================
-TESTING ORDER FLOW STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['last_cdv', 'max_cdv', 'min_cdv', 'recent_imbalances', 'absorption_zones', 'trend_direction'])
-   Detected imbalances: 0
-   Absorption zones: 1
-
-3. Testing performance tracking:
-   {'strategy_name': 'OrderFlowStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Order Flow Strategy
-   Version: 1.0.0
-   Description: Analyzes market order flow using Cumulative Delta Volume, bid/ask imbalances, and absorption events for XAUUSD trading
-   Type: Technical
-   Parameters:
-     lookback_period: 150
-     imbalance_threshold: 1.3
-     absorption_threshold: 1.5
-     confidence_threshold: 0.65
-     min_bar_volume: 100
-     cooldown_bars: 3
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-ORDER FLOW STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -1913,41 +1498,7 @@ class WyckoffStrategy(AbstractStrategy):
 python src/strategies/technical/wyckoff.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\wyckoff.py   
-============================================================
-TESTING WYCKOFF STRATEGY
-============================================================
 
-1. Testing signal generation:
-Signal generation failed: unsupported operand type(s) for -: 'Timestamp' and 'NoneType'
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis keys: ['current_phase', 'detected_events', 'range_high', 'range_low', 'trend_context', 'analysis_time']
-   Current Phase: UNKNOWN
-   Detected Events: 0
-
-3. Testing performance tracking:
-   {'strategy_name': 'WyckoffStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Wyckoff Strategy
-   Type: Technical
-   Description: Implements Wyckoff Method for phase and event detection
-   Events Supported: SPRING, UPTHRUST, SIGN_OF_STRENGTH, SIGN_OF_WEAKNESS
-   Phases Supported: ACCUMULATION, DISTRIBUTION, RE_ACCUMULATION, RE_DISTRIBUTION
-   Lookback Period: 150
-   Confidence Threshold: 0.65
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-WYCKOFF STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2036,48 +1587,9 @@ class GannStrategy(AbstractStrategy):
 python src/strategies/technical/gann.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\gann.py   
-============================================================
-TESTING GANN STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 1 signals
-   - SELL at 1960.15, Confidence: 0.850, Grade: B
-     Metadata: {'level_type': 'square_of_nine', 'price_level': np.float64(1960.15), 'original_timestamp': datetime.datetime(2025, 8, 15, 23, 23, 36, 363312)}
 
-2. Testing analysis method:
-   Analysis results keys: ['recent_swing_high', 'recent_swing_low', 'active_gann_angles', 'gann_price_levels', 'nearest_angle_touch', 'nearest_price_level']
-   Swing High: 1953.30
-   Swing Low: 1948.38
-   Active Angles: 6
-   Price Levels: 5
 
-3. Testing performance tracking:
-   {'strategy_name': 'GannStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None} 
-
-4. Strategy Information:
-   Name: Gann Strategy
-   Type: Technical
-   Description: Uses simplified Gann techniques (1x1, 1x2, 2x1 angles and Square of Nine) to identify turning points in price and time.
-   Parameters:
-     lookback_period: 150
-     gann_angles: [1, 2, 4]
-     price_step: 1.0
-     time_step: 1
-     confidence_threshold: 0.65
-     level_tolerance: 0.003
-     cooldown_bars: 3
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-GANN STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2169,48 +1681,7 @@ class FibonacciAdvancedStrategy(AbstractStrategy):
 python src/strategies/technical/fibonacci_advanced.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\fibonacci_advanced.py
-============================================================
-TESTING FIBONACCI ADVANCED STRATEGY
-============================================================
 
-1. Testing signal generation:
-J:\Gold_FX\src\strategies\technical\fibonacci_advanced.py:454: FutureWarning: 'H' is deprecated and will be removed in a future version, please use 'h' instead.
-  dates = pd.date_range(
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: ['recent_swings', 'retracement_levels', 'extension_levels', 'clusters', 'current_price', 'trend_direction']
-   Recent swings: 5
-   Retracement levels: 260
-   Extension levels: 156
-   Clusters: 414
-   Trend direction: sideways
-
-3. Testing performance tracking:
-   {'strategy_name': 'FibonacciAdvancedStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: FibonacciAdvanced
-   Type: Technical
-   Description: Advanced Fibonacci strategy using retracements, extensions, and clusters
-   Parameters:
-     lookback_period: 200
-     fib_levels: [0.236, 0.382, 0.5, 0.618, 0.786, 1.272, 1.618, 2.0]
-     cluster_tolerance: 0.003
-     confidence_threshold: 0.65
-     multi_timeframe: True
-     cooldown_bars: 3
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-FIBONACCI ADVANCED STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2308,44 +1779,7 @@ class MomentumDivergenceStrategy(AbstractStrategy):
 python src/strategies/technical/momentum_divergence.py --test
 ```
 
-#### Expected Output:
-```
-(venv) PS J:\Gold_FX> python .\src\strategies\technical\momentum_divergence.py
-============================================================
-TESTING MOMENTUM DIVERGENCE STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['oscillator', 'divergences_detected', 'recent_rsi_values', 'recent_macd_hist', 'trend_context'])
-   Detected divergences: 0
-
-3. Testing performance tracking:
-   {'strategy_name': 'MomentumDivergenceStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: MomentumDivergenceStrategy
-   Type: Technical
-   Description: Detects regular and hidden divergences using RSI or MACD for trend reversal and continuation setups
-   Parameters:
-     lookback_period: 200
-     oscillator: RSI
-     rsi_period: 14
-     macd_fast: 12
-     macd_slow: 26
-     macd_signal: 9
-     divergence_tolerance: 2
-     confidence_threshold: 0.65
-     cooldown_bars: 3
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-MOMENTUM DIVERGENCE STRATEGY TEST COMPLETED!
-============================================================```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2499,46 +1933,7 @@ class OrderBlocksStrategy(AbstractStrategy):
 python src/strategies/smc/order_blocks.py --test
 ```
 
-#### Expected Output:
-```
-============================================================
-TESTING MODIFIED ORDER BLOCKS STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 1 signals
-   - Signal: BUY at 1995.76, Confidence: 1.00, Grade: A
-     Type: bullish
-     Market Structure: N/A
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'analysis_time', 'data_points', 'current_market_structure', 'active_order_blocks_count', 'active_fair_value_gaps_count', 'recent_order_blocks', 'recent_fair_value_gaps'])
-   Current Market Structure: RANGING
-   Active Order Blocks: 0
-   Active FVGs: 21
-
-3. Testing performance tracking:
-   {'strategy_name': 'OrderBlocksStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Order Blocks Strategy
-   Version: 2.0.0
-   Type: Smart Money Concepts
-   Timeframes: H4, H1, M15, M5
-   Min Confidence: 0.70
-   Performance:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-   Parameters:
-     - swing_length: 10
-     - min_ob_strength: 2.0
-     - fvg_min_size: 0.5
-     - liquidity_sweep_tolerance: 1.2
-
-============================================================
-ORDER BLOCKS STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2635,53 +2030,7 @@ class LiquidityPoolsStrategy(AbstractStrategy):
 python src/strategies/smc/liquidity_pools.py --test
 ```
 
-#### Expected Output:
-```
-============================================================
-TESTING LIQUIDITY POOLS STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 141 signals
-   - SELL at 1951.26, Confidence: 0.850, Grade: A
-     Pool Type: EQUAL_HIGHS
-     Setup: sweep_reversal
-    .
-    .
-    .
-    .
-   - BUY at 1951.26, Confidence: 0.850, Grade: A
-     Pool Type: EQUAL_LOWS
-     Setup: sweep_reversal
-
-2. Testing analysis method:
-   Analysis results keys: ['pools', 'recent_sweeps', 'current_price']
-   Detected pools: 636
-     - SWING_HIGH: 1963.77 (Strength: 0.01)
-     - SWING_LOW: 1935.47 (Strength: 0.01)
-     - SWING_HIGH: 1963.54 (Strength: 0.01)
-
-3. Testing performance tracking:
-   {'strategy_name': 'LiquidityPoolsStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: LiquidityPoolsStrategy
-   Version: 1.0.0
-   Description: Liquidity Pools Strategy identifying swing highs/lows, equal highs/lows, and session levels for sweep-reversal and break-continuation trades
-   Type: SMC
-   Parameters:
-     lookback_bars: 300
-     equal_highs_tolerance: 0.12
-     approach_buffer: 0.2
-     confidence_threshold: 0.65
-     cooldown_bars: 3
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-LIQUIDITY POOLS STRATEGY TEST COMPLETED!
-============================================================```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2775,39 +2124,7 @@ class ManipulationStrategy(AbstractStrategy):
 python src/strategies/smc/manipulation.py --test
 ```
 
-#### Expected Output:
-```
-============================================================
-TESTING MANIPULATION STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['manipulation_events', 'recent_levels', 'current_price'])
-   Detected manipulation events: 0
-
-3. Testing performance tracking:
-   {'strategy_name': 'ManipulationStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Manipulation Strategy
-   Type: SMC
-   Description: Detects stop hunts, fakeouts, and displacement with reversion patterns
-   Parameters:
-     lookback_bars: 250
-     wick_ratio_threshold: 1.5
-     fakeout_confirm_bars: 2
-     confidence_threshold: 0.65
-     cooldown_bars: 3
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-MANIPULATION STRATEGY TEST COMPLETED!
-============================================================```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -2910,41 +2227,7 @@ class MarketStructureStrategy(AbstractStrategy):
 python src/strategies/smc/market_structure.py --test
 ```
 
-#### Expected Output:
-```
-============================================================
-TESTING MARKET STRUCTURE STRATEGY
-============================================================
 
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis keys: ['trend', 'last_bos', 'last_choch', 'recent_swings']
-   Current Trend: RANGE
-
-3. Testing performance tracking:
-   {'strategy_name': 'MarketStructureStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: MarketStructureStrategy
-   Type: SMC
-   Description: Detects market structure via HH/HL/LH/LL patterns, generating signals on BOS and CHoCH events with retest/pullback confirmation.
-   Parameters:
-     lookback_bars: 200
-     swing_window: 5
-     retest_window: 3
-     confidence_threshold: 0.65
-     cooldown_bars: 3
-     swing_tolerance: 0.002
-   Performance Summary:
-     Success Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-MARKET STRUCTURE STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -3027,40 +2310,6 @@ class LSTMPredictorStrategy(AbstractStrategy):
 python src/strategies/ml/lstm_predictor.py --test
 ```
 
-#### Actual Output:
-```bash
-TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.
-============================================================
-TESTING MODIFIED LSTM PREDICTOR STRATEGY
-============================================================
-
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'analysis_time', 'ml_available', 'models_trained', 'model_performance_metrics', 'training_data_size', 'feature_count', 'prediction_horizon', 'sequence_length', 'retrain_frequency', 'min_training_samples', 'last_training_date', 'status'])
-   ML Available: False
-   Models Trained: False
-   Model Performance (Direction Accuracy): 0.00
-
-4. Strategy Information:
-   Name: LSTM Predictor
-   Version: 2.0.0
-   Type: Machine Learning
-   ML Available: False
-   Models Trained: False
-   Min Confidence: 0.75
-   Prediction Horizon: 12
-   Sequence Length: 60
-   Feature Count: 0
-   Training Data Size: 10
-   Parameters: {'lstm_units': [128, 64, 32], 'dropout_rate': 0.3, 'learning_rate': 0.001, 'retrain_frequency': 'weekly'}
-
-============================================================
-LSTM PREDICTOR STRATEGY TEST COMPLETED!
-============================================================
-```
-
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
 - **Uses**: `mt5_manager.py`, `database.py`
@@ -3141,50 +2390,6 @@ class XGBoostClassifierStrategy(AbstractStrategy):
 python src/strategies/ml/xgboost_classifier.py --test
 ```
 
-#### Actual Output:
-```bash
-XGBoost/Scikit-learn not available. Strategy will run in simulation mode.
-============================================================
-TESTING MODIFIED XGBOOST CLASSIFIER STRATEGY
-============================================================
-
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'xgboost_available', 'model_trained', 'model_accuracy', 'predictions_attempted', 'memory_optimized', 'lookback_bars', 'max_training_samples', 'latest_training_time'])
-   XGBoost Available: False
-   Model Trained: False
-   Model Accuracy: 0.000
-
-3. Testing performance tracking:
-   {'strategy_name': 'XGBoostClassifierStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: XGBoost Classifier Strategy
-   Version: 1.0.0
-   Type: Machine Learning
-   Description: Advanced XGBoost-based trading strategy for XAUUSD signal generation.
-   Parameters:
-     - lookback_bars: 120
-     - min_confidence: 0.6
-     - xgb_params: {'objective': 'multi:softprob', 'num_class': 3, 'max_depth': 3, 'learning_rate': 0.2, 'n_estimators': 10, 'random_state': 42, 'max_leaves': 15, 'tree_method': 'exact'}
-     - memory_cleanup_interval: 10
-     - max_training_samples: 500
-   ML Specific Metrics:
-     - xgboost_available: False
-     - model_trained: False
-     - model_accuracy: 0.000
-     - predictions_attempted: 1
-   Overall Trading Performance:
-     Total Signals Generated: 0
-     Win Rate: 0.00%
-     Profit Factor: 0.00
-
-============================================================
-XGBOOST CLASSIFIER STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -3269,41 +2474,6 @@ class RLAgentStrategy(AbstractStrategy):
 python src/strategies/ml/rl_agent.py --test
 ```
 
-#### Actual Output:
-```bash
-TensorFlow not available. Strategy will run in simulation mode.
-============================================================
-TESTING MODIFIED RL AGENT STRATEGY
-============================================================
-
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'tensorflow_available', 'model_built', 'exploration_rate', 'memory_size', 'training_steps', 'target_update_frequency', 'total_experience', 'model_performance_estimate'])
-   TensorFlow Available: False
-   Model Built: False
-   Exploration Rate (Epsilon): 1.000
-
-3. Testing performance tracking:
-   {'strategy_name': 'RLAgentStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Reinforcement Learning Agent
-   Version: 1.0.0
-   Type: Machine Learning
-   Description: Deep Q-Network (DQN) reinforcement learning strategy for trading.
-   Parameters: {'state_size': 8, 'action_size': 3, 'learning_rate': 0.001, 'gamma': 0.95, 'epsilon': 1.0, 'epsilon_min': 0.01, 'epsilon_decay': 0.995, 'batch_size': 32, 'memory_size': 1000, 'target_update_frequency': 50}
-   RL Specific Metrics:
-     - tensorflow_available: False
-     - model_built: False
-     - exploration_rate: 1.000
-     - total_experience: 0
-
-============================================================
-RL AGENT STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -3386,42 +2556,6 @@ class EnsembleNNStrategy(AbstractStrategy):
 python src/strategies/ml/ensemble_nn.py --test
 ```
 
-#### Actual Output:
-```bash
-TensorFlow not available. Strategy will run in simulation mode.
-============================================================
-TESTING MODIFIED ENSEMBLE NN STRATEGY
-============================================================
-
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'tensorflow_available', 'models_built', 'dense_model_trained', 'lstm_model_trained', 'ensemble_accuracy', 'feature_count_dense', 'feature_count_lstm', 'memory_optimized'])
-   TensorFlow Available: False
-   Models Built: False
-   Ensemble Accuracy: 0.000
-
-3. Testing performance tracking:
-   {'strategy_name': 'EnsembleNNStrategy', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Ensemble Neural Network Strategy
-   Version: 1.0.0
-   Type: Machine Learning
-   Description: Multi-model ensemble neural network for robust signal generation.
-   Parameters: {'dense_layers': [64, 32, 16], 'lstm_units': 50, 'dropout_rate': 0.3, 'learning_rate': 0.001, 'epochs': 50, 'batch_size': 32, 'sequence_length': 30, 'min_confidence': 0.7}
-   ML Specific Metrics:
-     - tensorflow_available: False
-     - models_built: False
-     - ensemble_accuracy: 0.000
-     - feature_count_dense: 15
-     - feature_count_lstm: 30
-
-============================================================
-ENSEMBLE NN STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -3497,50 +2631,6 @@ class ConfidenceSizing(AbstractStrategy):
 python src/strategies/fusion/confidence_sizing.py --test
 ```
 
-#### Actual Output:
-```bash
-============================================================
-TESTING OPTIMIZED CONFIDENCE SIZING STRATEGY
-============================================================
-
-1. Testing signal generation:
-Confidence Sizing - Analyzing XAUUSDm on M15
-   Generated 3 signals (avg confidence: 0.62)
-      - BUY at 1930.19 (conf: 0.69)
-        Position Size: 0.0205
-      - BUY at 1930.19 (conf: 0.62)
-        Position Size: 0.0246
-      - BUY at 1930.19 (conf: 0.55)
-        Position Size: 0.0287
-   Generated 3 signals
-   - Signal: BUY at 1930.19, Confidence: 0.692, Grade: C
-     Reason: N/A
-     Position Size: 0.020471770178128856
-   - Signal: BUY at 1930.19, Confidence: 0.623, Grade: C
-     Reason: confidence_sizing_fusion_2
-     Position Size: 0.024566124213754627
-   - Signal: BUY at 1930.19, Confidence: 0.553, Grade: C
-     Reason: confidence_sizing_fusion_3
-     Position Size: 0.028660478249380394
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'timestamp', 'position_statistics', 'sizing_parameters', 'memory_optimized', 'max_history', 'recent_performance'])
-   Memory Optimized: True
-
-3. Testing performance tracking:
-   {'strategy_name': 'ConfidenceSizing', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-============================================================
-CONFIDENCE SIZING STRATEGY TEST COMPLETED!
-============================================================
-```
-
-###### Integration Points:
-- **Used by**: `signal_engine.py`, `risk_manager.py`
-- **Uses**: `database.py`
-- **Config Required**: `strategies.fusion.parameters` in master_config.yaml
-
----
 
 ## 2.5.2 Regime Detection
 
@@ -3614,35 +2704,6 @@ class RegimeDetection(AbstractStrategy):
 python src/strategies/fusion/regime_detection.py --test
 ```
 
-#### Actual Output:
-```bash
-============================================================
-TESTING MODIFIED REGIME DETECTION STRATEGY
-============================================================
-
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'timestamp', 'current_regime_detected', 'current_regime_confidence', 'regime_statistics_history', 'detection_parameters', 'total_component_signals_processed', 'memory_optimized', 'max_regime_history', 'max_history_component_signals'])
-   Current Regime Detected: high_volatility
-   Regime History Length: N/A
-
-3. Testing performance tracking:
-   {'strategy_name': 'RegimeDetection', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Regime Detection Fusion Strategy
-   Version: 2.0.0
-   Type: Fusion
-   Description: Detects market regimes and adapts signal fusion based on current market conditions.
-   Parameters: {'min_signals': 2, 'min_confidence': 0.55, 'lookback_period': 30, 'trend_threshold': 0.015, 'volatility_window': 15, 'volatility_threshold': 0.012, 'breakout_threshold': 1.5, 'max_regime_history': 100, 'max_history_component_signals': 400}
-   Current Regime State: {'regime_type': 'high_volatility', 'confidence': 1.0, 'history_length': 1}
-
-============================================================
-REGIME DETECTION STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -3722,40 +2783,6 @@ class WeightedVoting(AbstractStrategy):
 python src/strategies/fusion/weighted_voting.py --test
 ```
 
-#### Actual Output:
-```bash
-============================================================
-TESTING MODIFIED WEIGHTED VOTING STRATEGY
-============================================================
-
-1. Testing signal generation:
-   Generated 0 signals
-
-2. Testing analysis method:
-   Analysis results keys: dict_keys(['strategy', 'symbol', 'timeframe', 'timestamp', 'total_fused_signals_recorded', 'active_component_strategies', 'component_strategy_performance_metrics', 'current_component_weights', 'fusion_parameters', 'memory_optimized', 'max_fusion_records_history'])
-   Total Fused Signals Recorded: 0
-   Active Component Strategies: 0
-
-3. Testing performance tracking:
-   {'strategy_name': 'WeightedVoting', 'total_signals': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl': 0.0, 'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0}, 'last_signal': None}
-
-4. Strategy Information:
-   Name: Weighted Voting Fusion Strategy
-   Version: 2.0.0
-   Type: Fusion
-   Description: Combines signals from multiple strategies using weighted voting, dynamically adjusting weights.
-   Parameters: {'min_signals': 2, 'min_confidence': 0.6, 'performance_window': 50, 'initial_weight': 1.0, 'weight_decay': 0.95, 'weight_boost': 1.1, 'min_weight': 0.1, 'max_weight': 3.0, 'max_history_records': 500}
-   Overall Trading Performance:
-     Total Signals Generated: 0
-     Win Rate: 0.00%
-     Profit Factor: 0.00
-   Component Strategy Insights:
-     Active Strategies Count: 0
-
-============================================================
-WEIGHTED VOTING STRATEGY TEST COMPLETED!
-============================================================
-```
 
 ###### Integration Points:
 - **Used by**: `signal_engine.py`
@@ -3775,144 +2802,14 @@ WEIGHTED VOTING STRATEGY TEST COMPLETED!
 
 #### Class Structure:
 ```python
-"""
-Phase 2 Advanced Trading System Integration v2.0
-=================================================
-Author: XAUUSD Trading System
-Version: 2.0.0
-Date: 2025-01-15
 
-Complete Phase 2 implementation with enhanced architecture:
-- Dynamic Strategy Loading with Plugin Support
-- Advanced Signal Engine with Multi-timeframe Analysis
-- Smart Money Concepts (SMC) Integration
-- Technical Indicators Suite
-- Machine Learning Predictions
-- Risk-Adjusted Position Sizing
-- Real-time Performance Monitoring
-- Emergency Control Systems
-
-Features:
-- Modular strategy architecture
-- Graceful degradation on missing components
-- Performance-based strategy selection
-- Real-time configuration updates
-- Advanced signal fusion algorithms
-- Market regime detection
-- Correlation-based filtering
-
-Usage:
-    python phase_2_core_integration.py --mode live     # Live trading
-    python phase_2_core_integration.py --mode paper    # Paper trading
-    python phase_2_core_integration.py --mode backtest # Backtesting
-    python phase_2_core_integration.py --test          # Component testing
-"""
-
-class StrategyManager:
-    """Enhanced strategy loader and manager"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize Strategy Manager"""
-    
-    def _load_strategy_modules(self, strategy_type: str) -> Dict[str, Any]:
-        """Load strategy modules from specified directory"""
-    
-    def get_active_strategies(self) -> Dict[str, List[str]]:
-        """Get list of currently active strategies by category"""
-
-class Phase2CoreSystem:
-    """Advanced Phase 2 Trading System with all components integrated"""
-    
-    def __init__(self, config_path: str = "config/master_config.yaml", mode: str = "paper"):
-        """Initialize Phase 2 Core System"""
-    
-    def _initialize_system_components(self) -> bool:
-        """Initialize all system components in proper order"""
-    
-    def _perform_health_check(self) -> bool:
-        """Comprehensive system health check"""
-    
-    def _start_monitoring(self) -> None:
-        """Start system monitoring thread"""
-    
-    def run(self, duration_minutes: int = None) -> None:
-        """Main trading loop"""
-    
-    def shutdown(self) -> None:
-        """Graceful system shutdown"""
-    
-    def get_performance_summary(self) -> Dict[str, Any]:
-        """Get comprehensive performance summary"""
 ```
 
 #### Test Command:
 ```bash
-python src/phase_2_core_integration.py --test
+
 ```
 
-#### Actual Output:
-```bash
-Testing Phase 2 System Initialization
-==================================================
-2025-08-18 14:38:14,319 | phase2_system | INFO | Trading mode set to: test
-Initializing Phase 2 Advanced Trading System
-======================================================================
-System ID: PHASE2_20250818_143814
-Start Time: 2025-08-18 14:38:14.363382
-Mode: TEST
-Config Path: config/master_config.yaml
-
-Step 1: Loading Configuration...
-✅ Configuration loaded
-Step 2: Initializing Phase 1 Core System...
-✅ Phase 1 core system initialized
-Step 3: Connecting to MT5...
-✅ MT5 connection established
-Step 4: Initializing Strategy Manager...
-✅ Loaded 17 strategies
-Step 5: Initializing Enhanced Signal Engine...
-✅ Enhanced Signal Engine initialized
-Step 6: Initializing Risk Manager...
-✅ Risk Manager initialized
-Step 7: Initializing Execution Engine...
-✅ Execution Engine initialized
-Step 8: Performing System Health Check...
-   ✅ Core System
-   ✅ Strategy Manager (17 strategies)
-   ✅ Enhanced Signal Engine
-   ✅ Risk Manager
-   ✅ Execution Engine
-   ✅ MT5 Connection
-   ✅ Database
-✅ System health check passed
-
-================================================================================
-                    PHASE 2 TRADING SYSTEM STATUS
-================================================================================
-📊 SYSTEM COMPONENTS:
-Component                 Status          Details
-------------------------------------------------------------
-Core System               ✅ Active        Phase 1 Ready
-Strategy Manager          ✅ Active        17 strategies
-Signal Engine             ✅ Active        Enhanced V2
-Risk Manager              ✅ Active        Kelly Criterion
-Execution Engine          ✅ Active        Smart Routing
-MT5 Connection            ✅ Connected     Live Data
-Database                  ✅ Active        SQLite
-Monitoring                ✅ Active        Real-time
-
-📈 PERFORMANCE METRICS:
-Current Balance           $147.53         $1000.00
-Progress to Target        14.8%           100%
-Signals Generated         0               N/A
-
-System is ready for trading operations!
-===============================================================================
-System initialization test passed
-✅ Signal generation test passed
-✅ Performance summary test passed
-✅ System shutdown completed
-```
 
 ###### Integration Points:
 - **Used by**: Main system launcher
@@ -3923,117 +2820,39 @@ System initialization test passed
 
 ## 2.6.2 Phase 2 Test Suite
 
-### File: `tests/Phase-2/test_strategies.py`
+### File: `test1`
 **Status**: ⏳ NOT IMPLEMENTED  
 **Purpose**: Test all Phase 2 strategies
 
 #### Implementation Required:
 ```python
-"""
-Phase 2 Strategy Tests - TO BE IMPLEMENTED
-==========================================
 
-Unit tests for all Phase 2 strategies covering:
-- Individual strategy functionality
-- Signal generation validation
-- Performance tracking accuracy
-- Error handling robustness
-
-Required test coverage:
-- 10 Technical strategies (ichimoku, harmonic, elliott_wave, etc.)
-- 4 SMC strategies (order_blocks, market_structure, etc.)
-- 4 ML strategies (lstm, xgboost, rl_agent, ensemble)
-- 3 Fusion strategies (weighted_voting, confidence_sizing, regime_detection)
-"""
-
-import unittest
-from src.strategies.technical.ichimoku import IchimokuStrategy
-# Add remaining 20+ strategy imports...
-
-class TestPhase2Strategies(unittest.TestCase):
-    """Test Phase 2 strategies"""
-    
-    def test_ichimoku(self):
-        """Test Ichimoku strategy"""
-        # Implementation needed
-        
-    def test_xgboost_classifier(self):
-        """Test XGBoost ML strategy"""
-        # Implementation needed
-        
-    def test_weighted_voting(self):
-        """Test weighted voting fusion"""
-        # Implementation needed
-        
-    # Add 20+ more test methods...
 ```
 
 #### Test Command:
 ```bash
-python -m unittest tests/Phase-2/test_strategies.py
 ```
 
 #### Current Status:
 ```bash
-# Directory exists but no test files implemented
-tests/Phase-2/__init__.py (contains only comment)
+
 ```
 
-### File: `tests/Phase-2/test_integration.py`
+### File: `test2`
 **Status**: ⏳ NOT IMPLEMENTED  
 **Purpose**: Integration tests for Phase 2
 
 #### Implementation Required:
 ```python
-"""
-Phase 2 Integration Tests - TO BE IMPLEMENTED
-==============================================
 
-Integration tests covering:
-- Full system initialization flow
-- Strategy loading and coordination
-- Signal generation pipeline
-- Risk management integration
-- MT5 connection and data flow
-- Database operations
-- Performance monitoring
-
-Test scenarios needed:
-- Complete system startup/shutdown
-- Multi-strategy signal coordination
-- Error recovery mechanisms
-- Performance tracking accuracy
-"""
-
-import unittest
-from src.phase_2_core_integration import Phase2CoreSystem
-
-class TestPhase2Integration(unittest.TestCase):
-    """Test Phase 2 integration"""
-    
-    def test_full_system_initialization(self):
-        """Test complete system initialization"""
-        # Implementation needed
-        
-    def test_strategy_coordination(self):
-        """Test multi-strategy coordination"""
-        # Implementation needed
-        
-    def test_signal_generation_pipeline(self):
-        """Test end-to-end signal flow"""
-        # Implementation needed
-        
-    # Add more integration tests...
 ```
 
 #### Test Command:
 ```bash
-python -m unittest tests/Phase-2/test_integration.py
 ```
 
 #### Current Status:
 ```bash
-# File does not exist - needs to be created
 ```
 
 ---
@@ -4115,7 +2934,6 @@ python -m unittest tests/Phase-2/test_integration.py
 ### ⏭️ Ready for Next Phase:
 Phase 2 is **95%+ complete** and ready for Phase 3 with:
 - ✅ All critical components operational
-- ✅ 17/22 strategies loading successfully in system tests
 - ✅ Complete integration framework established
 - ✅ Production-ready architecture implemented
 

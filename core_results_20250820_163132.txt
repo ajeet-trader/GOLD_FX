@@ -1,0 +1,60 @@
+Core Run Results (2025-08-20 16:31:32 IST)
+================================================================================
+
+### Core File: execution_engine.py
+### Core Name: execution_engine
+
+--- Mode: MOCK ---
+EXECUTION FAILED (Return Code: 2):
+STDERR:
+J:\Gold_FX\venv\Scripts\python.exe: can't open file 'J:\\Gold_FX\\execution_engine.py': [Errno 2] No such file or directory
+
+------------------------------------------------------------
+
+--- Mode: LIVE ---
+EXECUTION FAILED (Return Code: 2):
+STDERR:
+J:\Gold_FX\venv\Scripts\python.exe: can't open file 'J:\\Gold_FX\\execution_engine.py': [Errno 2] No such file or directory
+
+------------------------------------------------------------
+
+================================================================================
+
+### Core File: risk_manager.py
+### Core Name: risk_manager
+
+--- Mode: MOCK ---
+EXECUTION FAILED (Return Code: 2):
+STDERR:
+J:\Gold_FX\venv\Scripts\python.exe: can't open file 'J:\\Gold_FX\\risk_manager.py': [Errno 2] No such file or directory
+
+------------------------------------------------------------
+
+--- Mode: LIVE ---
+EXECUTION FAILED (Return Code: 2):
+STDERR:
+J:\Gold_FX\venv\Scripts\python.exe: can't open file 'J:\\Gold_FX\\risk_manager.py': [Errno 2] No such file or directory
+
+------------------------------------------------------------
+
+================================================================================
+
+### Core File: signal_engine.py
+### Core Name: signal_engine
+
+--- Mode: MOCK ---
+EXECUTION FAILED (Return Code: 2):
+STDERR:
+J:\Gold_FX\venv\Scripts\python.exe: can't open file 'J:\\Gold_FX\\signal_engine.py': [Errno 2] No such file or directory
+
+------------------------------------------------------------
+
+--- Mode: LIVE ---
+EXECUTION FAILED (Return Code: 2):
+STDERR:
+J:\Gold_FX\venv\Scripts\python.exe: can't open file 'J:\\Gold_FX\\signal_engine.py': [Errno 2] No such file or directory
+
+------------------------------------------------------------
+
+================================================================================
+

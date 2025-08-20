@@ -485,7 +485,19 @@ class ExecutionEngine:
                         if order_result and order_result.get('success', False):
                             break
                         else:
-                            last_error = order_result.get('comment', 'Unknown error') if order_result else 'No response'
+                            if order_result:
+                                error_comment = order_result.get('comment', '')
+                                retcode = order_result.get('retcode', 0)
+                                
+                                # Check for specific AutoTrading disabled error
+                                if ('AutoTrading disabled' in error_comment or 
+                                    retcode in [10027, 10018, 0] or 
+                                    'disabled' in error_comment.lower()):
+                                    last_error = "AutoTrading disabled by client - enable AutoTrading in MT5"
+                                else:
+                                    last_error = error_comment or f'MT5 Error Code: {retcode}' or 'Unknown error'
+                            else:
+                                last_error = 'No response from MT5'
                             
                     except Exception as e:
                         last_error = str(e)
@@ -515,8 +527,8 @@ class ExecutionEngine:
                             entry_price=executed_price,
                             current_price=executed_price,
                             unrealized_pnl=0.0,
-                            unrealized_pnl_pct=(pos.get('profit', 0.0) / # Typo here: pos is not defined, should be order_result
-                                              (position_size * executed_price * 100)) * 100, # Simplified P&L pct calculation
+                            unrealized_pnl_pct=(order_result.get('profit', 0.0) /
+                                              (position_size * executed_price * 100)) * 100,
                             stop_loss=signal.stop_loss,
                             take_profit=signal.take_profit,
                             strategy=signal.strategy_name,
@@ -1332,24 +1344,7 @@ if __name__ == "__main__":
         def log_trade(self, action, symbol, volume, price, **kwargs):
             pass
     
-    # Create mock signal
-    @dataclass
-    class MockSignal:
-        timestamp: datetime = datetime.now()
-        symbol: str = "XAUUSDm"
-        strategy_name: str = "test_strategy"
-        signal_type: SignalType = SignalType.BUY
-        confidence: float = 0.85
-        price: float = 1960.0
-        timeframe: str = "M15"
-        strength: float = 0.8
-        grade: SignalGrade = SignalGrade.A
-        stop_loss: float = 1950.0
-        take_profit: float = 1980.0
-        metadata: Dict[str, Any] = field(default_factory=dict) # Use default_factory
-
     # Create ExecutionEngine instance. It will now handle MT5 initialization internally.
-    # We pass the mock managers it depends on.
     execution_engine = ExecutionEngine(
         test_config, 
         mt5_manager=None, # Let ExecutionEngine create its own MT5 based on mode
@@ -1361,14 +1356,54 @@ if __name__ == "__main__":
     print("Execution Engine Initialized. Running tests...")
 
     # Test signal processing
-    signal = MockSignal()
-    execution_result = execution_engine.process_signal(signal)
+    if mode == 'live':
+        # Use live signal engine for real signals
+        try:
+            from src.core.signal_engine import SignalEngine
+            signal_engine = SignalEngine(test_config)
+            live_signals = signal_engine.generate_signals()
+            
+            if live_signals:
+                signal = live_signals[0]  # Use first live signal
+                print(f"Using live signal: {signal.strategy_name} {signal.signal_type.value} @ {signal.price}")
+            else:
+                print("No live signals generated, skipping execution test")
+                signal = None
+        except Exception as e:
+            print(f"Failed to generate live signals: {e}, using mock signal")
+            signal = None
     
-    print("\nExecution Result:")
-    print(f"Status: {execution_result.status.value}")
-    print(f"Ticket: {execution_result.ticket}")
-    print(f"Executed Price: {execution_result.executed_price}")
-    print(f"Slippage: {execution_result.slippage}")
+    if mode != 'live' or signal is None:
+        # Create mock signal for testing
+        @dataclass
+        class MockSignal:
+            timestamp: datetime = datetime.now()
+            symbol: str = "XAUUSDm"
+            strategy_name: str = "test_strategy"
+            signal_type: SignalType = SignalType.BUY
+            confidence: float = 0.85
+            price: float = 1960.0
+            timeframe: str = "M15"
+            strength: float = 0.8
+            grade: SignalGrade = SignalGrade.A
+            stop_loss: float = 1950.0
+            take_profit: float = 1980.0
+            metadata: Dict[str, Any] = field(default_factory=dict)
+        
+        signal = MockSignal()
+        print(f"Using mock signal: {signal.strategy_name} {signal.signal_type.value} @ {signal.price}")
+
+    # Process the signal
+    execution_result = execution_engine.process_signal(signal) if signal else None
+    
+    if execution_result:
+        print("\nExecution Result:")
+        print(f"Status: {execution_result.status.value}")
+        print(f"Ticket: {execution_result.ticket}")
+        print(f"Executed Price: {execution_result.executed_price}")
+        print(f"Slippage: {execution_result.slippage}")
+    else:
+        print("\nNo signal processed")
     
     # Test execution summary
     summary = execution_engine.get_execution_summary()

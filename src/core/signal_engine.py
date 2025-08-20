@@ -663,7 +663,9 @@ class SignalEngine:
                 return "NEUTRAL"
             
             # Get recent price data
-            data = self.mt5_manager.get_historical_data(symbol, timeframe, 100)
+            # Convert timeframe to string format if needed
+            tf_str = self._convert_timeframe(timeframe) if isinstance(timeframe, int) else timeframe
+            data = self.mt5_manager.get_historical_data(symbol, tf_str, 100)
             # Validate and normalize
             data = self._validate_market_data(data, symbol, timeframe)
             if data is None or data.empty:
