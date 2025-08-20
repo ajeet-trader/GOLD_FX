@@ -225,7 +225,6 @@ class MockMT5Manager:
     
 # mock_mt5 = MockMT5Manager() # REMOVED: Instantiate only when needed in SignalEngine.__init__
 
-
 class StrategyImporter:
     """Helper class to import strategies with error handling"""
     
@@ -340,170 +339,132 @@ class StrategyImporter:
 
 class SignalEngine:
     """
-    Core signal generation and coordination engine with graceful error handling
+    Core signal generation and coordination engine with enhanced error handling and configuration
     """
     
     def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None):
         """
-        Initialize Signal Engine
+        Initialize Signal Engine with enhanced error handling and configuration
         
         Args:
             config: Configuration dictionary
-            mt5_manager: MT5Manager instance (optional, will be created based on data_mode)
+            mt5_manager: MT5Manager instance (optional)
             database_manager: DatabaseManager instance (optional)
         """
         self.config = config
-        
-        # Decide data source based on configuration, then override by CLI if provided
+        self._setup_logging()
+        self._initialize_managers(mt5_manager, database_manager)
+        self._initialize_containers()
+        self._load_and_initialize_strategies()
+
+    def _setup_logging(self):
+        """Configure logging for the signal engine"""
+        self.logger = logging.getLogger('signal_engine')
+        logging.basicConfig(level=logging.INFO)
+
+    def _initialize_managers(self, mt5_manager, database_manager):
+        """Initialize MT5 and database managers"""
+        self.data_mode = self._determine_data_mode()
+        self.mt5_manager = self._initialize_mt5_manager(mt5_manager)
+        self.database_manager = database_manager
+
+    def _determine_data_mode(self):
+        """Determine the data mode from config and CLI"""
         cfg_mode = self.config.get('data', {}).get('mode', 'mock')
         cli_mode = parse_mode()
-        self.data_mode = cli_mode or cfg_mode
-        print_mode_banner(self.data_mode)
-        
-        # Initialize MT5 manager based on mode
+        mode = cli_mode or cfg_mode
+        print_mode_banner(mode)
+        return mode
+
+    def _initialize_mt5_manager(self, mt5_manager):
+        """Initialize MT5 manager with fallback to mock"""
         if mt5_manager is not None:
-            self.mt5_manager = mt5_manager
-        else:
-            if self.data_mode == 'live' and MT5Manager is not None:
-                try:
-                    default_symbol = self.config.get('trading', {}).get('symbol', 'XAUUSD')
-                    # Instantiate and connect; MT5Manager reads credentials from env
-                    live_mgr = MT5Manager(symbol=default_symbol)
-                    if live_mgr.connect():
-                        self.mt5_manager = live_mgr
-                    else:
-                        self.logger = logging.getLogger('signal_engine')
-                        self.logger.warning("Falling back to MockMT5Manager: live MT5 connection failed")
-                        self.mt5_manager = MockMT5Manager(self.data_mode) # Use self.data_mode for mock consistency
-                except Exception as e:
-                    self.logger = logging.getLogger('signal_engine')
-                    self.logger.warning(f"Error connecting to live MT5 ({e}). Falling back to mock.")
-                    self.mt5_manager = MockMT5Manager(self.data_mode) # Use self.data_mode for mock consistency
-            else:
-                self.mt5_manager = MockMT5Manager(self.data_mode) # Use self.data_mode for mock consistency
+            return mt5_manager
+            
+        if self.data_mode == 'live' and MT5Manager is not None:
+            try:
+                default_symbol = self.config.get('trading', {}).get('symbol', 'XAUUSD')
+                live_mgr = MT5Manager(symbol=default_symbol)
+                if live_mgr.connect():
+                    return live_mgr
+                self.logger.warning("Falling back to MockMT5Manager: live MT5 connection failed")
+            except Exception as e:
+                self.logger.warning(f"Error connecting to live MT5: {e}. Falling back to mock.")
+        
+        return MockMT5Manager(self.data_mode)
 
-        self.database_manager = database_manager
+    def _initialize_containers(self):
+        """Initialize data containers and state"""
+        # Strategy storage
+        self.available_strategies = {cat: {} for cat in ['technical', 'smc', 'ml', 'fusion']}
+        self.strategies = {cat: {} for cat in self.available_strategies}
         
-        # Setup logging
-        self.logger = logging.getLogger('signal_engine')
-        # Respect global logging level instead of forcing INFO
-        
-        # Strategy containers
-        self.available_strategies = {
-            'technical': {},
-            'smc': {},
-            'ml': {},
-            'fusion': {}
-        }
-        
-        self.strategies = {
-            'technical': {},
-            'smc': {},
-            'ml': {},
-            'fusion': {}
-        }
-
-        # Map concrete strategy class names to engine registry keys for metrics tracking
-        self.strategy_name_map = {}
-        
-        # Signal management
+        # Signal management with max buffer size
+        self.signal_buffer = []
+        self.max_buffer_size = self.config.get('signal_engine', {}).get('max_buffer_size', 1000)
         self.active_signals = []
         self.signal_history = []
-        self.signal_buffer = []
         
         # Performance tracking
         self.strategy_performance = {}
+        self.strategy_name_map = {}
         
-        # Market regime
+        # Market state
         self.current_regime = "NEUTRAL"
         
         # Initialize importer
         self.importer = StrategyImporter()
-        
-        # Load and initialize strategies
+
+    def _load_and_initialize_strategies(self):
+        """Load and initialize all strategies from configuration"""
         self._load_available_strategies()
-        self._initialize_strategies()
-    
+        self._initialize_active_strategies()
+        self._log_initialization_summary()
+
     def _load_available_strategies(self) -> None:
-        """Load all available strategy classes"""
+        """Load all available strategy classes with error handling"""
         self.logger.info("Loading available strategies...")
         
-        # Load each category
-        self.available_strategies['technical'] = self.importer.load_technical_strategies()
-        self.available_strategies['smc'] = self.importer.load_smc_strategies()
-        self.available_strategies['ml'] = self.importer.load_ml_strategies()
-        self.available_strategies['fusion'] = self.importer.load_fusion_strategies()
+        loaders = {
+            'technical': self.importer.load_technical_strategies,
+            'smc': self.importer.load_smc_strategies,
+            'ml': self.importer.load_ml_strategies,
+            'fusion': self.importer.load_fusion_strategies
+        }
         
-        # Log summary
-        total_available = sum(len(strategies) for strategies in self.available_strategies.values())
-        self.logger.info(f"Loaded {total_available} available strategy classes")
-        
-        for category, strategies in self.available_strategies.items():
-            if strategies:
-                self.logger.info(f"  {category.upper()}: {list(strategies.keys())}")
-    
-    def _initialize_strategies(self) -> None:
-        """Initialize active strategies based on configuration"""
+        for category, loader in loaders.items():
+            try:
+                self.available_strategies[category] = loader() or {}
+                self.logger.debug(f"Loaded {len(self.available_strategies[category])} {category} strategies")
+            except Exception as e:
+                self.logger.error(f"Error loading {category} strategies: {e}")
+                self.available_strategies[category] = {}
+
+    def _initialize_active_strategies(self) -> None:
+        """Initialize all active strategies from configuration"""
         self.logger.info("Initializing active strategies...")
-        
-        # Get active strategies from config
         strategies_config = self.config.get('strategies', {})
         
-        # Initialize technical strategies (enable all that are implemented)
-        technical_config = strategies_config.get('technical', {})
-        active_technical = technical_config.get('active_strategies', [])
+        for category in self.available_strategies:
+            self._initialize_category_strategies(category, strategies_config.get(category, {}))
+
+    def _initialize_category_strategies(self, category: str, category_config: Dict) -> None:
+        """Initialize strategies for a specific category"""
+        available = self.available_strategies[category]
+        if not available:
+            self.logger.warning(f"No {category} strategies available to initialize")
+            return
+            
+        # Get active strategies or default to all available
+        active_strategies = category_config.get('active_strategies', list(available.keys()))
         
-        # If no specific list, enable all available technical strategies
-        if not active_technical:
-            active_technical = list(self.available_strategies['technical'].keys())
-        
-        for strategy_name in active_technical:
-            if strategy_name in self.available_strategies['technical']:
-                instance = self._initialize_single_strategy('technical', strategy_name, technical_config)
-                if instance:
-                    # map class name to registry key
-                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
-        
-        # Initialize SMC strategies (enable all that are implemented)
-        smc_config = strategies_config.get('smc', {})
-        active_smc = smc_config.get('active_strategies', [])
-        
-        # If no specific list, enable all available SMC strategies
-        if not active_smc:
-            active_smc = list(self.available_strategies['smc'].keys())
-        
-        for strategy_name in active_smc:
-            if strategy_name in self.available_strategies['smc']:
-                instance = self._initialize_single_strategy('smc', strategy_name, smc_config)
-                if instance:
-                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
-        
-        # Initialize ML strategies (all 4 now implemented)
-        ml_config = strategies_config.get('ml', {})
-        active_ml = list(self.available_strategies['ml'].keys())
-        
-        for strategy_name in active_ml:
-            if strategy_name in self.available_strategies['ml']:
-                instance = self._initialize_single_strategy('ml', strategy_name, ml_config)
-                if instance:
-                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
-        
-        # Initialize fusion strategies (all 4 now implemented)
-        fusion_config = strategies_config.get('fusion', {})
-        active_fusion = list(self.available_strategies['fusion'].keys())
-        
-        for strategy_name in active_fusion:
-            if strategy_name in self.available_strategies['fusion']:
-                instance = self._initialize_single_strategy('fusion', strategy_name, fusion_config)
-                if instance:
-                    self.strategy_name_map[getattr(instance, '__class__').__name__] = strategy_name
-        
-        # Log initialization summary
-        self._log_initialization_summary()
-    
-    def _initialize_single_strategy(self, category: str, strategy_name: str, category_config: Dict) -> Optional[Any]:
+        for strategy_name in active_strategies:
+            if strategy_name in available:
+                self._initialize_single_strategy(category, strategy_name, category_config)
+
+    def _initialize_single_strategy(self, category: str, strategy_name: str, category_config: Dict) -> None:
         """
-        Initialize a single strategy instance
+        Initialize a single strategy instance with error handling
         
         Args:
             category: Strategy category (technical, smc, ml, fusion)
@@ -511,57 +472,75 @@ class SignalEngine:
             category_config: Configuration for the category
         """
         try:
-            strategy_class = self.available_strategies[category][strategy_name]
-            
-            # Get strategy-specific config
-            strategy_config = category_config.get(strategy_name, {})
-            
-            # Merge with default parameters
-            full_config = {
+            strategy_class = self.available_strategies[category].get(strategy_name)
+            if not strategy_class:
+                self.logger.warning(f"Strategy class not found: {strategy_name}")
+                return
+                
+            # Prepare configuration
+            strategy_config = {
                 'name': strategy_name,
                 'category': category,
-                'parameters': strategy_config,
+                'parameters': category_config.get(strategy_name, {}),
                 'risk_per_trade': self.config.get('risk_management', {}).get('risk_per_trade', 0.02)
             }
             
-            # Initialize strategy with all three parameters
-            # All strategies should accept (config, mt5_manager, database) even if they don't use database
+            # Initialize strategy
             strategy_instance = strategy_class(
-                config=full_config,
+                config=strategy_config,
                 mt5_manager=self.mt5_manager,
-                database=self.database_manager  # Pass database to all strategies
+                database=self.database_manager
             )
             
+            # Register strategy
             self.strategies[category][strategy_name] = strategy_instance
-            self.logger.info(f"Initialized {category} strategy: {strategy_name}")
+            class_name = strategy_instance.__class__.__name__
+            self.strategy_name_map[class_name] = strategy_name
             
             # Initialize performance tracking
             self.strategy_performance[strategy_name] = {
                 'signals_generated': 0,
-                'invalid_signals': 0,
-                'successful_signals': 0,
+                'signals_executed': 0,
+                'wins': 0,
+                'losses': 0,
                 'win_rate': 0.0,
-                'profit_factor': 0.0,
-                'grade_distribution': {'A': 0, 'B': 0, 'C': 0, 'D': 0},
-                'last_update': datetime.now()
+                'last_updated': datetime.utcnow().isoformat()
             }
             
-            return strategy_instance
+            self.logger.info(f"Initialized {category} strategy: {strategy_name} ({class_name})")
+            
         except Exception as e:
-            self.logger.error(f"Failed to initialize {category} strategy {strategy_name}: {str(e)}")
-            return None
-    
+            self.logger.error(f"Failed to initialize {category} strategy '{strategy_name}': {e}", 
+                            exc_info=self.logger.level <= logging.DEBUG)
+
     def _log_initialization_summary(self) -> None:
         """Log summary of initialized strategies"""
         total_initialized = sum(len(strategies) for strategies in self.strategies.values())
+        self.logger.info(f"Initialized {total_initialized} strategies:")
         
-        self.logger.info(f"Signal Engine initialized successfully with {total_initialized} strategies:")
+        for category, strategies in self.strategies.items():
+            if strategies:
+                self.logger.info(f"  {category.upper()}: {', '.join(strategies.keys())}")
+
+    def _add_signal_to_buffer(self, signal: Signal) -> None:
+        """
+        Add signal to buffer with size management
         
-        for category in ['technical', 'smc', 'ml', 'fusion']:
-            available = len(self.available_strategies[category])
-            active = len(self.strategies[category])
-            self.logger.info(f"  {category.capitalize()}: {active} / {available} available")
-    
+        Args:
+            signal: Signal to add to buffer
+        """
+        # Enforce buffer size limit
+        if len(self.signal_buffer) >= self.max_buffer_size:
+            self.signal_buffer.pop(0)  # Remove oldest signal
+            
+        self.signal_buffer.append(signal)
+        self.signal_history.append(signal)
+        
+        # Update performance metrics
+        if signal.strategy_name in self.strategy_performance:
+            self.strategy_performance[signal.strategy_name]['signals_generated'] += 1
+            self.strategy_performance[signal.strategy_name]['last_updated'] = datetime.utcnow().isoformat()
+
     def generate_signals(self, symbol: str = "XAUUSDm", timeframe: int = 15) -> List[Signal]:
         """
         Generate signals from all active strategies
