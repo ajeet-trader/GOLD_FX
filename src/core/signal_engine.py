@@ -163,10 +163,8 @@ class ConsoleReporter:
         for strategy, messages in self.warning_messages.items():
             if len(messages) > 1:
                 print(f"    - {strategy}: {len(messages)} issues detected")
-                for i, msg in enumerate(messages[:3], 1):  # Show first 3 messages
+                for i, msg in enumerate(messages, 1):  # Show ALL messages
                     print(f"      {i}. {msg}")
-                if len(messages) > 3:
-                    print(f"      ... and {len(messages) - 3} more issues")
             else:
                 print(f"    - {strategy}: {messages[0]}")
     
@@ -504,6 +502,8 @@ class SignalEngine:
                 'wins': 0,
                 'losses': 0,
                 'win_rate': 0.0,
+                'invalid_signals': 0,
+                'grade_distribution': {'A': 0, 'B': 0, 'C': 0},
                 'last_updated': datetime.utcnow().isoformat()
             }
             
@@ -907,12 +907,12 @@ class SignalEngine:
                     'strategy': signal.strategy_name,
                     'signal_type': signal.signal_type.value,
                     'confidence': signal.confidence,
-                    'grade': signal.grade.value,
+                    'quality_grade': signal.grade.value if signal.grade else 'C',
                     'price': signal.price,
                     'stop_loss': signal.stop_loss,
                     'take_profit': signal.take_profit,
                     'timeframe': signal.timeframe,
-                    'metadata': str(signal.metadata)
+                    'signal_metadata': str(signal.metadata) if signal.metadata else '{}'
                 }
                 self.database_manager.store_signal(signal_data)
             

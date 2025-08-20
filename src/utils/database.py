@@ -508,9 +508,18 @@ class DatabaseManager:
         """Store a new trading signal"""
         try:
             with self.get_session() as session:
-                # Convert metadata to JSON if it's a dict
-                if 'metadata' in signal_data and isinstance(signal_data['metadata'], dict):
-                    signal_data['signal_metadata'] = json.dumps(signal_data['metadata'])
+                # Handle metadata field mapping
+                if 'metadata' in signal_data:
+                    if isinstance(signal_data['metadata'], dict):
+                        signal_data['signal_metadata'] = json.dumps(signal_data['metadata'])
+                    else:
+                        signal_data['signal_metadata'] = str(signal_data['metadata'])
+                    del signal_data['metadata']  # Remove the old key
+                
+                # Handle grade field mapping
+                if 'grade' in signal_data:
+                    signal_data['quality_grade'] = signal_data['grade']
+                    del signal_data['grade']
                 
                 signal = Signal(**signal_data)
                 session.add(signal)
