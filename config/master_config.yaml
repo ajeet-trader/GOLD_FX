@@ -312,7 +312,7 @@ sessions:
 # ==========================================
 data:
   # Data source mode: 'mock' uses random OHLCV bars, 'live' streams from MT5
-  mode: "mock"                    # Options: mock, live
+  mode: "live"                    # Options: mock, live
   # Historical data settings
   history:
     min_bars_required: 500          # Minimum bars for strategy

@@ -21,6 +21,14 @@ Features:
 - Circuit breaker mechanisms
 - Performance-based adjustments
 """
+import sys
+from pathlib import Path
+
+if __name__ == "__main__" and __package__ is None:
+    # Running directly: python src/core/execution_engine.py
+    project_root = Path(__file__).resolve().parents[2]  # points to J:\Gold_FX
+    sys.path.insert(0, str(project_root))
+from src.utils.path_utils import get_project_root
 
 import pandas as pd
 import numpy as np

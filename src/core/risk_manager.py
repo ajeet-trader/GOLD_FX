@@ -26,6 +26,15 @@ FIXES APPLIED:
 ✅ ISSUE #24: MockMT5Manager fully implemented with all methods
 """
 
+import sys
+from pathlib import Path
+
+if __name__ == "__main__" and __package__ is None:
+    # Running directly: python src/core/execution_engine.py
+    project_root = Path(__file__).resolve().parents[2]  # points to J:\Gold_FX
+    sys.path.insert(0, str(project_root))
+from src.utils.path_utils import get_project_root
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -70,7 +79,8 @@ except ImportError:
         metadata: Dict[str, Any] = field(default_factory=dict)
 
     def parse_mode(*_args, **_kwargs):  # type: ignore
-        return 'mock'
+        # This fallback should not override CLI args - return None to use config
+        return None
 
     def print_mode_banner(_mode):  # type: ignore
         pass
@@ -243,7 +253,12 @@ class RiskManager:
         self.database_manager = database_manager or MockDatabaseManager()
 
         # Determine mode (CLI overrides config)
-        cli_mode = parse_mode()
+        try:
+            from src.utils.cli_args import parse_mode as real_parse_mode
+            cli_mode = real_parse_mode()
+        except ImportError:
+            cli_mode = None
+        
         self.mode = cli_mode if cli_mode else (config.get('mode') or 'mock')
         print_mode_banner(self.mode)
 
@@ -1441,7 +1456,7 @@ if __name__ == "__main__":
             'minimum_capital': 50.0,
             'reserve_cash': 0.10
         },
-        'mode': 'mock'
+        'mode': 'live'
     }
 
     # Create risk manager instance
