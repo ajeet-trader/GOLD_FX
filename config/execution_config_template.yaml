@@ -1,0 +1,108 @@
+# Enhanced Execution Engine Configuration Template
+# ==============================================
+# This template includes all the new configurable parameters added during the fixes
+
+# Execution Engine Configuration
+execution:
+  # Signal Processing
+  min_confidence: 0.6              # Minimum confidence threshold for signal acceptance (0.0-1.0)
+  signal_age_threshold: 300        # Maximum age of signals in seconds before rejection
+  magic_number: 123456             # Unique identifier for this system's orders
+  
+  # Order Management
+  order:
+    retry_attempts: 3              # Number of retry attempts for failed orders
+    retry_delay: 1                 # Base delay between retries in seconds
+    
+  # Risk Management
+  slippage:
+    max_slippage: 3                # Maximum acceptable slippage in pips
+    
+  # Position Monitoring
+  monitoring:
+    update_interval: 5             # Position update interval in seconds
+    max_restarts: 10               # Maximum monitoring thread restart attempts
+    max_consecutive_errors: 3      # Max consecutive errors before restart
+    restart_backoff_max: 60        # Maximum backoff time for restarts
+    
+  # Data Validation
+  data_validation:
+    cache_duration: 300            # Data validation cache duration in seconds
+    enable_caching: true           # Enable/disable validation caching
+    
+  # Threading
+  threading:
+    monitoring_timeout: 15         # Timeout for graceful monitoring thread shutdown
+    use_daemon_threads: true       # Use daemon threads for background tasks
+
+# Mode Configuration
+mode: mock                         # 'live' or 'mock' - determines MT5 connection type
+
+# Risk Management Configuration
+risk:
+  max_portfolio_risk: 0.05         # Maximum portfolio risk percentage (5%)
+  max_position_size: 0.1           # Maximum position size in lots
+  min_position_size: 0.01          # Minimum position size in lots
+  kelly_safety_factor: 0.5         # Kelly criterion safety factor
+  
+# MT5 Configuration (for live mode)
+mt5:
+  connection:
+    max_retries: 3                 # Maximum connection retry attempts
+    retry_backoff: 1.0             # Base retry delay in seconds
+    timeout: 30                    # Connection timeout in seconds
+    
+  data:
+    validation_enabled: true       # Enable data validation
+    gap_tolerance: 5               # Acceptable data gaps in bars
+    
+# Logging Configuration
+logging:
+  level: INFO                      # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  enable_stack_traces: false      # Enable stack traces for debugging
+  log_signal_details: true        # Log detailed signal information
+  log_position_updates: true      # Log position update details
+
+# Strategy Configuration
+strategies:
+  # Global strategy settings
+  global:
+    max_signals_per_hour: 3        # Maximum signals per strategy per hour
+    grade_thresholds:
+      A_grade: 0.85                # Minimum confidence for A grade
+      B_grade: 0.70                # Minimum confidence for B grade
+      C_grade: 0.60                # Minimum confidence for C grade
+      
+  # Individual strategy weights (for ensemble methods)
+  weights:
+    fibonacci_advanced: 1.1
+    order_blocks: 1.3
+    liquidity_pools: 1.15
+    market_structure: 1.2
+    regime_detection: 1.0
+    adaptive_ensemble: 1.25
+
+# Database Configuration
+database:
+  enabled: true                    # Enable database logging
+  connection_pool_size: 5          # Database connection pool size
+  retry_attempts: 3                # Database operation retry attempts
+
+# Performance Monitoring
+performance:
+  track_slippage: true             # Track and log slippage statistics
+  track_execution_time: true       # Track signal processing time
+  generate_reports: true           # Generate performance reports
+  report_interval: 3600            # Report generation interval in seconds
+
+# Emergency Controls
+emergency:
+  max_drawdown_stop: 0.15          # Emergency stop at 15% drawdown
+  max_consecutive_losses: 5        # Emergency stop after consecutive losses
+  circuit_breaker_enabled: true    # Enable circuit breaker functionality
+  
+# Development/Testing Settings
+development:
+  enable_mock_data: true           # Use mock data when MT5 unavailable
+  simulate_network_delays: false   # Simulate network delays for testing
+  debug_signal_validation: false   # Extra debug logging for signal validation

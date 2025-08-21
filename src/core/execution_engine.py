@@ -21,7 +21,6 @@ Features:
 - Correlation-based position limits
 - Emergency stop mechanisms
 """
-
 import sys
 from pathlib import Path
 
@@ -170,7 +169,12 @@ class ExecutionEngine:
         
         # Determine mode (CLI overrides config)
         cfg_mode = self.config.get('mode') or 'mock'
-        self.mode = parse_mode() or cfg_mode
+        self.mode = cfg_mode
+        
+        # Configuration constants
+        self.MIN_CONFIDENCE_THRESHOLD = config.get('execution', {}).get('min_confidence', 0.6)
+        self.SIGNAL_AGE_THRESHOLD = config.get('execution', {}).get('signal_age_threshold', 300)
+        self.MAGIC_NUMBER = config.get('execution', {}).get('magic_number', 123456)
 
         # Initialize MT5 Manager
         if self.mode == 'live':
@@ -217,10 +221,14 @@ class ExecutionEngine:
         self.execution_history: List[ExecutionResult] = []
         
         # Performance tracking
+        self.symbol_info = {}
+        self.slippage_history = []
+        self._data_validation_cache = {}
+        self._cache_expiry = 300  # 5 minutes cache
+        self.total_commission = 0.0
         self.total_trades = 0
         self.winning_trades = 0
         self.total_profit = 0.0
-        self.total_commission = 0.0
         
         # Control flags
         self.engine_active = True
@@ -432,8 +440,8 @@ class ExecutionEngine:
             
             return execution_result
             
-        except Exception as e:
-            self.logger.error(f"Signal processing failed: {str(e)}")
+        except (ConnectionError, TimeoutError) as e:
+            self.logger.error(f"Connection/timeout error during signal processing: {str(e)}")
             return ExecutionResult(
                 signal_id=str(id(signal)),
                 execution_id=execution_id,
@@ -445,7 +453,39 @@ class ExecutionEngine:
                 executed_size=0.0,
                 requested_price=signal.price,
                 executed_price=0.0,
-                error_message=str(e)
+                error_message=f"Connection error: {str(e)}"
+            )
+        except ValueError as e:
+            self.logger.error(f"Invalid data during signal processing: {str(e)}")
+            return ExecutionResult(
+                signal_id=str(id(signal)),
+                execution_id=execution_id,
+                timestamp=datetime.now(),
+                status=ExecutionStatus.REJECTED,
+                symbol=signal.symbol,
+                order_type=signal.signal_type.value,
+                requested_size=0.0,
+                executed_size=0.0,
+                requested_price=signal.price,
+                executed_price=0.0,
+                error_message=f"Invalid data: {str(e)}"
+            )
+        except Exception as e:
+            self.logger.error(f"Unexpected error during signal processing: {str(e)}")
+            import traceback
+            self.logger.debug(f"Stack trace: {traceback.format_exc()}")
+            return ExecutionResult(
+                signal_id=str(id(signal)),
+                execution_id=execution_id,
+                timestamp=datetime.now(),
+                status=ExecutionStatus.FAILED,
+                symbol=signal.symbol,
+                order_type=signal.signal_type.value,
+                requested_size=0.0,
+                executed_size=0.0,
+                requested_price=signal.price,
+                executed_price=0.0,
+                error_message=f"Unexpected error: {str(e)}"
             )
     
     def _validate_signal(self, signal: Signal) -> Dict[str, Any]:
@@ -457,15 +497,12 @@ class ExecutionEngine:
             
             # Check signal age (reject old signals)
             signal_age = datetime.now() - signal.timestamp
-            # Use configurable threshold with 300s default
-            max_age = self.execution_config.get('signal_age_threshold', 300)
-            if signal_age.total_seconds() > max_age:  
-                return {'valid': False, 'reason': f'Signal too old ({signal_age.total_seconds()}s > {max_age}s threshold)'}
+            if signal_age.total_seconds() > self.SIGNAL_AGE_THRESHOLD:  
+                return {'valid': False, 'reason': f'Signal too old ({signal_age.total_seconds()}s > {self.SIGNAL_AGE_THRESHOLD}s threshold)'}
             
             # Check minimum confidence
-            min_confidence = 0.6
-            if signal.confidence < min_confidence:
-                return {'valid': False, 'reason': f'Confidence {signal.confidence:.2f} below minimum {min_confidence}'}
+            if signal.confidence < self.MIN_CONFIDENCE_THRESHOLD:
+                return {'valid': False, 'reason': f'Confidence {signal.confidence:.2f} below minimum {self.MIN_CONFIDENCE_THRESHOLD}'}
             
             # Check if symbol is valid
             if not signal.symbol or signal.symbol == "":
@@ -490,8 +527,13 @@ class ExecutionEngine:
             
             return {'valid': True, 'reason': 'Signal validated successfully'}
             
+        except (AttributeError, TypeError) as e:
+            self.logger.error(f"Signal validation failed due to invalid signal structure: {str(e)}")
+            return {'valid': False, 'reason': f'Invalid signal structure: {str(e)}'}
         except Exception as e:
-            self.logger.error(f"Signal validation failed: {str(e)}")
+            self.logger.error(f"Unexpected error during signal validation: {str(e)}")
+            import traceback
+            self.logger.debug(f"Validation stack trace: {traceback.format_exc()}")
             return {'valid': False, 'reason': f'Validation error: {str(e)}'}
     
     def _execute_order(self, signal: Signal, sizing_result: Dict[str, Any], execution_id: str) -> ExecutionResult:
@@ -640,8 +682,8 @@ class ExecutionEngine:
                     self.logger.error(f"Order execution failed after {self.retry_attempts} attempts: {last_error}")
                     
                     return execution_result
-        except Exception as e:
-            self.logger.error(f"Order execution error: {str(e)}")
+        except (ConnectionError, TimeoutError) as e:
+            self.logger.error(f"Connection error during order execution: {str(e)}")
             return ExecutionResult(
                 signal_id=str(id(signal)),
                 execution_id=execution_id,
@@ -653,7 +695,39 @@ class ExecutionEngine:
                 executed_size=0.0,
                 requested_price=signal.price,
                 executed_price=0.0,
-                error_message=str(e)
+                error_message=f"Connection error: {str(e)}"
+            )
+        except ValueError as e:
+            self.logger.error(f"Invalid order parameters: {str(e)}")
+            return ExecutionResult(
+                signal_id=str(id(signal)),
+                execution_id=execution_id,
+                timestamp=datetime.now(),
+                status=ExecutionStatus.REJECTED,
+                symbol=signal.symbol,
+                order_type=signal.signal_type.value,
+                requested_size=0.0,
+                executed_size=0.0,
+                requested_price=signal.price,
+                executed_price=0.0,
+                error_message=f"Invalid parameters: {str(e)}"
+            )
+        except Exception as e:
+            self.logger.error(f"Unexpected error during order execution: {str(e)}")
+            import traceback
+            self.logger.debug(f"Execution stack trace: {traceback.format_exc()}")
+            return ExecutionResult(
+                signal_id=str(id(signal)),
+                execution_id=execution_id,
+                timestamp=datetime.now(),
+                status=ExecutionStatus.FAILED,
+                symbol=signal.symbol,
+                order_type=signal.signal_type.value,
+                requested_size=0.0,
+                executed_size=0.0,
+                requested_price=signal.price,
+                executed_price=0.0,
+                error_message=f"Execution error: {str(e)}"
             )
     
     def _load_existing_positions(self) -> None:
@@ -671,7 +745,7 @@ class ExecutionEngine:
                     magic = pos.get('magic', 0)
                     
                     # Only load positions created by this system (matching magic number)
-                    if ticket > 0 and magic == system_magic:
+                    if ticket > 0 and magic == self.MAGIC_NUMBER:
                         position_info = PositionInfo(
                             ticket=ticket,
                             symbol=pos.get('symbol', ''),
@@ -697,7 +771,7 @@ class ExecutionEngine:
                 except Exception as e:
                     self.logger.error(f"Error loading position {pos}: {str(e)}")
             
-            self.logger.info(f"Loaded {len(self.active_positions)} system-managed positions (magic: {getattr(self.mt5_manager, 'magic_number', 123456)})")
+            self.logger.info(f"Loaded {len(self.active_positions)} system-managed positions (magic: {self.MAGIC_NUMBER})")
         except Exception as e:
             self.logger.error(f"Failed to load existing positions: {str(e)}")
     
@@ -727,39 +801,117 @@ class ExecutionEngine:
             self.logger.error(f"Failed to start position monitoring: {str(e)}")
     
     def _position_monitoring_loop(self) -> None:
-        """Main position monitoring loop"""
+        """Main position monitoring loop with improved error recovery"""
         restart_count = 0
-        max_restarts = 5
+        max_restarts = 10  # Increased restart attempts
+        consecutive_errors = 0
+        max_consecutive_errors = 3
+        
+        self.logger.info("Position monitoring loop started")
         
         while restart_count < max_restarts and self.engine_active:
             try:
-                self.monitoring_active = True
-                while self.monitoring_active and self.engine_active:
-                    # Update position information
-                    self._update_positions()
+                with self.monitoring_lock:
+                    self.monitoring_active = True
                     
-                    # Check for stop loss and take profit triggers
-                    self._check_exit_conditions()
-                    
-                    # Check for partial profit taking
-                    self._check_partial_exits()
-                    
-                    # Update risk metrics
-                    self._update_position_risks()
-                    
-                    # Sleep for next iteration
-                    time.sleep(5)
+                consecutive_errors = 0  # Reset on successful start
+                
+                while True:
+                    try:
+                        with self.monitoring_lock:
+                            _continue = self.monitoring_active and self.engine_active
+                        if not _continue:
+                            self.logger.info("Position monitoring stopped by flag")
+                            break
+                            
+                        # Update position information with error handling
+                        try:
+                            self._update_positions()
+                        except (ConnectionError, TimeoutError) as e:
+                            self.logger.warning(f"Connection error updating positions: {e}")
+                            consecutive_errors += 1
+                            if consecutive_errors >= max_consecutive_errors:
+                                raise ConnectionError(f"Too many consecutive connection errors: {consecutive_errors}")
+                            time.sleep(2)  # Brief pause before retry
+                            continue
+                        except Exception as e:
+                            self.logger.error(f"Error updating positions: {e}")
+                            consecutive_errors += 1
+                            if consecutive_errors >= max_consecutive_errors:
+                                raise
+                            time.sleep(1)
+                            continue
+                        
+                        # Check for stop loss and take profit triggers
+                        try:
+                            self._check_exit_conditions()
+                        except Exception as e:
+                            self.logger.error(f"Error checking exit conditions: {e}")
+                        
+                        # Check for partial profit taking
+                        try:
+                            self._check_partial_exits()
+                        except Exception as e:
+                            self.logger.error(f"Error checking partial exits: {e}")
+                        
+                        # Update risk metrics
+                        try:
+                            self._update_position_risks()
+                        except Exception as e:
+                            self.logger.error(f"Error updating position risks: {e}")
+                        
+                        # Reset consecutive errors on successful iteration
+                        consecutive_errors = 0
+                        
+                        # Sleep for next iteration
+                        time.sleep(5)
+                        
+                    except KeyboardInterrupt:
+                        self.logger.info("Position monitoring interrupted by user")
+                        break
+                    except (ConnectionError, TimeoutError) as e:
+                        self.logger.error(f"Connection error in monitoring loop: {e}")
+                        raise  # Re-raise to trigger restart logic
+                    except Exception as e:
+                        self.logger.error(f"Unexpected error in monitoring iteration: {e}")
+                        consecutive_errors += 1
+                        if consecutive_errors >= max_consecutive_errors:
+                            raise
+                        time.sleep(2)  # Brief pause before continuing
+                        
+            except KeyboardInterrupt:
+                self.logger.info("Position monitoring stopped by user interrupt")
+                break
+            except (ConnectionError, TimeoutError) as e:
+                restart_count += 1
+                backoff = min(5 * restart_count, 60)  # Linear backoff up to 60s
+                self.logger.error(f"Connection error in monitoring thread (restart {restart_count}/{max_restarts}): {str(e)}")
+                self.logger.info(f"Attempting restart in {backoff} seconds...")
+                time.sleep(backoff)
             except Exception as e:
                 restart_count += 1
                 backoff = min(2 ** restart_count, 30)  # Exponential backoff max 30s
                 self.logger.critical(f"Monitoring thread crashed (restart {restart_count}/{max_restarts}): {str(e)}")
+                import traceback
+                self.logger.debug(f"Monitoring crash stack trace: {traceback.format_exc()}")
                 time.sleep(backoff)
+        
+        # Final cleanup
+        with self.monitoring_lock:
+            self.monitoring_active = False
+        
+        if restart_count >= max_restarts:
+            self.logger.critical(f"Position monitoring failed permanently after {max_restarts} restart attempts")
+        else:
+            self.logger.info("Position monitoring loop ended normally")
     
     def _update_positions(self) -> None:
-        """Update position information from MT5"""
+        """Update position information from MT5 with improved error handling"""
         try:
             # Check if MT5 is connected and available
             if not self.mt5_manager or not hasattr(self.mt5_manager, 'get_open_positions'):
+                self.logger.debug("MT5 manager not available for position updates")
+                return
                 # In test mode, just update time in position for existing positions
                 for position_info in self.active_positions.values():
                     position_info.time_in_position = datetime.now() - position_info.entry_time
@@ -1146,18 +1298,23 @@ class ExecutionEngine:
             return {'error': str(e)}
     
     def stop_engine(self) -> None:
-        """Stop the execution engine"""
-        try:
-            self.engine_active = False
+        """Stop the execution engine gracefully"""
+        self.logger.info("Stopping execution engine...")
+        self.engine_active = False
+        
+        # Stop position monitoring gracefully
+        with self.monitoring_lock:
             self.monitoring_active = False
-            
-            # Wait for monitoring thread to stop
-            if self.monitor_thread and self.monitor_thread.is_alive():
-                self.monitor_thread.join(timeout=10)
-            
-            self.logger.info("Execution engine stopped")
-        except Exception as e:
-            self.logger.error(f"Engine stop error: {str(e)}")
+        
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.logger.info("Waiting for position monitoring thread to stop...")
+            self.monitor_thread.join(timeout=15)  # Increased timeout
+            if self.monitor_thread.is_alive():
+                self.logger.warning("Position monitoring thread did not stop gracefully within timeout")
+            else:
+                self.logger.info("Position monitoring thread stopped successfully")
+        
+        self.logger.info("Execution engine stopped")
     
     def emergency_close_all(self) -> Dict[str, Any]:
         """Emergency close all positions with rollback capability"""
@@ -1376,10 +1533,23 @@ if __name__ == "__main__":
     import sys
     from pathlib import Path
     
-    # Add project root to path
-    project_root = Path(__file__).parent.parent.parent
-    sys.path.insert(0, str(project_root))
-    
+    # Add project root to path (dynamic)
+    import os
+    env_root = os.environ.get("PROJECT_ROOT")
+    if env_root:
+        project_root = Path(env_root).resolve()
+    else:
+        cur = Path(__file__).resolve()
+        project_root = None
+        for parent in [cur.parent] + list(cur.parents):
+            if (parent / "src").exists():
+                project_root = parent
+                break
+        if project_root is None:
+            project_root = cur.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
     # Import CLI utilities
     from src.utils.cli_args import parse_mode, print_mode_banner
     
@@ -1506,9 +1676,19 @@ if __name__ == "__main__":
     # Test execution summary
     summary = execution_engine.get_execution_summary()
     logger.info(f"\nExecution Summary:")
-    logger.info(f"Active Positions: {summary['positions']['active_count']}")
-    logger.info(f"Total Trades: {summary['performance']['total_trades']}")
-    logger.info(f"Engine Active: {summary['engine_status']['active']}")
+    
+    # Check if summary contains error
+    if 'error' in summary:
+        logger.error(f"Failed to get execution summary: {summary['error']}")
+    else:
+        # Safe access to summary fields
+        positions = summary.get('positions', {})
+        performance = summary.get('performance', {})
+        engine_status = summary.get('engine_status', {})
+        
+        logger.info(f"Active Positions: {positions.get('active_count', 0)}")
+        logger.info(f"Total Trades: {performance.get('total_trades', 0)}")
+        logger.info(f"Engine Active: {engine_status.get('active', False)}")
     
     # Test emergency close
     emergency_result = execution_engine.emergency_close_all()

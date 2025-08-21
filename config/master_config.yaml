@@ -24,10 +24,20 @@ mt5:
   retry_count: 3                     # Number of connection retry attempts
   retry_delay: 5                     # Delay between retries in seconds
   
-  # Trading settings
-  magic_number: 123456               # Unique identifier for this EA's trades
+  # Trading settings (Note: magic_number now configurable in execution section)
   slippage: 20                       # Maximum slippage in points
   deviation: 10                      # Maximum price deviation
+  
+  # Connection settings (Enhanced)
+  connection:
+    max_retries: 3                  # Maximum connection retry attempts
+    retry_backoff: 1.0              # Base retry delay in seconds
+    timeout: 30                     # Connection timeout in seconds
+    
+  # Data settings (Enhanced)
+  data:
+    validation_enabled: true        # Enable data validation
+    gap_tolerance: 5                # Acceptable data gaps in bars
 
 # ==========================================
 # TRADING PARAMETERS
@@ -373,6 +383,11 @@ signals:
 # EXECUTION SETTINGS
 # ==========================================
 execution:
+  # Signal Processing (Enhanced)
+  min_confidence: 0.6               # Minimum confidence threshold for signal acceptance (0.0-1.0)
+  signal_age_threshold: 300         # Maximum age of signals in seconds before rejection
+  magic_number: 123456              # Unique identifier for this system's orders
+  
   # Order execution parameters
   order:
     type: "market"                  # Options: market, limit, stop
@@ -383,6 +398,23 @@ execution:
   slippage:
     max_slippage: 3                 # Maximum slippage in pips
     reject_on_slippage: true        # Reject order if slippage too high
+    
+  # Position Monitoring (Enhanced)
+  monitoring:
+    update_interval: 5              # Position update interval in seconds
+    max_restarts: 10                # Maximum monitoring thread restart attempts
+    max_consecutive_errors: 3       # Max consecutive errors before restart
+    restart_backoff_max: 60         # Maximum backoff time for restarts
+    
+  # Data Validation (Enhanced)
+  data_validation:
+    cache_duration: 300             # Data validation cache duration in seconds
+    enable_caching: true            # Enable/disable validation caching
+    
+  # Threading (Enhanced)
+  threading:
+    monitoring_timeout: 15          # Timeout for graceful monitoring thread shutdown
+    use_daemon_threads: true        # Use daemon threads for background tasks
     
   # Latency management
   latency:
@@ -453,11 +485,13 @@ backtesting:
 # RISK CONTROLS
 # ==========================================
 risk_controls:
-  # Emergency stop conditions
+  # Emergency stop conditions (Enhanced)
   emergency_stop:
     daily_loss_limit: 0.15          # Stop if daily loss exceeds 15%
     weekly_loss_limit: 0.25         # Stop if weekly loss exceeds 25%
     consecutive_losses: 5           # Stop after 5 consecutive losses
+    max_drawdown_stop: 0.15         # Emergency stop at 15% drawdown
+    circuit_breaker_enabled: true   # Enable circuit breaker functionality
     
   # Position limits
   position_limits:
@@ -525,6 +559,9 @@ notifications:
 logging:
   # Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: "INFO"
+  enable_stack_traces: false        # Enable stack traces for debugging
+  log_signal_details: true          # Log detailed signal information
+  log_position_updates: true        # Log position update details
   
   # Log files
   files:
@@ -614,10 +651,14 @@ dashboard:
 # SYSTEM SETTINGS
 # ==========================================
 system:
-  # Performance settings
+  # Performance settings (Enhanced)
   performance:
     multiprocessing: true          # Use multiple CPU cores
     max_workers: 4                 # Maximum worker threads
+    track_slippage: true           # Track and log slippage statistics
+    track_execution_time: true     # Track signal processing time
+    generate_reports: true         # Generate performance reports
+    report_interval: 3600          # Report generation interval in seconds
     
   # Memory management
   memory:
@@ -637,6 +678,14 @@ system:
     cleanup_interval: 86400        # Daily cleanup (seconds)
     backup_config: true            # Backup configuration daily
     backup_database: true          # Backup database daily
+
+# ==========================================
+# DEVELOPMENT/TESTING SETTINGS (Enhanced)
+# ==========================================
+development:
+  enable_mock_data: true            # Use mock data when MT5 unavailable
+  simulate_network_delays: false    # Simulate network delays for testing
+  debug_signal_validation: false    # Extra debug logging for signal validation
 
 # ==========================================
 # END OF CONFIGURATION
