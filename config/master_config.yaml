@@ -89,6 +89,12 @@ trading:
     breakeven_trigger: 25           # Pips in profit before breakeven
     breakeven_buffer: 5             # Pips above entry for breakeven
 
+# Partial exit configuration
+partial_exits:
+  profit_thresholds: [2.0, 4.0, 3.0]
+  close_percentages: [0.25, 0.25]
+  min_position_size: 0.02
+
 # ==========================================
 # STRATEGY SELECTION
 # ==========================================

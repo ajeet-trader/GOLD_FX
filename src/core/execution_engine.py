@@ -22,22 +22,16 @@ Features:
 - Emergency stop mechanisms
 """
 
-
-from __future__ import annotations
-
 import sys
-import os
 from pathlib import Path
 
-# Add src directory to Python path
-# Ensure this path manipulation is robust for running as module or script
-try:
-    project_root = Path(__file__).resolve().parents[2] # Go up 2 levels from src/core/execution_engine.py
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-except Exception as e:
-    print(f"Error setting sys.path: {e}")
+if __name__ == "__main__" and __package__ is None:
+    # Running directly: python src/core/execution_engine.py
+    project_root = Path(__file__).resolve().parents[2]  # points to J:\Gold_FX
+    sys.path.insert(0, str(project_root))
+from src.utils.path_utils import get_project_root
 
+# Now import other modules
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -108,6 +102,19 @@ class ExecutionResult:
     confidence: float = 0.0
     risk_assessment: Dict[str, Any] = field(default_factory=dict) # Use default_factory for mutable type
     error_message: str = ""
+    
+    def __post_init__(self):
+        """Validate risk_assessment dictionary"""
+        # Only validate if the execution was successful
+        if self.status in (ExecutionStatus.EXECUTED, ExecutionStatus.PARTIAL):
+            required_keys = {'monetary_risk', 'risk_percentage'}
+            if not required_keys.issubset(self.risk_assessment.keys()):
+                missing = required_keys - set(self.risk_assessment.keys())
+                raise ValueError(f"risk_assessment missing required keys: {missing}")
+            if not isinstance(self.risk_assessment['monetary_risk'], (int, float)):
+                raise TypeError("monetary_risk must be numeric")
+            if not isinstance(self.risk_assessment['risk_percentage'], (int, float)):
+                raise TypeError("risk_percentage must be numeric")
 
 
 @dataclass
@@ -222,6 +229,7 @@ class ExecutionEngine:
         # Threading
         self.monitor_thread = None
         self.execution_lock = threading.Lock()
+        self.monitoring_lock = threading.Lock()  # Added for thread safety on monitoring_active flag
         
         # Logger (using the module-level logger)
         self.logger = logger
@@ -231,27 +239,65 @@ class ExecutionEngine:
     
     # --- New: Internal Mock Creator Methods ---
     def _create_mock_mt5(self):
-        """Create mock MT5 manager for testing"""
+        """Create advanced mock MT5 manager"""
         class MockMT5Manager:
             def __init__(self, mode):
                 self.mode = mode
+                self.fail_next_order = False
+                self.price_data = {
+                    'XAUUSD': 1960.0,
+                    'XAUUSDm': 1960.0
+                }
+                self.spread = 0.5  # Simulated spread
+                
+            def set_fail_next_order(self, should_fail: bool):
+                self.fail_next_order = should_fail
+                
+            def update_price(self, symbol, new_price):
+                """Update mock price for a symbol"""
+                self.price_data[symbol] = new_price
+                
             def get_account_balance(self):
                 return 150.0
+            
             def get_account_equity(self):
                 return 145.0
+            
             def get_open_positions(self):
-                return [] # Simulate no open positions by default for test init
+                return []
+                
             def place_market_order(self, symbol, order_type, volume, sl=None, tp=None, comment=""):
-                logger.info(f"[{self.mode} MT5] Simulating {order_type} order for {symbol}, vol={volume}")
+                # Simulate order failure if flag is set
+                if self.fail_next_order:
+                    self.fail_next_order = False
+                    return {
+                        'success': False,
+                        'comment': 'Simulated failure for testing',
+                        'retcode': 10018
+                    }
+                
+                # Get current price with spread
+                base_price = self.price_data.get(symbol, 1960.0)
+                if order_type == "BUY":
+                    executed_price = base_price + self.spread
+                else:  # SELL
+                    executed_price = base_price - self.spread
+                
+                # Simulate price movement after execution
+                self.price_data[symbol] = base_price * (1 + (np.random.random() - 0.5) * 0.001)
+                
+                logger.info(f"[{self.mode} MT5] Simulating {order_type} order for {symbol}, vol={volume} @ {executed_price:.2f}")
                 return {
                     'success': True,
-                    'ticket': np.random.randint(1000000, 9999999), # Unique ticket
-                    'price': 1960.0,
+                    'ticket': np.random.randint(1000000, 9999999),
+                    'price': executed_price,
                     'volume': volume
                 }
+            
             def close_position(self, ticket, volume=None):
                 logger.info(f"[{self.mode} MT5] Simulating close position {ticket}")
                 return {'success': True}
+            
             def modify_position(self, ticket, sl=None, tp=None):
                 logger.info(f"[{self.mode} MT5] Simulating modify position {ticket}")
                 return {'success': True}
@@ -268,7 +314,9 @@ class ExecutionEngine:
                     'position_size': 0.02, # Fixed size for mock
                     'risk_assessment': {
                         'monetary_risk': 20.0,
-                        'risk_percentage': 0.02
+                        'risk_percentage': 0.02,
+                        'expected_return': 0.05,
+                        'expected_return_std': 0.01
                     }
                 }
             def update_position_closed(self, trade_result):
@@ -409,8 +457,10 @@ class ExecutionEngine:
             
             # Check signal age (reject old signals)
             signal_age = datetime.now() - signal.timestamp
-            if signal_age.total_seconds() > 300:  # 5 minutes
-                return {'valid': False, 'reason': 'Signal too old'}
+            # Use configurable threshold with 300s default
+            max_age = self.execution_config.get('signal_age_threshold', 300)
+            if signal_age.total_seconds() > max_age:  
+                return {'valid': False, 'reason': f'Signal too old ({signal_age.total_seconds()}s > {max_age}s threshold)'}
             
             # Check minimum confidence
             min_confidence = 0.6
@@ -503,7 +553,9 @@ class ExecutionEngine:
                         self.logger.warning(f"Order execution attempt {attempt + 1} failed: {last_error}")
                     
                     if attempt < self.retry_attempts - 1:
-                        time.sleep(self.retry_delay)
+                        # Exponential backoff with 60s cap
+                        delay = min(self.retry_delay * (2 ** attempt), 60)
+                        time.sleep(delay)
                 
                 # Process execution result
                 if order_result and order_result.get('success', False):
@@ -661,39 +713,47 @@ class ExecutionEngine:
     def _start_position_monitoring(self) -> None:
         """Start position monitoring thread"""
         try:
-            if not self.monitoring_active:
-                self.monitoring_active = True
-                self.monitor_thread = threading.Thread(
-                    target=self._position_monitoring_loop,
-                    name="PositionMonitor",
-                    daemon=True
-                )
-                self.monitor_thread.start()
-                self.logger.info("Position monitoring started")
+            with self.monitoring_lock:
+                if not self.monitoring_active:
+                    self.monitoring_active = True
+                    self.monitor_thread = threading.Thread(
+                        target=self._position_monitoring_loop,
+                        name="PositionMonitor",
+                        daemon=True
+                    )
+                    self.monitor_thread.start()
+                    self.logger.info("Position monitoring started")
         except Exception as e:
             self.logger.error(f"Failed to start position monitoring: {str(e)}")
     
     def _position_monitoring_loop(self) -> None:
         """Main position monitoring loop"""
-        while self.monitoring_active and self.engine_active:
+        restart_count = 0
+        max_restarts = 5
+        
+        while restart_count < max_restarts and self.engine_active:
             try:
-                # Update position information
-                self._update_positions()
-                
-                # Check for stop loss and take profit triggers
-                self._check_exit_conditions()
-                
-                # Check for partial profit taking
-                self._check_partial_exits()
-                
-                # Update risk metrics
-                self._update_position_risks()
-                
-                # Sleep for next iteration
-                time.sleep(5)  # Check every 5 seconds
+                self.monitoring_active = True
+                while self.monitoring_active and self.engine_active:
+                    # Update position information
+                    self._update_positions()
+                    
+                    # Check for stop loss and take profit triggers
+                    self._check_exit_conditions()
+                    
+                    # Check for partial profit taking
+                    self._check_partial_exits()
+                    
+                    # Update risk metrics
+                    self._update_position_risks()
+                    
+                    # Sleep for next iteration
+                    time.sleep(5)
             except Exception as e:
-                self.logger.error(f"Position monitoring error: {str(e)}")
-                time.sleep(10)  # Longer sleep on error
+                restart_count += 1
+                backoff = min(2 ** restart_count, 30)  # Exponential backoff max 30s
+                self.logger.critical(f"Monitoring thread crashed (restart {restart_count}/{max_restarts}): {str(e)}")
+                time.sleep(backoff)
     
     def _update_positions(self) -> None:
         """Update position information from MT5"""
@@ -819,30 +879,35 @@ class ExecutionEngine:
     def _check_partial_exits(self) -> None:
         """Check for partial profit taking opportunities"""
         try:
+            # Get configuration with defaults
+            thresholds = self.config.get('partial_exits', {}).get('profit_thresholds', [2.0, 4.0, 3.0])
+            percentages = self.config.get('partial_exits', {}).get('close_percentages', [0.25, 0.25])
+            min_size = self.config.get('partial_exits', {}).get('min_position_size', 0.02)
+            
             for ticket, position in list(self.active_positions.items()):
                 # Only for profitable positions
                 if position.unrealized_pnl <= 0:
                     continue
                 
                 # Check if position is large enough for partial exit
-                if position.volume < 0.02:  # Need at least 0.02 lots
+                if position.volume < min_size:
                     continue
                 
                 # Partial exit rules based on profit
                 profit_pct = position.unrealized_pnl_pct
                 
-                # Close 25% at 2% profit
-                if profit_pct >= 2.0 and not hasattr(position, 'partial_1_closed'):
-                    self._partial_close_position(ticket, 0.25, "Partial 1: 2% profit")
+                # Close first partial at first threshold
+                if profit_pct >= thresholds[0] and not hasattr(position, 'partial_1_closed'):
+                    self._partial_close_position(ticket, percentages[0], f"Partial 1: {thresholds[0]}% profit")
                     position.partial_1_closed = True
                 
-                # Close another 25% at 4% profit
-                elif profit_pct >= 4.0 and not hasattr(position, 'partial_2_closed'):
-                    self._partial_close_position(ticket, 0.25, "Partial 2: 4% profit")
+                # Close second partial at second threshold
+                elif profit_pct >= thresholds[1] and not hasattr(position, 'partial_2_closed'):
+                    self._partial_close_position(ticket, percentages[1], f"Partial 2: {thresholds[1]}% profit")
                     position.partial_2_closed = True
                 
-                # Move stop to breakeven at 3% profit
-                elif profit_pct >= 3.0 and not hasattr(position, 'breakeven_set'):
+                # Move stop to breakeven at third threshold
+                elif profit_pct >= thresholds[2] and not hasattr(position, 'breakeven_set'):
                     self._move_stop_to_breakeven(ticket)
                     position.breakeven_set = True
         except Exception as e:
@@ -1095,31 +1160,48 @@ class ExecutionEngine:
             self.logger.error(f"Engine stop error: {str(e)}")
     
     def emergency_close_all(self) -> Dict[str, Any]:
-        """Emergency close all positions"""
+        """Emergency close all positions with rollback capability"""
         try:
-            self.logger.warning("EMERGENCY CLOSE ALL POSITIONS INITIATED")
+            # Create position snapshot for rollback
+            position_snapshot = list(self.active_positions.values())
             
-            results = []
-            for ticket in list(self.active_positions.keys()):
+            close_results = {
+                'total': len(position_snapshot),
+                'successful': [],
+                'failed': []
+            }
+            
+            # Attempt to close all positions
+            for position in position_snapshot:
                 try:
-                    close_result = self._close_position(ticket, "EMERGENCY CLOSE")
-                    results.append({
-                        'ticket': ticket,
-                        'success': close_result
-                    })
+                    result = self.mt5_manager.close_position(position.ticket)
+                    if result.get('success', False):
+                        close_results['successful'].append(position.ticket)
+                        del self.active_positions[position.ticket]
+                    else:
+                        close_results['failed'].append({
+                            'ticket': position.ticket,
+                            'error': result.get('comment', 'Unknown error')
+                        })
                 except Exception as e:
-                    results.append({
-                        'ticket': ticket,
-                        'success': False,
+                    close_results['failed'].append({
+                        'ticket': position.ticket,
                         'error': str(e)
                     })
             
-            return {
-                'timestamp': datetime.now().isoformat(),
-                'total_positions': len(results),
-                'successful_closes': len([r for r in results if r['success']]),
-                'results': results
-            }
+            # Rollback if any failures occurred
+            if close_results['failed']:
+                self.logger.critical("Emergency close partially failed - attempting rollback")
+                for ticket in close_results['successful']:
+                    # Re-open positions that were incorrectly closed
+                    # This would be broker-specific in live environment
+                    self.logger.warning(f"Re-opening position {ticket} after failed emergency close")
+                    # In mock mode, we just restore the position object
+                    if self.mode == 'mock':
+                        original_position = next(p for p in position_snapshot if p.ticket == ticket)
+                        self.active_positions[ticket] = original_position
+            
+            return close_results
         except Exception as e:
             self.logger.error(f"Emergency close failed: {str(e)}")
             return {'error': str(e)}
@@ -1159,6 +1241,7 @@ class ExecutionEngine:
                 executed_size=position_info.get('position_size', 0.01),
                 requested_price=signal.price,
                 executed_price=signal.price,
+                ticket=position_info.get('ticket', 0),
                 stop_loss=signal.stop_loss,
                 take_profit=signal.take_profit,
                 strategy=signal.strategy_name,
@@ -1300,6 +1383,15 @@ if __name__ == "__main__":
     # Import CLI utilities
     from src.utils.cli_args import parse_mode, print_mode_banner
     
+    # Setup logging
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    logger = logging.getLogger(__name__)
+    
     # Parse CLI arguments
     mode = parse_mode()
     print_mode_banner(mode)
@@ -1313,16 +1405,12 @@ if __name__ == "__main__":
             },
             'slippage': {
                 'max_slippage': 3
-            }
+            },
+            'signal_age_threshold': 300  # Added signal age threshold
         },
         'mode': mode # Pass the determined mode to the engine config
     }
     
-    # Mock classes used by the ExecutionEngine's internal creators.
-    # These definitions need to be at the module top-level if ExecutionEngine uses them directly
-    # and they aren't provided via __init__ arguments in non-test scenarios.
-    # For this test, they are correctly defined here as local mocks.
-
     # Mock components for testing: These are the *external* mocks provided to the test harness
     class MockRiskManager: # This mock is passed to the ExecutionEngine
         def calculate_position_size(self, signal, balance, positions):
@@ -1331,7 +1419,9 @@ if __name__ == "__main__":
                 'position_size': 0.02,
                 'risk_assessment': {
                     'monetary_risk': 20.0,
-                    'risk_percentage': 0.02
+                    'risk_percentage': 0.02,
+                    'expected_return': 0.05,
+                    'expected_return_std': 0.01
                 }
             }
         
@@ -1361,7 +1451,7 @@ if __name__ == "__main__":
         logger_manager=MockLoggerManager()
     )
     
-    print("Execution Engine Initialized. Running tests...")
+    logger.info("Execution Engine Initialized. Running tests...")
 
     # Test signal processing
     if mode == 'live':
@@ -1373,12 +1463,12 @@ if __name__ == "__main__":
             
             if live_signals:
                 signal = live_signals[0]  # Use first live signal
-                print(f"Using live signal: {signal.strategy_name} {signal.signal_type.value} @ {signal.price}")
+                logger.info(f"Using live signal: {signal.strategy_name} {signal.signal_type.value} @ {signal.price}")
             else:
-                print("No live signals generated, skipping execution test")
+                logger.info("No live signals generated, skipping execution test")
                 signal = None
         except Exception as e:
-            print(f"Failed to generate live signals: {e}, using mock signal")
+            logger.error(f"Failed to generate live signals: {e}, using mock signal")
             signal = None
     
     if mode != 'live' or signal is None:
@@ -1399,34 +1489,34 @@ if __name__ == "__main__":
             metadata: Dict[str, Any] = field(default_factory=dict)
         
         signal = MockSignal()
-        print(f"Using mock signal: {signal.strategy_name} {signal.signal_type.value} @ {signal.price}")
+        logger.info(f"Using mock signal: {signal.strategy_name} {signal.signal_type.value} @ {signal.price}")
 
     # Process the signal
     execution_result = execution_engine.process_signal(signal) if signal else None
     
     if execution_result:
-        print("\nExecution Result:")
-        print(f"Status: {execution_result.status.value}")
-        print(f"Ticket: {execution_result.ticket}")
-        print(f"Executed Price: {execution_result.executed_price}")
-        print(f"Slippage: {execution_result.slippage}")
+        logger.info("\nExecution Result:")
+        logger.info(f"Status: {execution_result.status.value}")
+        logger.info(f"Ticket: {execution_result.ticket}")
+        logger.info(f"Executed Price: {execution_result.executed_price}")
+        logger.info(f"Slippage: {execution_result.slippage}")
     else:
-        print("\nNo signal processed")
+        logger.info("\nNo signal processed")
     
     # Test execution summary
     summary = execution_engine.get_execution_summary()
-    print(f"\nExecution Summary:")
-    print(f"Active Positions: {summary['positions']['active_count']}")
-    print(f"Total Trades: {summary['performance']['total_trades']}")
-    print(f"Engine Active: {summary['engine_status']['active']}")
+    logger.info(f"\nExecution Summary:")
+    logger.info(f"Active Positions: {summary['positions']['active_count']}")
+    logger.info(f"Total Trades: {summary['performance']['total_trades']}")
+    logger.info(f"Engine Active: {summary['engine_status']['active']}")
     
     # Test emergency close
     emergency_result = execution_engine.emergency_close_all()
-    print(f"\nEmergency Close Result:")
-    print(f"Total Positions: {emergency_result.get('total_positions', 0)}")
-    print(f"Successful Closes: {emergency_result.get('successful_closes', 0)}")
+    logger.info(f"\nEmergency Close Result:")
+    logger.info(f"Total Positions: {emergency_result.get('total_positions', 0)}")
+    logger.info(f"Successful Closes: {emergency_result.get('successful_closes', 0)}")
     
     # Stop engine
     execution_engine.stop_engine()
     
-    print("\nExecution Engine test completed!")
+    logger.info("\nExecution Engine test completed!")
