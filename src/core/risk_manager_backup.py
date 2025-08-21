@@ -1,9 +1,10 @@
+
 """
 Risk Manager - Advanced Risk Management System
 =============================================
 Author: XAUUSD Trading System
-Version: 2.1.0
-Date: 2025-01-15
+Version: 2.0.0
+Date: 2025-08-08
 
 Comprehensive risk management for aggressive 10x returns target:
 - Kelly Criterion position sizing with safety factors
@@ -19,11 +20,6 @@ Features:
 - Real-time risk monitoring
 - Circuit breaker mechanisms
 - Performance-based adjustments
-
-FIXES APPLIED:
-✅ ISSUE #22: PositionSizingMethod Enum properly defined
-✅ ISSUE #23: Kelly Criterion with correct win_probability calculation
-✅ ISSUE #24: MockMT5Manager fully implemented with all methods
 """
 
 import pandas as pd
@@ -32,7 +28,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple, Deque
 from collections import deque
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field # Import 'field' from dataclasses
 import json
 from enum import Enum
 
@@ -66,8 +62,9 @@ except ImportError:
         grade: Optional[SignalGrade] = None
         stop_loss: Optional[float] = None
         take_profit: Optional[float] = None
-        # FIXED: Use default_factory for mutable default 'metadata'
-        metadata: Dict[str, Any] = field(default_factory=dict)
+        # FIX 2: Use default_factory for mutable default 'metadata'
+        metadata: Dict[str, Any] = field(default_factory=dict) # Corrected line
+
 
     def parse_mode(*_args, **_kwargs):  # type: ignore
         return 'mock'
@@ -76,7 +73,6 @@ except ImportError:
         pass
 
 
-# FIXED ISSUE #22: PositionSizingMethod Enum properly defined
 class RiskLevel(Enum):
     """Risk level enumeration"""
     LOW = "LOW"
@@ -86,10 +82,10 @@ class RiskLevel(Enum):
 
 
 class PositionSizingMethod(Enum):
-    """Position sizing methods - FIXED: Consistent enum values"""
+    """Position sizing methods"""
     FIXED = "FIXED"
     KELLY = "KELLY"
-    KELLY_MODIFIED = "KELLY_MODIFIED"  # FIXED: Changed from "kelly_modified"
+    KELLY_MODIFIED = "kelly_modified"
     VOLATILITY_BASED = "VOLATILITY_BASED"
     CONFIDENCE_BASED = "CONFIDENCE_BASED"
 
@@ -150,30 +146,21 @@ class PositionRisk:
     liquidity_risk: float
 
 
-# FIXED ISSUE #24: MockMT5Manager fully implemented
+# ====================================================================
+# MOCK CLASSES MOVED HERE (OUTSIDE if __name__ == "__main__": block)
+# ====================================================================
+
 class MockMT5Manager:
-    """Mock MT5 Manager for testing and development"""
-    
     def __init__(self, mode='mock'):
         self.mode = mode
-        self._connected = True
-        self._balance = 150.0
-        self._equity = 145.0
 
-    def connect(self) -> bool:
-        """Mock connection method"""
-        return True
+    def get_account_balance(self):
+        return 150.0
 
-    def get_account_balance(self) -> float:
-        """Get mock account balance"""
-        return self._balance
+    def get_account_equity(self):
+        return 145.0
 
-    def get_account_equity(self) -> float:
-        """Get mock account equity"""
-        return self._equity
-
-    def get_open_positions(self) -> List[Dict]:
-        """Get mock open positions"""
+    def get_open_positions(self):
         return [
             {'symbol': 'XAUUSDm', 'type': 'BUY', 'volume': 0.02,
              'price_current': 1960.0, 'profit': 25.0},
@@ -181,12 +168,16 @@ class MockMT5Manager:
              'price_current': 1955.0, 'profit': -10.0}
         ]
 
-    def get_historical_data(self, symbol: str, timeframe: str, bars: int) -> pd.DataFrame:
-        """Get mock historical data"""
+    def get_historical_data(self, symbol, timeframe, bars):
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime, timedelta
+
         dates = pd.date_range(start=datetime.now() - timedelta(days=5),
-                             end=datetime.now(), freq='15Min')[:bars]
+                             end=datetime.now(), freq='15Min')
 
         np.random.seed(42 if self.mode == 'mock' else 123)
+
         close_prices = 1950 + np.cumsum(np.random.randn(len(dates)) * 2)
 
         return pd.DataFrame({
@@ -197,29 +188,15 @@ class MockMT5Manager:
             'Volume': np.random.randint(100, 1000, len(dates))
         }, index=dates)
 
-    def close_all_positions(self) -> bool:
-        """Mock close all positions"""
+    def close_all_positions(self):
         print(f"[{self.mode} MT5] All positions closed.")
-        return True
-
-    def place_order(self, **kwargs) -> Dict[str, Any]:
-        """Mock place order method"""
-        return {'status': 'success', 'ticket': np.random.randint(10000, 99999)}
-
 
 class MockDatabaseManager:
-    """Mock Database Manager for testing"""
-    
-    def __init__(self):
-        self.mock_trades = []
-
-    def get_trades(self, limit: int = 1000) -> List[Dict]:
-        """Get mock trade history"""
-        return self.mock_trades[:limit]
-
-    def add_trade(self, trade: Dict) -> None:
-        """Add mock trade for testing"""
-        self.mock_trades.append(trade)
+    def get_trades(self, limit=1000):
+        return []
+# ====================================================================
+# END OF MOCK CLASSES
+# ====================================================================
 
 
 class RiskManager:
@@ -240,7 +217,7 @@ class RiskManager:
     def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None):
         """Initialize Risk Manager"""
         self.config = config
-        self.database_manager = database_manager or MockDatabaseManager()
+        self.database_manager = database_manager
 
         # Determine mode (CLI overrides config)
         cli_mode = parse_mode()
@@ -250,21 +227,24 @@ class RiskManager:
         # Create appropriate MT5 manager based on mode
         if self.mode == 'live':
             try:
+                # Assuming src.core.mt5_manager.MT5Manager is available in live mode
                 from src.core.mt5_manager import MT5Manager
                 live_mgr = MT5Manager()
-                if live_mgr.connect():
+                if live_mgr.connect():  # Check if connection is successful
                     self.mt5_manager = live_mgr
                     print("✅ Connected to live MT5")
                 else:
                     print("⚠️  Failed to connect to live MT5, falling back to mock data")
                     self.mt5_manager = MockMT5Manager(self.mode)
-                    self.mode = 'mock'
+                    self.mode = 'mock'  # Update mode if fallback occurs
             except ImportError:
                 print("⚠️  MT5Manager not available, using mock data")
                 self.mt5_manager = MockMT5Manager(self.mode)
-                self.mode = 'mock'
-        else:
+                self.mode = 'mock'  # Update mode if fallback occurs
+        else:  # mock mode or mt5_manager is already provided (e.g., from a test harness)
+            # If mt5_manager is None, create a MockMT5Manager
             self.mt5_manager = mt5_manager if mt5_manager else MockMT5Manager(self.mode)
+
 
         # Risk configuration
         self.risk_config = config.get('risk_management', {})
@@ -279,22 +259,9 @@ class RiskManager:
         self.max_weekly_loss = self.risk_config.get('max_weekly_loss', 0.20)
         self.max_consecutive_losses = self.risk_config.get('max_consecutive_losses', 4)
 
-        # Position sizing - FIXED: Handle both string and enum values
+        # Position sizing
         self.sizing_config = config.get('position_sizing', {})
-        sizing_method_str = self.sizing_config.get('method', 'KELLY_MODIFIED')
-        
-        # FIXED: Proper enum handling
-        try:
-            if isinstance(sizing_method_str, str):
-                # Handle legacy string values
-                if sizing_method_str.lower() == 'kelly_modified':
-                    sizing_method_str = 'KELLY_MODIFIED'
-                self.sizing_method = PositionSizingMethod(sizing_method_str.upper())
-            else:
-                self.sizing_method = sizing_method_str
-        except ValueError:
-            self.sizing_method = PositionSizingMethod.KELLY_MODIFIED
-            
+        self.sizing_method = PositionSizingMethod(self.sizing_config.get('method', 'kelly_modified'))
         self.kelly_safety_factor = self.sizing_config.get('kelly_safety_factor', 0.30)
         self.min_position_size = self.sizing_config.get('min_position_size', 0.01)
         self.max_position_size = self.sizing_config.get('max_position_size', 0.10)
@@ -489,28 +456,22 @@ class RiskManager:
         return max(self.min_position_size, min(lot_size, self.max_position_size))
 
     def _calculate_kelly_size(self, account_balance: float, signal: Signal) -> float:
-        """
-        Calculate Kelly Criterion position size
-        FIXED ISSUE #23: Proper Kelly formula with win_probability calculation
-        """
+        """Calculate Kelly Criterion position size"""
         try:
-            # FIXED: Get historical win rate and average win/loss
-            win_probability, avg_win, avg_loss = self._get_strategy_performance(signal.strategy_name)
+            # Get historical win rate and average win/loss
+            win_rate, avg_win, avg_loss = self._get_strategy_performance(signal.strategy_name)
 
-            if win_probability == 0 or avg_loss == 0:
+            if win_rate == 0 or avg_loss == 0:
                 # No historical data, use conservative size
                 return self.min_position_size
 
-            # Kelly formula: f = (b*p - q) / b
-            # where: b = odds received (avg_win/avg_loss), p = win_probability, q = 1-p
-            b = avg_win / avg_loss  # Odds ratio
-            p = win_probability
-            q = 1 - p  # Loss probability
+            # Kelly formula: f = (bp - q) / b
+            # where: b = odds received (avg_win/avg_loss), p = win_rate, q = 1-p
+            b = avg_win / avg_loss
+            p = win_rate
+            q = 1 - p
 
             kelly_fraction = (b * p - q) / b
-
-            # Apply safety constraints
-            kelly_fraction = max(0, min(kelly_fraction, 0.25))  # Cap at 25%
 
             # Apply to account balance
             if kelly_fraction > 0:
@@ -525,7 +486,7 @@ class RiskManager:
             return self.min_position_size
 
     def _calculate_kelly_modified_size(self, account_balance: float, signal: Signal) -> float:
-        """Calculate Kelly Criterion with safety factor and signal adjustments"""
+        """Calculate Kelly Criterion with safety factor"""
         try:
             # Get Kelly size
             kelly_size = self._calculate_kelly_size(account_balance, signal)
@@ -673,7 +634,7 @@ class RiskManager:
                 if position.get('symbol') == signal.symbol:
                     same_symbol_exposure += abs(position.get('volume', 0))
 
-                # Check direction correlation
+                # Check direction correlation (simplified)
                 if position.get('type') == signal.signal_type.value:
                     same_direction_exposure += abs(position.get('volume', 0))
 
@@ -717,16 +678,19 @@ class RiskManager:
         try:
             current_hour = datetime.now().hour
 
-            # Define session multipliers based on volatility patterns
-            if 0 <= current_hour < 9:  # Asian session
+            # Define session multipliers (based on volatility)
+            # This is a placeholder for TradingSession.get_current_session() which might not be directly available
+            # in this module without the full src.core.base import.
+            # Using simple hour-based logic for now.
+            if 0 <= current_hour < 9: # Asian
                 return 0.8
-            elif 9 <= current_hour < 14:  # London session
+            elif 9 <= current_hour < 14: # London
                 return 1.2
-            elif 14 <= current_hour < 17:  # EU/US overlap
+            elif 14 <= current_hour < 17: # Overlap EU/US
                 return 1.5
-            elif 17 <= current_hour < 23:  # New York session
+            elif 17 <= current_hour < 23: # New York (post-overlap)
                 return 1.0
-            else:  # Off-hours
+            else: # Off-hours
                 return 0.6
 
         except Exception as e:
@@ -746,7 +710,7 @@ class RiskManager:
                 position_risk = abs(position.get('profit', 0))
                 total_risk += position_risk
 
-            portfolio_risk_pct = total_risk / account_balance if account_balance > 0 else 1.0
+            portfolio_risk_pct = total_risk / account_balance
 
             # Reduce size if portfolio risk is high
             if portfolio_risk_pct > self.max_portfolio_risk:
@@ -789,12 +753,12 @@ class RiskManager:
             if signal.stop_loss:
                 stop_distance = abs(signal.price - signal.stop_loss)
                 monetary_risk = stop_distance * position_size * 100  # Approximate
-                risk_percentage = monetary_risk / account_balance if account_balance > 0 else 0
+                risk_percentage = monetary_risk / account_balance
             else:
                 # Estimate risk as 2% of position value
                 position_value = position_size * signal.price * 100
                 monetary_risk = position_value * 0.02
-                risk_percentage = monetary_risk / account_balance if account_balance > 0 else 0
+                risk_percentage = monetary_risk / account_balance
 
             # Calculate reward if take profit is set
             reward_risk_ratio = 0
@@ -812,7 +776,7 @@ class RiskManager:
             for position in open_positions:
                 total_portfolio_risk += abs(position.get('profit', 0))
 
-            portfolio_risk_pct = total_portfolio_risk / account_balance if account_balance > 0 else 0
+            portfolio_risk_pct = total_portfolio_risk / account_balance
 
             risk_assessment = {
                 'monetary_risk': monetary_risk,
@@ -1196,7 +1160,7 @@ class RiskManager:
                 risk_score += 1
 
             # Daily loss factor
-            daily_loss_pct = abs(risk_metrics.daily_pnl) / risk_metrics.account_balance if risk_metrics.account_balance > 0 else 0
+            daily_loss_pct = abs(risk_metrics.daily_pnl) / risk_metrics.account_balance
             if daily_loss_pct > 0.10:
                 risk_score += 3
             elif daily_loss_pct > 0.05:
@@ -1219,13 +1183,7 @@ class RiskManager:
             self.current_risk_level = RiskLevel.MODERATE
 
     def _get_strategy_performance(self, strategy_name: str) -> Tuple[float, float, float]:
-        """
-        Get historical performance for a strategy
-        FIXED ISSUE #23: Now properly calculates win_probability
-        
-        Returns:
-            Tuple[win_probability, avg_win, avg_loss]
-        """
+        """Get historical performance for a strategy"""
         try:
             strategy_trades = [t for t in self.trade_history
                              if t.get('strategy') == strategy_name]
@@ -1236,12 +1194,11 @@ class RiskManager:
             winning_trades = [t for t in strategy_trades if t['profit'] > 0]
             losing_trades = [t for t in strategy_trades if t['profit'] < 0]
 
-            # FIXED: Proper win_probability calculation
-            win_probability = len(winning_trades) / len(strategy_trades)
+            win_rate = len(winning_trades) / len(strategy_trades)
             avg_win = np.mean([t['profit'] for t in winning_trades]) if winning_trades else 0.02
             avg_loss = abs(np.mean([t['profit'] for t in losing_trades])) if losing_trades else 0.02
 
-            return win_probability, avg_win, avg_loss
+            return win_rate, avg_win, avg_loss
 
         except Exception as e:
             self.logger.error(f"Strategy performance calculation failed: {str(e)}")
@@ -1306,16 +1263,15 @@ class RiskManager:
         """Get comprehensive risk summary"""
         try:
             current_equity = self.mt5_manager.get_account_equity()
-            current_balance = self.mt5_manager.get_account_balance()
             open_positions = self.mt5_manager.get_open_positions()
 
             return {
                 'timestamp': datetime.now().isoformat(),
                 'risk_level': self.current_risk_level.value,
                 'account_status': {
-                    'balance': current_balance,
+                    'balance': self.mt5_manager.get_account_balance(),
                     'equity': current_equity,
-                    'equity_peak': self.equity_peak,
+                    'equity_peak': current_equity, # Set equity_peak to current_equity here for summary, it's updated in update_position_closed
                     'current_drawdown': self._calculate_current_drawdown(current_equity),
                     'daily_pnl': self._calculate_daily_pnl(),
                     'weekly_pnl': self._calculate_weekly_pnl(),
@@ -1355,59 +1311,6 @@ class RiskManager:
             self.logger.error(f"Risk summary generation failed: {str(e)}")
             return {'error': str(e)}
 
-    # ENHANCED: Additional validation and testing methods
-    def validate_risk_limits(self) -> Dict[str, Any]:
-        """Validate all risk management limits and constraints"""
-        validation_results = {
-            'valid': True,
-            'warnings': [],
-            'errors': []
-        }
-
-        try:
-            # Validate drawdown limits
-            current_equity = self.mt5_manager.get_account_equity()
-            current_drawdown = self._calculate_current_drawdown(current_equity)
-            
-            if current_drawdown > self.max_drawdown * 0.8:
-                validation_results['warnings'].append(
-                    f"Approaching max drawdown: {current_drawdown:.2%} (limit: {self.max_drawdown:.2%})"
-                )
-            
-            if current_drawdown > self.max_drawdown:
-                validation_results['errors'].append(
-                    f"Exceeded max drawdown: {current_drawdown:.2%}"
-                )
-                validation_results['valid'] = False
-
-            # Validate position limits
-            open_positions = self.mt5_manager.get_open_positions()
-            if len(open_positions) >= self.max_positions:
-                validation_results['warnings'].append(
-                    f"At maximum position limit: {len(open_positions)}/{self.max_positions}"
-                )
-
-            # Validate consecutive losses
-            if self.consecutive_losses >= self.max_consecutive_losses * 0.8:
-                validation_results['warnings'].append(
-                    f"High consecutive losses: {self.consecutive_losses}/{self.max_consecutive_losses}"
-                )
-
-            # Validate daily P&L
-            daily_pnl = self._calculate_daily_pnl()
-            daily_loss_limit = -self.max_daily_loss * self.equity_peak
-            
-            if daily_pnl < daily_loss_limit * 0.8:
-                validation_results['warnings'].append(
-                    f"Approaching daily loss limit: ${daily_pnl:.2f} (limit: ${daily_loss_limit:.2f})"
-                )
-
-        except Exception as e:
-            validation_results['errors'].append(f"Validation error: {str(e)}")
-            validation_results['valid'] = False
-
-        return validation_results
-
 
 # Testing function
 if __name__ == "__main__":
@@ -1429,7 +1332,7 @@ if __name__ == "__main__":
             'max_consecutive_losses': 4
         },
         'position_sizing': {
-            'method': 'KELLY_MODIFIED',  # FIXED: Updated method name
+            'method': 'kelly_modified',
             'kelly_safety_factor': 0.30,
             'min_position_size': 0.01,
             'max_position_size': 0.10,
@@ -1441,16 +1344,30 @@ if __name__ == "__main__":
             'minimum_capital': 50.0,
             'reserve_cash': 0.10
         },
-        'mode': 'mock'
+        'mode': 'mock' # Explicitly set mode for testing
     }
 
-    # Create risk manager instance
-    risk_manager = RiskManager(test_config, mt5_manager=None, database_manager=None)
+    # Create mock database manager if not already defined (for standalone test)
+    if 'MockDatabaseManager' not in globals():
+        class MockDatabaseManager:
+            def get_trades(self, limit=1000):
+                return []
+            def get_account_balance(self): # Added for self-contained test
+                return 150.0
+            def get_account_equity(self): # Added for self-contained test
+                return 145.0
+            def get_open_positions(self): # Added for self-contained test
+                return []
 
-    # Create test signal
+    # Create risk manager instance
+    # Pass mt5_manager=None to trigger internal mock creation in RiskManager.__init__
+    risk_manager = RiskManager(test_config, mt5_manager=None, database_manager=MockDatabaseManager())
+
+    # Create mock signal (needs to be available for this test script)
+    # The original MockSignal class definition from the traceback's context
     @dataclass
-    class TestSignal:
-        timestamp: datetime = field(default_factory=datetime.now)
+    class MockSignal:
+        timestamp: datetime = datetime.now()
         symbol: str = "XAUUSDm"
         strategy_name: str = "test_strategy"
         signal_type: SignalType = SignalType.BUY
@@ -1461,35 +1378,33 @@ if __name__ == "__main__":
         grade: SignalGrade = SignalGrade.A
         stop_loss: Optional[float] = 1950.0
         take_profit: Optional[float] = 1980.0
-        metadata: Dict[str, Any] = field(default_factory=dict)
+        metadata: Dict[str, Any] = field(default_factory=dict) # FIX: Use default_factory
 
-    print("=" * 60)
-    print("TESTING FIXED RISK MANAGER")
-    print("=" * 60)
-    print(f"Mode: {risk_manager.mode.upper()}")
-    print(f"Position Sizing Method: {risk_manager.sizing_method.value}")
+    print("============================================================")
+    print("TESTING RISK MANAGER")
+    print("============================================================")
+    print(f"RUN MODE: {risk_manager.mode.upper()} - using simulated MT5 data" if risk_manager.mode == 'mock' else f"RUN MODE: {risk_manager.mode.upper()} - attempting live MT5 connection")
+
 
     # Test position sizing
-    signal = TestSignal()
+    signal = MockSignal()
+    # FIX 1: Use risk_manager.mt5_manager
     sizing_result = risk_manager.calculate_position_size(
-        signal, 
-        risk_manager.mt5_manager.get_account_balance(), 
-        risk_manager.mt5_manager.get_open_positions()
+        signal, risk_manager.mt5_manager.get_account_balance(), risk_manager.mt5_manager.get_open_positions()
     )
 
-    print("\n📊 Position Sizing Result:")
-    print(f"  Position Size: {sizing_result['position_size']:.4f} lots")
-    print(f"  Allowed: {sizing_result['allowed']}")
-    print(f"  Base Size: {sizing_result.get('base_size', 'N/A')}")
-    print(f"  Risk %: {sizing_result.get('risk_percentage', 0):.2%}")
+    print("\nPosition Sizing Result:")
+    print(f"Position Size: {sizing_result['position_size']}")
+    print(f"Allowed: {sizing_result['allowed']}")
+    print(f"Reason: {sizing_result.get('reason', 'N/A')}")
+    print(f"Risk Assessment: {sizing_result['risk_assessment']}")
 
     # Test risk summary
     risk_summary = risk_manager.get_risk_summary()
-    print(f"\n🛡️ Risk Summary:")
-    print(f"  Risk Level: {risk_summary['risk_level']}")
-    print(f"  Account Balance: ${risk_summary['account_status']['balance']:.2f}")
-    print(f"  Current Equity: ${risk_summary['account_status']['equity']:.2f}")
-    print(f"  Open Positions: {risk_summary['position_metrics']['open_positions']}")
+    print(f"\nRisk Summary:")
+    print(f"Risk Level: {risk_summary['risk_level']}")
+    print(f"Account Status: {risk_summary['account_status']}")
+    print(f"Position Metrics: {risk_summary['position_metrics']}")
 
     # Test trade update
     trade_result = {
@@ -1501,31 +1416,5 @@ if __name__ == "__main__":
     }
     risk_manager.update_position_closed(trade_result)
 
-    # Test validation
-    validation = risk_manager.validate_risk_limits()
-    print(f"\n✅ Risk Validation:")
-    print(f"  Valid: {validation['valid']}")
-    print(f"  Warnings: {len(validation['warnings'])}")
-    print(f"  Errors: {len(validation['errors'])}")
-
-    # Test Kelly calculation with mock data
-    print(f"\n🧮 Testing Kelly Criterion:")
-    # Add some mock trade history for testing
-    mock_trades = [
-        {'timestamp': datetime.now() - timedelta(days=i), 'profit': 10 if i % 3 != 0 else -5, 
-         'strategy': 'test_strategy', 'symbol': 'XAUUSDm', 'equity': 150}
-        for i in range(10)
-    ]
-    risk_manager.trade_history.extend(mock_trades)
-    
-    win_prob, avg_win, avg_loss = risk_manager._get_strategy_performance('test_strategy')
-    print(f"  Win Probability: {win_prob:.2%}")
-    print(f"  Average Win: ${avg_win:.2f}")
-    print(f"  Average Loss: ${avg_loss:.2f}")
-
-    kelly_size = risk_manager._calculate_kelly_size(150.0, signal)
-    print(f"  Kelly Size: {kelly_size:.4f} lots")
-
-    print("\n" + "=" * 60)
-    print("✅ ALL ISSUES FIXED - Risk Manager test completed!")
-    print("=" * 60)
+    print("\nRisk Manager test completed!")
+    print("============================================================")
