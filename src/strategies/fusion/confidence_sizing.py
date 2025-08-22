@@ -37,8 +37,8 @@ class ConfidenceSizing(AbstractStrategy):
         super().__init__(config, mt5_manager, database)
         
         # Determine mode (CLI overrides config)
-        cfg_mode = (self.config.get('parameters', {}) or {}).get('mode') or 'mock'
-        self.mode = parse_mode() or cfg_mode
+        self.mode = parse_mode() or self.config.get('mode', 'mock')
+
         print_mode_banner(self.mode)
         
         # Create appropriate MT5 manager based on mode

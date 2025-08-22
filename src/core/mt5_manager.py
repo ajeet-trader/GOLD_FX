@@ -43,10 +43,6 @@ import time
 import json
 from pathlib import Path
 import sys
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import random
-from dataclasses import dataclass
 
 # Configure logging
 logging.basicConfig(
@@ -55,43 +51,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Custom Exceptions
-class MissingCredentialsError(Exception):
-    """Raised when required MT5 credentials are missing"""
-    pass
-
-class ConnectionRetryError(Exception):
-    """Raised when MT5 connection fails after all retry attempts"""
-    pass
-
-class DataValidationError(Exception):
-    """Raised when data validation fails"""
-    pass
-
-@dataclass
-class SlippageInfo:
-    """Container for slippage tracking information"""
-    requested_price: float
-    executed_price: float
-    slippage_points: float
-    slippage_currency: float
-    timestamp: datetime
-    order_type: str
-    symbol: str
-    volume: float
-
 
 class MT5Manager:
     """
-    Comprehensive MT5 Manager for XAUUSD Trading System with Connection Pooling
+    Comprehensive MT5 Manager for XAUUSD Trading System
     
     This class provides a complete interface to MetaTrader 5, handling:
     - Platform initialization and connection using environment variables
-    - Connection pooling/singleton pattern for resource efficiency
-    - Data retrieval (historical and real-time) with validation
-    - Order management with slippage tracking
+    - Data retrieval (historical and real-time)
+    - Order management (market, pending, modify, close)
     - Account information
-    - Symbol specifications with parallel validation
+    - Symbol specifications
     
     Environment Variables Required:
         MT5_LOGIN: MT5 account number
@@ -105,7 +75,6 @@ class MT5Manager:
         account_info (dict): Current account information
         symbol_info (dict): Symbol specifications
         magic_number (int): Magic number for orders
-        slippage_history (list): Historical slippage data
     
     Example:
         >>> mt5_mgr = MT5Manager()
@@ -137,47 +106,19 @@ class MT5Manager:
         'SELL_STOP': mt5.ORDER_TYPE_SELL_STOP
     }
     
-    # Class-level connection sharing (thread-safe singleton pattern)
-    _instance = None
-    _lock = threading.RLock()  # Use RLock for reentrant locking
-    _connection_pool = None
-    _symbol_cache = {}
-    _initialized = False
-    
-    def __new__(cls, *args, **kwargs):
-        """Implement thread-safe singleton pattern for connection pooling"""
-        if cls._instance is None:
-            with cls._lock:
-                # Double-check locking pattern
-                if cls._instance is None:
-                    cls._instance = super(MT5Manager, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self, symbol: str = "XAUUSD", magic_number: int = 123456):
         """
-        Initialize MT5 Manager with environment variables and connection pooling
+        Initialize MT5 Manager with environment variables
         
         Args:
             symbol (str): Default trading symbol (default: "XAUUSD")
             magic_number (int): Magic number for orders (default: 123456)
-        
-        Raises:
-            MissingCredentialsError: If required credentials are not found
         """
-        # Prevent re-initialization of singleton (thread-safe)
-        with self._lock:
-            if self._initialized:
-                return
-            self._initialized = True
-        
         self.connected = False
         self.symbol = symbol
         self.account_info = {}
         self.symbol_info = {}
         self.magic_number = magic_number
-        self.slippage_history = []
-        self._retry_count = 0
-        self._max_retries = 3
         
         # Load credentials from environment
         self.mt5_login = os.getenv('MT5_LOGIN')
@@ -185,73 +126,23 @@ class MT5Manager:
         self.mt5_server = os.getenv('MT5_SERVER')
         self.mt5_terminal_path = os.getenv('MT5_TERMINAL_PATH')
         
-        # ISSUE #17 FIX: Raise explicit exception for missing credentials
-        missing_vars = []
-        if not self.mt5_login:
-            missing_vars.append('MT5_LOGIN')
-        if not self.mt5_password:
-            missing_vars.append('MT5_PASSWORD')
-        if not self.mt5_server:
-            missing_vars.append('MT5_SERVER')
-        
-        if missing_vars:
-            error_msg = f"Missing required environment variables: {', '.join(missing_vars)}. "
-            error_msg += "Please set these variables in your .env file before initializing MT5Manager."
-            logger.error(error_msg)
-            raise MissingCredentialsError(error_msg)
+        # Validate required environment variables
+        if not all([self.mt5_login, self.mt5_password, self.mt5_server]):
+            logger.warning("Missing required environment variables: MT5_LOGIN, MT5_PASSWORD, MT5_SERVER")
+            logger.info("Please set these variables in your .env file")
         
         # Convert login to integer
         try:
-            self.mt5_login = int(self.mt5_login)
+            self.mt5_login = int(self.mt5_login) if self.mt5_login else None
         except (ValueError, TypeError):
-            error_msg = "MT5_LOGIN must be a valid integer"
-            logger.error(error_msg)
-            raise MissingCredentialsError(error_msg)
+            self.mt5_login = None
+            logger.error("MT5_LOGIN must be a valid integer")
         
         # Load available symbols if CSV exists
         self.available_symbols = self._load_available_symbols()
         
-        # Initialize data validator
-        try:
-            from ..utils.data_validator import DataValidator
-            self.data_validator = DataValidator()
-        except ImportError:
-            logger.warning("Data validator not available - data validation will be limited")
-            self.data_validator = None
-        
         logger.info(f"MT5Manager initialized for symbol: {self.symbol}")
         logger.info(f"Magic number: {self.magic_number}")
-    
-    def _exponential_backoff_retry(self, func, *args, **kwargs):
-        """
-        ISSUE #16 FIX: Implement exponential backoff retry mechanism
-        
-        Args:
-            func: Function to retry
-            *args, **kwargs: Arguments for the function
-        
-        Returns:
-            Result of successful function call
-        
-        Raises:
-            ConnectionRetryError: If all retry attempts fail
-        """
-        max_retries = self._max_retries
-        base_delay = 1.0  # Start with 1 second
-        
-        for attempt in range(max_retries + 1):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                if attempt == max_retries:
-                    error_msg = f"Failed after {max_retries + 1} attempts: {str(e)}"
-                    logger.error(error_msg)
-                    raise ConnectionRetryError(error_msg)
-                
-                # Calculate exponential backoff delay with jitter
-                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-                logger.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying in {delay:.2f}s...")
-                time.sleep(delay)
     
     def connect(self, login: Optional[int] = None, password: Optional[str] = None, 
                 server: Optional[str] = None, path: Optional[str] = None) -> bool:
@@ -274,53 +165,58 @@ class MT5Manager:
             >>> mt5_mgr.connect()
             True
         """
-        def _attempt_connection():
+        try:
             # Use provided credentials or fall back to environment variables
-            _login = login or self.mt5_login
-            _password = password or self.mt5_password
-            _server = server or self.mt5_server
-            _path = path or self.mt5_terminal_path
+            login = login or self.mt5_login
+            password = password or self.mt5_password
+            server = server or self.mt5_server
+            path = path or self.mt5_terminal_path
             
             # Validate required credentials
-            if not all([_login, _password, _server]):
-                raise MissingCredentialsError(
+            if not all([login, password, server]):
+                raise ConnectionError(
                     "Missing MT5 credentials. Please set MT5_LOGIN, MT5_PASSWORD, and MT5_SERVER "
                     "in your .env file or provide them as parameters."
                 )
             
             # Initialize MT5 connection
-            if _path and Path(_path).exists():
-                logger.info(f"Initializing MT5 with custom path: {_path}")
-                if not mt5.initialize(_path):
-                    raise ConnectionError(f"Failed to initialize MT5 with path: {_path}")
+            if path and Path(path).exists():
+                logger.info(f"Initializing MT5 with custom path: {path}")
+                if not mt5.initialize(path):
+                    raise ConnectionError(f"Failed to initialize MT5 with path: {path}")
             else:
                 logger.info("Initializing MT5 with default path")
                 if not mt5.initialize():
                     raise ConnectionError("Failed to initialize MT5")
             
             # Login to account
-            logger.info(f"Attempting to login to account {_login} on server {_server}")
-            authorized = mt5.login(_login, password=_password, server=_server)
+            logger.info(f"Attempting to login to account {login} on server {server}")
+            authorized = mt5.login(login, password=password, server=server)
             if not authorized:
                 error = mt5.last_error()
                 raise ConnectionError(f"Failed to login to MT5: {error}")
-            
-            return _login, _password, _server
-        
-        try:
-            # ISSUE #16 FIX: Use exponential backoff retry for connection
-            login_info = self._exponential_backoff_retry(_attempt_connection)
             
             # Verify connection and get account info
             self.account_info = self._get_account_info()
             if not self.account_info:
                 raise ConnectionError("Failed to retrieve account information")
             
-            # ISSUE #19 FIX: Parallelize symbol validation
-            self.symbol_info = self._get_symbol_info_parallel(self.symbol)
+            # Get symbol info
+            self.symbol_info = self._get_symbol_info(self.symbol)
             if not self.symbol_info:
-                logger.error("No valid symbol found")
-                raise ConnectionError("Symbol not available")
+                logger.warning(f"Symbol {self.symbol} not found, trying alternative symbols")
+                # Try alternative symbols for Gold
+                alternative_symbols = ['XAUUSDm', 'XAUUSD', 'GOLD', 'Gold', 'XAUUSD.', 'XAUUSDpro']
+                for alt_symbol in alternative_symbols:
+                    self.symbol_info = self._get_symbol_info(alt_symbol)
+                    if self.symbol_info:
+                        self.symbol = alt_symbol
+                        logger.info(f"Using alternative symbol: {self.symbol}")
+                        break
+                
+                if not self.symbol_info:
+                    logger.error("No valid Gold symbol found")
+                    raise ConnectionError("Gold symbol not available")
             
             self.connected = True
             logger.info(f"✅ Successfully connected to MT5")
@@ -331,12 +227,8 @@ class MT5Manager:
             
             return True
             
-        except (MissingCredentialsError, ConnectionRetryError) as e:
-            logger.error(f"❌ Connection failed: {str(e)}")
-            self.connected = False
-            raise
         except Exception as e:
-            logger.error(f"❌ Unexpected connection error: {str(e)}")
+            logger.error(f"❌ Connection failed: {str(e)}")
             self.connected = False
             return False
     
@@ -414,53 +306,6 @@ class MT5Manager:
             'trade_expert': account_info.trade_expert,
             'limit_orders': account_info.limit_orders
         }
-    
-    def _get_symbol_info_parallel(self, symbol: str) -> Dict:
-        """
-        ISSUE #19 FIX: Get symbol info with parallel validation of alternatives
-        
-        Args:
-            symbol (str): Primary symbol to validate
-            
-        Returns:
-            dict: Symbol specifications for first valid symbol found
-        """
-        # Check cache first (thread-safe)
-        with self._lock:
-            if symbol in self._symbol_cache:
-                logger.info(f"Using cached symbol info for {symbol}")
-                return self._symbol_cache[symbol]
-        
-        # Define alternative symbols to check in parallel
-        alternative_symbols = [symbol, f"{symbol}m", f"{symbol}.", f"{symbol}pro"]
-        if symbol == "XAUUSD":
-            alternative_symbols.extend(['XAUUSDm', 'GOLD', 'Gold', 'XAUUSD.', 'XAUUSDpro'])
-        
-        def check_symbol(sym):
-            """Check if a symbol is valid and return its info"""
-            try:
-                info = self._get_symbol_info(sym)
-                if info:
-                    return sym, info
-            except Exception:
-                pass
-            return sym, None
-        
-        # Use ThreadPoolExecutor for parallel validation
-        with ThreadPoolExecutor(max_workers=min(len(alternative_symbols), 5)) as executor:
-            future_to_symbol = {executor.submit(check_symbol, sym): sym for sym in alternative_symbols}
-            
-            for future in as_completed(future_to_symbol):
-                sym, info = future.result()
-                if info:
-                    self.symbol = sym
-                    with self._lock:
-                        self._symbol_cache[sym] = info
-                    logger.info(f"✅ Found valid symbol: {sym}")
-                    return info
-        
-        logger.error(f"❌ No valid symbol found for {symbol} or alternatives")
-        return {}
     
     def _get_symbol_info(self, symbol: str) -> Dict:
         """
@@ -628,84 +473,6 @@ class MT5Manager:
         
         return result
     
-    def _calculate_slippage(self, requested_price: float, executed_price: float, 
-                           symbol: str, order_type: str, volume: float) -> SlippageInfo:
-        """
-        ISSUE #21 FIX: Calculate slippage between requested and executed prices
-        
-        Args:
-            requested_price: Price requested in order
-            executed_price: Actual execution price
-            symbol: Trading symbol
-            order_type: Order type (BUY/SELL)
-            volume: Order volume
-            
-        Returns:
-            SlippageInfo: Detailed slippage information
-        """
-        # Get symbol info for point value calculation
-        symbol_info = mt5.symbol_info(symbol)
-        point_value = symbol_info.point if symbol_info else 0.00001
-        
-        # Calculate slippage in points
-        if order_type == 'BUY':
-            slippage_points = (executed_price - requested_price) / point_value
-        else:  # SELL
-            slippage_points = (requested_price - executed_price) / point_value
-        
-        # Calculate slippage in currency (approximate)
-        tick_value = symbol_info.trade_tick_value if symbol_info else 1.0
-        slippage_currency = slippage_points * tick_value * volume
-        
-        slippage_info = SlippageInfo(
-            requested_price=requested_price,
-            executed_price=executed_price,
-            slippage_points=slippage_points,
-            slippage_currency=slippage_currency,
-            timestamp=datetime.now(),
-            order_type=order_type,
-            symbol=symbol,
-            volume=volume
-        )
-        
-        # Store in history
-        self.slippage_history.append(slippage_info)
-        
-        # Log slippage
-        if abs(slippage_points) > 1:
-            logger.warning(f"Slippage detected: {slippage_points:.1f} points "
-                         f"({slippage_currency:.2f} currency) on {order_type} {symbol}")
-        
-        return slippage_info
-    
-    def get_slippage_stats(self, days: int = 30) -> Dict:
-        """
-        Get slippage statistics for specified period
-        
-        Args:
-            days: Number of days to analyze
-            
-        Returns:
-            dict: Slippage statistics
-        """
-        cutoff_date = datetime.now() - timedelta(days=days)
-        recent_slippage = [s for s in self.slippage_history if s.timestamp >= cutoff_date]
-        
-        if not recent_slippage:
-            return {"total_trades": 0, "avg_slippage_points": 0, "total_slippage_cost": 0}
-        
-        slippage_points = [s.slippage_points for s in recent_slippage]
-        slippage_costs = [s.slippage_currency for s in recent_slippage]
-        
-        return {
-            "total_trades": len(recent_slippage),
-            "avg_slippage_points": sum(slippage_points) / len(slippage_points),
-            "max_slippage_points": max(slippage_points),
-            "min_slippage_points": min(slippage_points),
-            "total_slippage_cost": sum(slippage_costs),
-            "avg_slippage_cost": sum(slippage_costs) / len(slippage_costs)
-        }
-    
     def get_historical_data(self, symbol: str, timeframe: str, 
                            bars: int = 1000, start_date: Optional[datetime] = None) -> pd.DataFrame:
         """
@@ -775,52 +542,6 @@ class MT5Manager:
             
             # Keep only OHLCV columns
             df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-            
-            # ISSUE #20 FIX: Add comprehensive data validation with caching
-            cache_key = f"{symbol}_{timeframe}_{bars}_{start_date}"
-            current_time = time.time()
-            
-            # Check cache first
-            if (hasattr(self, '_validation_cache') and 
-                cache_key in self._validation_cache and 
-                current_time - self._validation_cache[cache_key]['timestamp'] < 300):  # 5 min cache
-                logger.debug(f"Using cached validation for {symbol} {timeframe}")
-            elif self.data_validator:
-                try:
-                    validation_result = self.data_validator.validate_ohlcv_data(
-                        df, symbol, timeframe, auto_clean=True
-                    )
-                    
-                    # Cache validation result
-                    if not hasattr(self, '_validation_cache'):
-                        self._validation_cache = {}
-                    self._validation_cache[cache_key] = {
-                        'result': validation_result,
-                        'timestamp': current_time
-                    }
-                    
-                    if not validation_result.is_valid:
-                        logger.warning(f"❌ Data validation failed for {symbol}: {len(validation_result.errors)} errors")
-                        for error in validation_result.errors:
-                            logger.warning(f"  - {error}")
-                        
-                        # Use cleaned data if available
-                        if validation_result.cleaned_data is not None and not validation_result.cleaned_data.empty:
-                            df = validation_result.cleaned_data
-                            logger.info(f"✅ Using cleaned data: {len(df)} bars")
-                        else:
-                            # Don't raise exception, just log warning and continue with original data
-                            logger.warning(f"⚠️ No cleaned data available, proceeding with original data")
-                    else:
-                        logger.info(f"✅ Data validation passed for {symbol}")
-                    
-                    # Log validation stats (reduce noise)
-                    if validation_result.warnings and len(validation_result.warnings) <= 2:
-                        for warning in validation_result.warnings:
-                            logger.debug(f"Data warning: {warning}")  # Changed to debug level
-                            
-                except Exception as e:
-                    logger.warning(f"Data validation failed: {str(e)} - proceeding with unvalidated data")
             
             logger.info(f"Retrieved {len(df)} bars for {symbol} {timeframe}")
             # Add lowercase aliases to standardize downstream usage
@@ -950,20 +671,9 @@ class MT5Manager:
             "request_id": result.request_id if hasattr(result, 'request_id') else 0
         }
         
-        # ISSUE #21 FIX: Calculate and track slippage
-        if response["success"] and response["price"] > 0:
-            slippage_info = self._calculate_slippage(
-                price, response["price"], symbol, order_type, volume
-            )
-            response["slippage_points"] = slippage_info.slippage_points
-            response["slippage_currency"] = slippage_info.slippage_currency
-        
         if response["success"]:
-            slippage_msg = ""
-            if "slippage_points" in response:
-                slippage_msg = f", Slippage: {response['slippage_points']:.1f} points"
             logger.info(f"Market order placed successfully: {order_type} {volume} {symbol} "
-                       f"at {response['price']}, Ticket: {response['ticket']}{slippage_msg}")
+                       f"at {response['price']}, Ticket: {response['ticket']}")
         else:
             logger.error(f"Market order failed: {response['comment']}, RetCode: {response['retcode']}")
         
@@ -1167,15 +877,6 @@ class MT5Manager:
             "retcode": result.retcode,
             "comment": result.comment if hasattr(result, 'comment') else ""
         }
-        
-        # Calculate slippage for position close
-        if response["success"] and response["price"] > 0:
-            order_type_str = "SELL" if position.type == mt5.ORDER_TYPE_BUY else "BUY"
-            slippage_info = self._calculate_slippage(
-                price, response["price"], symbol, order_type_str, close_volume
-            )
-            response["slippage_points"] = slippage_info.slippage_points
-            response["slippage_currency"] = slippage_info.slippage_currency
         
         if response["success"]:
             logger.info(f"Position {ticket} closed at {response['price']}")

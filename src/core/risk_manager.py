@@ -259,7 +259,8 @@ class RiskManager:
         except ImportError:
             cli_mode = None
         
-        self.mode = cli_mode if cli_mode else (config.get('mode') or 'mock')
+        self.mode = cli_mode or config.get('mode', 'mock')
+
         print_mode_banner(self.mode)
 
         # Create appropriate MT5 manager based on mode

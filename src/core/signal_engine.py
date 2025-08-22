@@ -368,9 +368,7 @@ class SignalEngine:
 
     def _determine_data_mode(self):
         """Determine the data mode from config and CLI"""
-        cfg_mode = self.config.get('data', {}).get('mode', 'mock')
-        cli_mode = parse_mode()
-        mode = cli_mode or cfg_mode
+        mode = parse_mode() or self.config.get('mode', 'mock')
         print_mode_banner(mode)
         return mode
 

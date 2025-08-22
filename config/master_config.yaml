@@ -9,9 +9,16 @@
 # 
 # IMPORTANT: Back up this file before making changes!
 # ==========================================
+
+# EXECUTION MODE - CONTROLS DATA SOURCE
+mode: "mock"  # (Options: mock, live)
+
 # ==========================================
 # MT5 CONNECTION SETTINGS
 # ==========================================
+
+
+
 mt5:
   # Your MT5 account credentials
   login: 12345678                    # Your MT5 account number
