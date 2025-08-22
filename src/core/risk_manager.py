@@ -712,13 +712,15 @@ class RiskManager:
 
             time_since_last = datetime.now() - self.last_trade_time
             minutes_since = time_since_last.total_seconds() / 60
+            # Small tolerance to handle microsecond drift between setting and checking time
+            eps = 1e-3  # ~0.06 seconds
 
             # Reduce size if trading too frequently
-            if minutes_since < 15:  # Less than 15 minutes
+            if minutes_since < 15 - eps:  # Less than 15 minutes
                 return 0.3
-            elif minutes_since < 30:  # Less than 30 minutes
+            elif minutes_since <= 30 + eps:  # Up to and including 30 minutes
                 return 0.6
-            elif minutes_since < 60:  # Less than 1 hour
+            elif minutes_since < 60 - eps:  # Less than 1 hour
                 return 0.8
             else:
                 return 1.0

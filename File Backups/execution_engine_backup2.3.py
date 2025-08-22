@@ -199,34 +199,15 @@ class ExecutionEngine:
         else:
             self.mt5_manager = mt5_manager if mt5_manager else self._create_mock_mt5()
         
-
-        # Initialize Database Manager FIRST
-        self.database_manager = database_manager if database_manager else self._create_mock_database_manager()
-        # Initialize Logger Manager FIRST  
-        self.logger_manager = logger_manager if logger_manager else self._create_mock_logger_manager()
         # Initialize Risk Manager (it will also handle its own MT5 dependency if needed)
         # Passing self.mt5_manager to RiskManager so it uses the same instance
-        # Initialize Risk Manager based on mode
-        if risk_manager:
-            self.risk_manager = risk_manager
-        elif self.mode == 'live':
-            # Use real RiskManager in live mode
-            try:
-                from src.core.risk_manager import RiskManager
-                self.risk_manager = RiskManager(
-                    config=self.config,
-                    mt5_manager=self.mt5_manager,
-                    database_manager=self.database_manager
-                )
-                logger.info("✅ Initialized live RiskManager")
-            except Exception as e:
-                logger.error(f"Failed to initialize live RiskManager: {e}")
-                self.risk_manager = self._create_mock_risk_manager()
-                logger.warning("⚠️ Falling back to mock RiskManager")
-        else:
-            # Use mock in mock/test mode
-            self.risk_manager = self._create_mock_risk_manager()
-            logger.info("🧪 Using mock RiskManager for testing")
+        self.risk_manager = risk_manager if risk_manager else self._create_mock_risk_manager()
+        
+        # Initialize Database Manager
+        self.database_manager = database_manager if database_manager else self._create_mock_database_manager()
+        
+        # Initialize Logger Manager (for trade logging purposes)
+        self.logger_manager = logger_manager if logger_manager else self._create_mock_logger_manager()
         
         # Execution configuration
         self.execution_config = config.get('execution', {})
@@ -1632,32 +1613,13 @@ if __name__ == "__main__":
             pass
     
     # Create ExecutionEngine instance. It will now handle MT5 initialization internally.
-    # execution_engine = ExecutionEngine(
-    #     test_config, 
-    #     mt5_manager=None, # Let ExecutionEngine create its own MT5 based on mode
-    #     risk_manager=MockRiskManager(), 
-    #     database_manager=MockDatabaseManager(), 
-    #     logger_manager=MockLoggerManager()
-    # )
-    # Create ExecutionEngine instance with mode-appropriate components
-    if mode == 'live':
-        # Let ExecutionEngine handle its own initialization in live mode
-        execution_engine = ExecutionEngine(
-            test_config,
-            mt5_manager=None,  # Let it create its own
-            risk_manager=None,  # Let it create its own based on mode
-            database_manager=MockDatabaseManager(),
-            logger_manager=MockLoggerManager()
-        )
-    else:
-        # Use mocks for mock/test mode
-        execution_engine = ExecutionEngine(
-            test_config,
-            mt5_manager=None,
-            risk_manager=MockRiskManager(),
-            database_manager=MockDatabaseManager(),
-            logger_manager=MockLoggerManager()
-        )
+    execution_engine = ExecutionEngine(
+        test_config, 
+        mt5_manager=None, # Let ExecutionEngine create its own MT5 based on mode
+        risk_manager=MockRiskManager(), 
+        database_manager=MockDatabaseManager(), 
+        logger_manager=MockLoggerManager()
+    )
     
     logger.info("Execution Engine Initialized. Running tests...")
 
