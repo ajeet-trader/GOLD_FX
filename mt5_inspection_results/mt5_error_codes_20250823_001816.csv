@@ -1,0 +1,32 @@
+error_code,description,severity
+10000,TRADE_RETCODE_REQUOTE - Requote,normal
+10001,TRADE_RETCODE_REJECT - Request rejected,normal
+10002,TRADE_RETCODE_CANCEL - Request canceled by trader,normal
+10003,TRADE_RETCODE_PLACED - Order placed,normal
+10004,TRADE_RETCODE_DONE - Request completed,normal
+10005,TRADE_RETCODE_DONE_PARTIAL - Only part of the request was completed,normal
+10006,TRADE_RETCODE_ERROR - Request processing error,normal
+10007,TRADE_RETCODE_TIMEOUT - Request canceled by timeout,normal
+10008,TRADE_RETCODE_INVALID - Invalid request,normal
+10009,TRADE_RETCODE_INVALID_VOLUME - Invalid volume in the request,normal
+10010,TRADE_RETCODE_INVALID_PRICE - Invalid price in the request,normal
+10011,TRADE_RETCODE_INVALID_STOPS - Invalid stops in the request,normal
+10012,TRADE_RETCODE_TRADE_DISABLED - Trade is disabled,normal
+10013,TRADE_RETCODE_MARKET_CLOSED - Market is closed,normal
+10014,TRADE_RETCODE_NO_MONEY - There is not enough money to complete the request,normal
+10015,TRADE_RETCODE_PRICE_CHANGED - Prices changed,normal
+10016,TRADE_RETCODE_PRICE_OFF - There are no quotes to process the request,normal
+10017,TRADE_RETCODE_INVALID_EXPIRATION - Invalid order expiration date,normal
+10018,TRADE_RETCODE_ORDER_CHANGED - Order state changed,normal
+10019,TRADE_RETCODE_TOO_MANY_REQUESTS - Too frequent requests,normal
+10020,TRADE_RETCODE_NO_CHANGES - No changes in request,normal
+10021,TRADE_RETCODE_SERVER_DISABLES_AT - Autotrading disabled by server,critical
+10022,TRADE_RETCODE_CLIENT_DISABLES_AT - Autotrading disabled by client terminal,critical
+10023,TRADE_RETCODE_LOCKED - Request locked for processing,normal
+10024,TRADE_RETCODE_FROZEN - Order or position frozen,normal
+10025,TRADE_RETCODE_INVALID_FILL - Invalid order filling type,normal
+10026,TRADE_RETCODE_CONNECTION - No connection with the trade server,normal
+10027,TRADE_RETCODE_ONLY_REAL - Operation is allowed only for live accounts,critical
+10028,TRADE_RETCODE_LIMIT_ORDERS - The number of pending orders has reached the limit,normal
+10029,TRADE_RETCODE_LIMIT_VOLUME - The volume of orders and positions for the symbol has reached the limit,normal
+10030,TRADE_RETCODE_INVALID_ORDER - Incorrect or prohibited order type,normal

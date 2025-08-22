@@ -1,0 +1,34 @@
+field,value_type,sample_value,category
+assets,float,0.0,account_info
+balance,float,196.04,account_info
+commission_blocked,float,0.0,account_info
+company,str,Exness Technologies Ltd,account_info
+count,builtin_function_or_method,<built-in method count of AccountInfo object at 0x,account_info
+credit,float,0.0,account_info
+currency,str,USD,account_info
+currency_digits,int,2,account_info
+equity,float,196.29,account_info
+fifo_close,bool,False,account_info
+index,builtin_function_or_method,<built-in method index of AccountInfo object at 0x,account_info
+leverage,int,2000,account_info
+liabilities,float,0.0,account_info
+limit_orders,int,1024,account_info
+login,int,273949055,account_info
+margin,float,16.86,account_info
+margin_free,float,179.43,account_info
+margin_initial,float,0.0,account_info
+margin_level,float,1164.2348754448399,account_info
+margin_maintenance,float,0.0,account_info
+margin_mode,int,2,account_info
+margin_so_call,float,60.0,account_info
+margin_so_mode,int,0,account_info
+margin_so_so,float,0.0,account_info
+n_fields,int,28,account_info
+n_sequence_fields,int,28,account_info
+n_unnamed_fields,int,0,account_info
+name,str,Standard,account_info
+profit,float,0.25,account_info
+server,str,Exness-MT5Trial6,account_info
+trade_allowed,bool,True,account_info
+trade_expert,bool,True,account_info
+trade_mode,int,0,account_info

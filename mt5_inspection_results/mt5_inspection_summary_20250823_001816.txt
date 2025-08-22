@@ -1,0 +1,16 @@
+MT5 Dictionary Inspection Results
+Generated: 2025-08-23 00:18:16.350711
+==================================================
+
+ORDER_FIELDS: 17 records
+CONSTANTS: 223 records
+ERROR_CODES: 31 records
+SYMBOL_FIELDS: 0 records
+ACCOUNT_FIELDS: 33 records
+
+==================================================
+FILES GENERATED:
+- mt5_order_fields_20250823_001816.csv
+- mt5_constants_20250823_001816.csv
+- mt5_error_codes_20250823_001816.csv
+- mt5_account_fields_20250823_001816.csv

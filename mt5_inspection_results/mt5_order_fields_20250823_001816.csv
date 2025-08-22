@@ -1,0 +1,18 @@
+field,description,required,type,category
+action,TRADE_ACTION_* constant,True,constant,order_request
+magic,Expert Advisor ID (integer),False,int,order_request
+order,Order ticket (for modify/delete),False,unknown,order_request
+symbol,Symbol name (string),True,str,order_request
+volume,Volume in lots (double),True,float,order_request
+price,Price (double),False,float,order_request
+stoplimit,Stop limit price (double),False,float,order_request
+sl,Stop loss price (double),False,float,order_request
+tp,Take profit price (double),False,float,order_request
+deviation,Maximum price deviation (integer),False,int,order_request
+type,ORDER_TYPE_* constant,True,constant,order_request
+type_filling,ORDER_FILLING_* constant,False,constant,order_request
+type_time,ORDER_TIME_* constant,False,constant,order_request
+expiration,Expiration time (datetime),False,datetime,order_request
+comment,Order comment (string),False,str,order_request
+position,Position ticket (for close),False,unknown,order_request
+position_by,Opposite position ticket (for close by),False,unknown,order_request
