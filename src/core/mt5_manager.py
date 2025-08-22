@@ -593,7 +593,7 @@ class MT5Manager:
     
     def place_market_order(self, symbol: str, order_type: str, volume: float,
                           sl: Optional[float] = None, tp: Optional[float] = None,
-                          comment: str = "", deviation: int = 20) -> Dict:
+                          comment: str = "", deviation: int = 20, **kwargs) -> Dict:
         """
         Place a market order
         

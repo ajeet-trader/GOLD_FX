@@ -1,0 +1,693 @@
+# ==================================================================
+# BTCUSD MT5 TRADING SYSTEM - CONFIGURATION
+# ==========================================
+# Version: 1.0.0
+# Date: 2025-08-23
+# 
+# This is the BTCUSD configuration file for testing purposes.
+# Based on the master GOLD configuration but adapted for Bitcoin trading.
+# 
+# IMPORTANT: Back up this file before making changes!
+# ==========================================
+
+# EXECUTION MODE - CONTROLS DATA SOURCE
+mode: "mock"  # (Options: mock, live)
+
+# ==========================================
+# MT5 CONNECTION SETTINGS
+# ==========================================
+
+mt5:
+  # Your MT5 account credentials
+  login: 12345678                    # Your MT5 account number
+  password: "your_password_here"     # Your MT5 password
+  server: "YourBroker-Server"        # Your broker's server name
+  terminal_path: null                # Path to terminal64.exe (optional, auto-detect if null)
+  
+  # Connection settings
+  timeout: 60000                     # Connection timeout in milliseconds
+  retry_count: 3                     # Number of connection retry attempts
+  retry_delay: 5                     # Delay between retries in seconds
+  
+  # Trading settings (Note: magic_number now configurable in execution section)
+  slippage: 30                       # Maximum slippage in points (higher for crypto)
+  deviation: 20                      # Maximum price deviation (higher for crypto)
+  
+  # Connection settings (Enhanced)
+  connection:
+    max_retries: 3                  # Maximum connection retry attempts
+    retry_backoff: 1.0              # Base retry delay in seconds
+    timeout: 30                     # Connection timeout in seconds
+    
+  # Data settings (Enhanced)
+  data:
+    validation_enabled: true        # Enable data validation
+    gap_tolerance: 5                # Acceptable data gaps in bars
+
+# ==========================================
+# TRADING PARAMETERS
+# ==========================================
+trading:
+  # Primary trading symbol
+  symbol: "BTCUSDm"                  # Bitcoin vs USD (MT5 symbol)
+  
+  # Alternative symbols for data correlation
+  alternative_symbols:
+    - "BTCUSD"                      # Alternative BTC symbol
+    - "BTC"                         # Bitcoin base symbol
+  
+  # Capital management
+  capital:
+    initial_capital: 100.00         # Starting capital in USD
+    target_capital: 1000.00         # Target capital (10x in 30 days)
+    minimum_capital: 50.00          # Stop trading below this level
+    reserve_cash: 0.10              # Keep 10% in reserve
+  
+  # Risk management (Adjusted for crypto volatility)
+  risk_management:
+    risk_per_trade: 0.02            # 2% risk per trade (lower due to crypto volatility)
+    max_risk_per_trade: 0.04        # Maximum 4% in high-confidence signals
+    max_portfolio_risk: 0.12        # 12% maximum portfolio risk at any time
+    max_drawdown: 0.20              # 20% maximum drawdown before stopping
+    max_daily_loss: 0.08            # 8% daily loss limit
+    max_weekly_loss: 0.15           # 15% weekly loss limit
+    max_consecutive_losses: 4        # Stop after 4 consecutive losses
+    
+  # Position sizing
+  position_sizing:
+    method: "kelly_modified"         # Options: fixed, kelly, kelly_modified, volatility_based
+    kelly_safety_factor: 0.25       # Use 25% of Kelly suggestion (more conservative for crypto)
+    min_position_size: 0.01         # Minimum position in lots
+    max_position_size: 0.05         # Maximum position in lots (smaller for crypto)
+    max_positions: 2                # Maximum concurrent positions (fewer for crypto)
+    
+  # Trade management (Adjusted for crypto)
+  trade_management:
+    stop_loss_method: "atr"         # Options: fixed, atr, support_resistance, trailing
+    stop_loss_atr_multiplier: 2.0   # Higher ATR multiplier for crypto volatility
+    stop_loss_min_pips: 100         # Minimum stop loss in pips (higher for crypto)
+    stop_loss_max_pips: 500         # Maximum stop loss in pips (higher for crypto)
+    
+    take_profit_method: "rr_ratio"  # Options: fixed, rr_ratio, resistance, trailing
+    risk_reward_ratio: 2.5           # Higher R:R ratio for crypto
+    
+    trailing_stop_enabled: true     # Enable trailing stop
+    trailing_stop_trigger: 150      # Pips in profit before trailing starts (higher for crypto)
+    trailing_stop_distance: 100     # Trailing stop distance in pips (higher for crypto)
+    
+    partial_close_enabled: true     # Enable partial position closing
+    partial_close_levels:           # Close portions at profit levels
+      - {pips: 100, percent: 0.33}  # Close 33% at 100 pips
+      - {pips: 200, percent: 0.50}  # Close 50% of remainder at 200 pips
+    
+    breakeven_enabled: true         # Move stop to breakeven
+    breakeven_trigger: 80           # Pips in profit before breakeven (higher for crypto)
+    breakeven_buffer: 10            # Pips above entry for breakeven
+
+# Partial exit configuration
+partial_exits:
+  profit_thresholds: [2.0, 4.0, 3.0]
+  close_percentages: [0.25, 0.25]
+  min_position_size: 0.02
+
+# ==========================================
+# STRATEGY SELECTION
+# ==========================================
+strategies:
+  # Technical Analysis Strategies
+  technical:
+    enabled: true                    # Enable technical strategies
+    weight: 0.45                    # 45% weight in signal fusion (higher for crypto)
+    
+    # Individual technical strategies (crypto-friendly)
+    active_strategies:
+      ichimoku: true                # Ichimoku Cloud System
+      harmonic: true                # Harmonic Pattern Recognition
+      elliott_wave: false           # Elliott Wave Analysis (disabled for crypto testing)
+      volume_profile: true          # Volume Profile Analysis
+      market_profile: false         # Market Profile (disabled for crypto testing)
+      order_flow: true              # Order Flow Imbalance
+      wyckoff: true                 # Wyckoff Method
+      gann: false                   # Gann Analysis (disabled for crypto testing)
+      fibonacci_advanced: true      # Advanced Fibonacci Clusters
+      momentum_divergence: true     # Multi-timeframe Momentum Divergence
+    
+    # Technical strategy parameters
+    parameters:
+      confidence_threshold: 0.70    # Higher confidence for crypto volatility
+      timeframe_primary: "M15"      # Primary analysis timeframe
+      timeframe_secondary: "H1"     # Secondary confirmation timeframe
+      lookback_period: 150          # Fewer bars for crypto (faster moves)
+  
+  # Smart Money Concepts (SMC)
+  smc:
+    enabled: true                   # Enable SMC strategies
+    weight: 0.30                    # 30% weight in signal fusion
+    
+    # SMC components
+    active_components:
+      market_structure: true        # Market structure analysis
+      order_blocks: true            # Order block detection
+      fair_value_gaps: true         # FVG identification (good for crypto)
+      liquidity_pools: true         # Liquidity pool detection
+      manipulation: true            # Session manipulation detection
+    
+    # SMC parameters
+    parameters:
+      confidence_threshold: 0.75    # Higher threshold for crypto SMC
+      swing_length: 8               # Shorter swing detection for crypto
+      order_block_min_strength: 1.5 # Lower OB strength for crypto
+      fvg_min_size: 0.3            # Smaller FVG size for crypto
+      liquidity_sweep_tolerance: 1.5 # Higher sweep tolerance for crypto
+    
+    # Timeframes for multi-timeframe analysis
+    timeframes:
+      structure: "H4"               # Major structure
+      intermediate: "H1"            # Intermediate structure
+      entry: "M15"                  # Entry timeframe
+      execution: "M5"               # Execution timeframe
+  
+  # Machine Learning Strategies
+  ml:
+    enabled: true                   # Enable ML strategies
+    weight: 0.25                    # 25% weight in signal fusion
+    
+    # Active ML models
+    active_models:
+      lstm_predictor: true          # LSTM price prediction
+      xgboost_classifier: true      # XGBoost classification
+      rl_agent: false               # RL agent (disabled for testing)
+      ensemble_nn: true             # Ensemble neural network
+    
+    # ML parameters
+    parameters:
+      confidence_threshold: 0.65    # Slightly higher for crypto
+      prediction_horizon: 8         # Shorter horizon for crypto
+      feature_lookback: 40          # Shorter lookback for crypto
+      retrain_frequency: "daily"    # More frequent retraining for crypto
+      min_training_samples: 500     # Fewer samples needed for crypto
+    
+    # Feature engineering
+    features:
+      price_features: true          # OHLC-based features
+      technical_features: true      # Technical indicators
+      volume_features: true         # Volume analysis (important for crypto)
+      time_features: true           # Time-based features
+      market_features: true         # Market microstructure
+  
+  # Signal Fusion Strategy
+  fusion:
+    enabled: true                   # Use fusion (recommended)
+    method: "weighted_voting"       # Options: weighted_voting, ml_fusion, adaptive
+    
+    # Active fusion strategies
+    active_strategies:
+      adaptive_ensemble: true       # Adaptive ensemble fusion
+      weighted_voting: true         # Weighted voting fusion
+      confidence_sizing: true       # Confidence-based position sizing
+      regime_detection: true        # Market regime detection
+    
+    # Fusion parameters
+    parameters:
+      min_strategies_agreement: 2   # Minimum strategies agreeing
+      confidence_threshold: 0.60    # Adjusted for crypto
+      
+      # Signal quality filters
+      quality_filters:
+        min_signal_strength: 0.70   # Higher signal strength for crypto
+        max_signals_per_day: 15     # Fewer signals for crypto
+        min_time_between_signals: 20 # More time between signals
+        
+      # Market condition filters
+      market_filters:
+        volatility_filter: true     # Filter by volatility
+        session_filter: false       # Crypto trades 24/7
+        trend_filter: true          # Filter by trend strength
+        volume_filter: true         # Filter by volume
+    
+    # Adaptive fusion settings
+    adaptive:
+      enabled: true                 # Enable adaptive weight adjustment
+      lookback_period: 50           # Fewer trades for crypto adaptation
+      performance_metric: "sharpe"  # Metric for performance evaluation
+      adjustment_rate: 0.15         # Faster adjustment for crypto
+
+# ==========================================
+# TIMEFRAME SETTINGS
+# ==========================================
+timeframes:
+  # Data collection timeframes
+  data:
+    primary: "M15"                  # Primary trading timeframe
+    secondary: ["M5", "H1"]         # Supporting timeframes
+    analysis: ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]  # All analysis timeframes
+  
+  # Timeframe-specific settings (adjusted for crypto)
+  settings:
+    M1:
+      enabled: true                 # Enable for crypto (more data available)
+      max_spread: 50                # Higher spread tolerance for crypto
+    M5:
+      enabled: true
+      max_spread: 80
+    M15:
+      enabled: true                 # Primary timeframe
+      max_spread: 100
+    M30:
+      enabled: true
+      max_spread: 120
+    H1:
+      enabled: true
+      max_spread: 150
+    H4:
+      enabled: true
+      max_spread: 200
+    D1:
+      enabled: true                 # Enable for crypto trend analysis
+      max_spread: 300
+
+# ==========================================
+# MARKET SESSIONS (24/7 for crypto)
+# ==========================================
+sessions:
+  # Crypto trades 24/7, but we can still define active periods
+  asian:
+    start: "00:00"
+    end: "08:00"
+    enabled: true
+    volatility: "medium"
+    strategy_preference: ["smc", "technical"]
+    max_positions: 1
+    risk_multiplier: 0.9
+  
+  london:
+    start: "08:00"
+    end: "16:00"
+    enabled: true
+    volatility: "high"
+    strategy_preference: ["technical", "smc"]
+    max_positions: 2
+    risk_multiplier: 1.1
+  
+  newyork:
+    start: "13:00"
+    end: "21:00"
+    enabled: true
+    volatility: "very_high"
+    strategy_preference: ["technical", "ml"]
+    max_positions: 2
+    risk_multiplier: 1.2
+  
+  # Overlap sessions
+  london_ny_overlap:
+    start: "13:00"
+    end: "16:00"
+    enabled: true
+    volatility: "very_high"
+    strategy_preference: ["all"]
+    max_positions: 2
+    risk_multiplier: 1.3
+
+# ==========================================
+# DATA MANAGEMENT
+# ==========================================
+data:
+  # Data source mode: 'mock' uses random OHLCV bars, 'live' streams from MT5
+  mode: "mock"                    # Options: mock, live
+  # Historical data settings
+  history:
+    min_bars_required: 300          # Fewer bars needed for crypto
+    max_bars_stored: 5000           # Fewer bars stored for crypto
+    update_frequency: 1             # Update every N minutes
+    
+  # Real-time data settings
+  realtime:
+    tick_collection: true           # Collect tick data for crypto
+    bar_collection: true            # Collect bar data
+    spread_monitoring: true         # Monitor spread changes
+    
+  # Data validation
+  validation:
+    check_gaps: true                # Check for data gaps
+    max_gap_size: 3                 # Smaller gap tolerance for crypto
+    remove_outliers: true           # Remove price outliers
+    outlier_threshold: 4            # Lower threshold for crypto outliers
+    # Precision validation
+    precision_tolerance: 0.01       # Higher tolerance for crypto precision
+
+# ==========================================
+# SIGNAL GENERATION
+# ==========================================
+signals:
+  # Signal quality grading (adjusted for crypto)
+  grading:
+    A_grade:                        # Highest quality signals
+      min_confidence: 0.80
+      max_daily: 3
+      position_size_multiplier: 1.2
+      strategies_required: 3
+      
+    B_grade:                        # Good quality signals
+      min_confidence: 0.70
+      max_daily: 5
+      position_size_multiplier: 1.0
+      strategies_required: 2
+      
+    C_grade:                        # Acceptable signals
+      min_confidence: 0.60
+      max_daily: 4
+      position_size_multiplier: 0.7
+      strategies_required: 1
+  
+  # Signal filtering (adjusted for crypto)
+  filters:
+    spread_filter:
+      enabled: true
+      max_spread: 100               # Higher spread tolerance for crypto
+      
+    volatility_filter:
+      enabled: true
+      min_atr: 50                   # Higher minimum ATR for crypto
+      max_atr: 500                  # Higher maximum ATR for crypto
+      
+    time_filter:
+      enabled: false                # Disabled for 24/7 crypto trading
+      blocked_hours: []             # No blocked hours for crypto
+      blocked_days: []              # No blocked days for crypto
+      
+    news_filter:
+      enabled: false                # Disabled for crypto (different news cycle)
+      high_impact_hours_before: 0
+      high_impact_hours_after: 0
+
+# ==========================================
+# EXECUTION SETTINGS
+# ==========================================
+execution:
+  # Signal Processing (Enhanced for crypto)
+  min_confidence: 0.65              # Higher minimum confidence for crypto
+  signal_age_threshold: 180         # Shorter signal age for crypto (faster moves)
+  magic_number: 654321              # Different magic number for BTCUSD system
+  
+  # Order execution parameters
+  order:
+    type: "market"                  # Options: market, limit, stop
+    retry_attempts: 5               # More retries for crypto
+    retry_delay: 0.5                # Shorter delay for crypto
+    
+  # Slippage protection (adjusted for crypto)
+  slippage:
+    max_slippage: 10                # Higher slippage tolerance for crypto
+    reject_on_slippage: false       # Don't reject on slippage for crypto
+    
+  # Position Monitoring (Enhanced)
+  monitoring:
+    update_interval: 3              # Faster updates for crypto
+    max_restarts: 15                # More restarts allowed for crypto
+    max_consecutive_errors: 5       # More errors allowed for crypto
+    restart_backoff_max: 30         # Shorter backoff for crypto
+    
+  # Data Validation (Enhanced)
+  data_validation:
+    cache_duration: 180             # Shorter cache for crypto
+    enable_caching: true            # Enable/disable validation caching
+    
+  # Threading (Enhanced)
+  threading:
+    monitoring_timeout: 10          # Shorter timeout for crypto
+    use_daemon_threads: true        # Use daemon threads for background tasks
+    
+  # Latency management (tighter for crypto)
+  latency:
+    max_latency: 500                # Lower latency requirement for crypto
+    check_latency: true             # Monitor execution latency
+    
+  # Order validation
+  validation:
+    check_margin: true              # Verify sufficient margin
+    check_spread: true              # Verify spread acceptable
+    check_trading_hours: false      # Crypto trades 24/7
+
+# ==========================================
+# PERFORMANCE MONITORING
+# ==========================================
+monitoring:
+  # Performance metrics
+  metrics:
+    calculate_sharpe: true          # Calculate Sharpe ratio
+    calculate_sortino: true         # Calculate Sortino ratio
+    calculate_calmar: true          # Calculate Calmar ratio
+    calculate_max_drawdown: true    # Track maximum drawdown
+    
+  # Performance thresholds (adjusted for crypto)
+  thresholds:
+    min_win_rate: 0.50              # Lower win rate acceptable for crypto
+    min_profit_factor: 1.3          # Lower profit factor for crypto
+    max_drawdown: 0.20              # Lower max drawdown for crypto
+    
+  # Reporting
+  reporting:
+    daily_report: true              # Generate daily reports
+    weekly_report: true             # Generate weekly reports
+    trade_log: true                 # Log all trades
+    signal_log: true                # Log all signals
+
+# ==========================================
+# BACKTESTING SETTINGS
+# ==========================================
+backtesting:
+  # Backtest parameters
+  parameters:
+    start_date: "2024-01-01"        # Backtest start date
+    end_date: "2024-12-31"          # Backtest end date
+    initial_balance: 100            # Starting balance
+    
+  # Execution simulation (adjusted for crypto)
+  simulation:
+    spread_modeling: true           # Model realistic spreads
+    slippage_modeling: true         # Model slippage
+    commission: 15                  # Higher commission for crypto
+    swap_rates: false               # No swap for crypto
+    
+  # Validation
+  validation:
+    walk_forward: true              # Use walk-forward analysis
+    out_of_sample_percent: 0.2      # Reserve 20% for out-of-sample
+    monte_carlo_runs: 500           # Fewer runs for crypto testing
+    
+  # Optimization
+  optimization:
+    enabled: true                   # Enable parameter optimization
+    method: "genetic"               # Options: grid, random, genetic, bayesian
+    metric: "sharpe"                # Optimization target
+    max_iterations: 500             # Fewer iterations for crypto testing
+
+# ==========================================
+# RISK CONTROLS (Enhanced for crypto)
+# ==========================================
+risk_controls:
+  # Emergency stop conditions (Enhanced for crypto volatility)
+  emergency_stop:
+    daily_loss_limit: 0.12          # Stop if daily loss exceeds 12%
+    weekly_loss_limit: 0.20         # Stop if weekly loss exceeds 20%
+    consecutive_losses: 4           # Stop after 4 consecutive losses
+    max_drawdown_stop: 0.12         # Emergency stop at 12% drawdown
+    circuit_breaker_enabled: true   # Enable circuit breaker functionality
+    
+  # Position limits (adjusted for crypto)
+  position_limits:
+    max_positions: 2                # Maximum concurrent positions
+    max_position_size: 0.05         # Maximum size per position in lots
+    max_exposure: 0.15              # Maximum total exposure
+    
+  # Correlation limits
+  correlation:
+    check_correlation: false        # Disabled for single symbol trading
+    max_correlation: 0.8            # Higher correlation allowed
+    
+  # Recovery mode
+  recovery_mode:
+    enabled: true                   # Enable recovery mode after losses
+    trigger_drawdown: 0.08          # Trigger at 8% drawdown
+    risk_reduction: 0.6             # Reduce risk by 60% in recovery
+    recovery_target: 0.04           # Exit recovery after 4% profit
+
+# ==========================================
+# NOTIFICATIONS
+# ==========================================
+notifications:
+  # Email notifications (future implementation)
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    sender: "your_email@gmail.com"
+    password: "your_app_password"
+    recipients: ["alert@example.com"]
+    
+    # Email triggers
+    send_on:
+      new_trade: true
+      trade_closed: true
+      daily_report: true
+      emergency_stop: true
+      high_drawdown: true
+  
+  # Telegram notifications (future implementation)
+  telegram:
+    enabled: false
+    bot_token: "your_bot_token"
+    chat_id: "your_chat_id"
+    
+    # Telegram triggers
+    send_on:
+      new_signal: false             # Too frequent
+      new_trade: true
+      trade_closed: true
+      daily_summary: true
+      emergency: true
+  
+  # Dashboard notifications
+  dashboard:
+    enabled: true
+    update_frequency: 3             # Faster updates for crypto
+    show_alerts: true
+    alert_duration: 8               # Shorter alert duration
+
+# ==========================================
+# LOGGING SETTINGS
+# ==========================================
+logging:
+  # Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  enable_stack_traces: false        # Enable stack traces for debugging
+  log_signal_details: true          # Log detailed signal information
+  log_position_updates: true        # Log position update details
+  
+  # Log files
+  files:
+    system_log: "logs/btcusd_system.log"
+    trade_log: "logs/btcusd_trades.log"
+    signal_log: "logs/btcusd_signals.log"
+    error_log: "logs/btcusd_errors.log"
+    performance_log: "logs/btcusd_performance.log"
+  
+  # Log rotation
+  rotation:
+    enabled: true
+    max_size: "10MB"               # Rotate when file reaches size
+    backup_count: 10               # Keep N backup files
+    
+  # Console output
+  console:
+    enabled: true
+    colored: true                  # Use colored output
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# ==========================================
+# DATABASE SETTINGS
+# ==========================================
+database:
+  # Database configuration
+  type: "sqlite"                   # Options: sqlite, postgresql, mysql
+  
+  # SQLite settings
+  sqlite:
+    path: "data/btcusd_trading.db"
+    
+  # PostgreSQL settings (future)
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "btcusd_trading_db"
+    user: "trader"
+    password: "password"
+  
+  # Data retention
+  retention:
+    trades: 365                    # Keep trades for N days
+    signals: 90                    # Keep signals for N days
+    ticks: 7                       # Keep tick data for N days
+    performance: 365               # Keep performance data for N days
+
+# ==========================================
+# DASHBOARD SETTINGS
+# ==========================================
+dashboard:
+  # Streamlit configuration
+  streamlit:
+    port: 8502                     # Different port for BTCUSD dashboard
+    theme: "dark"                  # Options: light, dark
+    auto_refresh: true
+    refresh_interval: 3            # Faster refresh for crypto
+    
+  # Dashboard components
+  components:
+    account_info: true
+    open_positions: true
+    trade_history: true
+    performance_chart: true
+    signal_monitor: true
+    risk_metrics: true
+    strategy_performance: true
+    market_analysis: true
+    
+  # Chart settings
+  charts:
+    candlestick: true
+    indicators: true
+    trade_markers: true
+    signal_markers: true
+    
+  # Performance metrics display
+  metrics:
+    daily_pnl: true
+    win_rate: true
+    profit_factor: true
+    sharpe_ratio: true
+    drawdown: true
+    roi: true
+
+# ==========================================
+# SYSTEM SETTINGS
+# ==========================================
+system:
+  # Performance settings (Enhanced)
+  performance:
+    multiprocessing: true          # Use multiple CPU cores
+    max_workers: 4                 # Maximum worker threads
+    track_slippage: true           # Track and log slippage statistics
+    track_execution_time: true     # Track signal processing time
+    generate_reports: true         # Generate performance reports
+    report_interval: 1800          # Faster report generation for crypto
+    
+  # Memory management
+  memory:
+    max_memory_usage: 0.8          # Maximum RAM usage (80%)
+    garbage_collection: true       # Enable garbage collection
+    gc_interval: 1800              # More frequent GC for crypto
+    
+  # Error handling
+  error_handling:
+    restart_on_error: true         # Restart system on critical error
+    max_restart_attempts: 5        # More restart attempts for crypto
+    error_notification: true       # Send notification on error
+    
+  # Maintenance
+  maintenance:
+    auto_cleanup: true             # Clean old files automatically
+    cleanup_interval: 43200        # Twice daily cleanup for crypto
+    backup_config: true            # Backup configuration daily
+    backup_database: true          # Backup database daily
+
+# ==========================================
+# DEVELOPMENT/TESTING SETTINGS (Enhanced)
+# ==========================================
+development:
+  enable_mock_data: true            # Use mock data when MT5 unavailable
+  simulate_network_delays: false    # Simulate network delays for testing
+  debug_signal_validation: false    # Extra debug logging for signal validation
+
+# ==========================================
+# END OF CONFIGURATION
+# ==========================================
