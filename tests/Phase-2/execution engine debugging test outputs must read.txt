@@ -1,0 +1,681 @@
+PS J:\Gold_FX> python .\tests\Phase-2\test_complete_execution.py
+Initializing ExecutionEngine...
+[INFO] Loaded 227 tradable symbols from CSV
+[INFO] MT5Manager initialized for symbol: XAUUSD
+[INFO] Magic number: 123456
+[INFO] Initializing MT5 with default path
+[INFO] Attempting to login to account 273949055 on server Exness-MT5Trial6
+[INFO] ✅ Found valid symbol: XAUUSDm
+[INFO] ✅ Successfully connected to MT5
+[INFO]    Account: 273949055
+[INFO]    Balance: $200.01
+[INFO]    Server: Exness-MT5Trial6
+[INFO]    Symbol: XAUUSDm
+[INFO] âœ… Connected to live MT5
+============================================================
+RUN MODE: MOCK - using simulated OHLCV data
+============================================================
+[INFO] Loaded 0 historical trades
+[INFO] Risk management system initialized
+[INFO] Target: $100.0 → $1000.0 (10x)
+[INFO] Max risk per trade: 5.0%
+[INFO] Max portfolio risk: 15.0%
+[INFO] Max drawdown: 25.0%
+[INFO] âœ… Initialized live RiskManager
+[INFO] Loaded 1 system-managed positions (magic: 123456)
+[INFO] Position monitoring loop started
+[INFO] Position monitoring started
+[INFO] Execution engine initialized successfully
+[INFO] Active positions: 1
+[INFO] Max slippage: 3 pips
+Engine mode: live
+Testing signal without SL/TP...
+[INFO] Processing signal: test_strategy BUY XAUUSDm @ 3328.68 (Confidence: 0.85)
+[INFO] ✅ Data validation passed for XAUUSDm M15: 20 rows
+[INFO] ✅ Data validation passed for XAUUSDm
+[INFO] Retrieved 20 bars for XAUUSDm M15
+[INFO] Auto-calculated SL/TP using ATR: SL=3324.43, TP=3335.76
+[ERROR] Order execution failed after 3 attempts: AutoTrading disabled by client - enable AutoTrading in MT5
+[INFO] [Mock DB] Storing signal for XAUUSDm
+
+Result:
+  Status: FAILED
+  Ticket: None
+  Executed Price: 0.0
+  Stop Loss: None
+  Take Profit: None
+  Error: AutoTrading disabled by client - enable AutoTrading in MT5
+
+❌ Failed: AutoTrading disabled by client - enable AutoTrading in MT5
+[INFO] Stopping execution engine...
+[INFO] Waiting for position monitoring thread to stop...
+[INFO] Position monitoring stopped by flag
+[INFO] Position monitoring loop ended normally
+[INFO] Position monitoring thread stopped successfully
+[INFO] Execution engine stopped
+Done.
+PS J:\Gold_FX> python .\tests\Phase-2\test_execution_fix.py    
+2025-08-22 18:41:13,331 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:41:13,334 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-22 18:41:13,334 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-22 18:41:13,334 - src.core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-22 18:41:13,345 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:41:13,347 - src.core.mt5_manager - INFO - ✅ Found valid symbol: XAUUSDm
+2025-08-22 18:41:13,347 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-22 18:41:13,348 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:41:13,348 - src.core.mt5_manager - INFO -    Balance: $200.01
+2025-08-22 18:41:13,348 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:41:13,348 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ Connected to MT5
+   Balance: $200.01
+2025-08-22 18:41:13,560 - src.core.mt5_manager - INFO - Market order placed successfully: BUY 0.01 XAUUSDm at 3326.821, Ticket: 2354372581, Slippage: 0.0 points, RetCode: 10009
+
+📊 Order Result:
+   Success: True
+   RetCode: 10009
+   Ticket: 2354372581
+   Price: 3326.821
+   Comment: Test fixed execu
+
+✅ ORDER EXECUTED SUCCESSFULLY!
+2025-08-22 18:41:15,841 - src.core.mt5_manager - WARNING - Slippage detected: 51.0 points (0.05 currency) on SELL XAUUSDm
+2025-08-22 18:41:15,841 - src.core.mt5_manager - INFO - Position 2354372581 closed at 3326.504, RetCode: 10009
+
+📊 Close Result:
+   Success: True
+   Price: 3326.504
+2025-08-22 18:41:15,842 - src.core.mt5_manager - INFO - Disconnected from MT5
+PS J:\Gold_FX> python .\tests\Phase-2\test_live_execution.py
+Initializing ExecutionEngine...
+[INFO] Loaded 227 tradable symbols from CSV
+[INFO] MT5Manager initialized for symbol: XAUUSD
+[INFO] Magic number: 123456
+[INFO] Initializing MT5 with default path
+[INFO] Attempting to login to account 273949055 on server Exness-MT5Trial6
+[INFO] ✅ Found valid symbol: XAUUSDm
+[INFO] ✅ Successfully connected to MT5
+[INFO]    Account: 273949055
+[INFO]    Balance: $199.69
+[INFO]    Server: Exness-MT5Trial6
+[INFO]    Symbol: XAUUSDm
+[INFO] âœ… Connected to live MT5
+============================================================
+RUN MODE: MOCK - using simulated OHLCV data
+============================================================
+[INFO] Loaded 0 historical trades
+[INFO] Risk management system initialized
+[INFO] Target: $100.0 → $1000.0 (10x)
+[INFO] Max risk per trade: 5.0%
+[INFO] Max portfolio risk: 15.0%
+[INFO] Max drawdown: 25.0%
+[INFO] âœ… Initialized live RiskManager
+[INFO] Loaded 1 system-managed positions (magic: 123456)
+[INFO] Position monitoring loop started
+[INFO] Position monitoring started
+[INFO] Execution engine initialized successfully
+[INFO] Active positions: 1
+[INFO] Max slippage: 3 pips
+Engine mode: live
+
+Processing signal without SL/TP...
+  Strategy: order_flow
+  Type: BUY
+  Price: 3328.68
+  Confidence: 0.95
+[INFO] Processing signal: order_flow BUY XAUUSDm @ 3328.68 (Confidence: 0.95)
+[INFO] ✅ Data validation passed for XAUUSDm M15: 20 rows
+[INFO] ✅ Data validation passed for XAUUSDm
+[INFO] Retrieved 20 bars for XAUUSDm M15
+[INFO] Auto-calculated SL/TP using ATR: SL=3324.43, TP=3335.76
+[ERROR] Order execution failed after 3 attempts: AutoTrading disabled by client - enable AutoTrading in MT5
+[INFO] [Mock DB] Storing signal for XAUUSDm
+
+📊 Execution Result:
+  Status: FAILED
+  Ticket: None
+  Executed Price: 0.0
+  Stop Loss: None
+  Take Profit: None
+  Error: AutoTrading disabled by client - enable AutoTrading in MT5
+
+❌ Execution failed: AutoTrading disabled by client - enable AutoTrading in MT5
+[INFO] Stopping execution engine...
+[INFO] Waiting for position monitoring thread to stop...
+[INFO] Position monitoring stopped by flag
+[INFO] Position monitoring loop ended normally
+[INFO] Position monitoring thread stopped successfully
+[INFO] Execution engine stopped
+
+✅ Test completed
+PS J:\Gold_FX> python .\tests\Phase-2\test_main_thread_execution.py
+Running in main thread: True
+2025-08-22 18:41:35,843 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:41:35,846 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-22 18:41:35,846 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-22 18:41:35,846 - src.core.mt5_manager - INFO - Initializing MT5 with default path     
+2025-08-22 18:41:35,857 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:41:35,859 - src.core.mt5_manager - INFO - ✅ Found valid symbol: XAUUSDm
+2025-08-22 18:41:35,860 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5       
+2025-08-22 18:41:35,860 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:41:35,860 - src.core.mt5_manager - INFO -    Balance: $199.69
+2025-08-22 18:41:35,860 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:41:35,860 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-22 18:41:35,860 - src.core.execution_engine - INFO - âœ… Connected to live MT5
+============================================================
+RUN MODE: MOCK - using simulated OHLCV data
+============================================================
+2025-08-22 18:41:35,901 - risk_manager - INFO - Loaded 0 historical trades
+2025-08-22 18:41:35,901 - risk_manager - INFO - Risk management system initialized
+2025-08-22 18:41:35,902 - risk_manager - INFO - Target: $100.0 → $1000.0 (10x)
+2025-08-22 18:41:35,902 - risk_manager - INFO - Max risk per trade: 5.0%
+2025-08-22 18:41:35,902 - risk_manager - INFO - Max portfolio risk: 15.0%
+2025-08-22 18:41:35,903 - risk_manager - INFO - Max drawdown: 25.0%
+2025-08-22 18:41:35,903 - src.core.execution_engine - INFO - âœ… Initialized live RiskManager  
+2025-08-22 18:41:35,903 - src.core.execution_engine - INFO - Loaded 1 system-managed positions (magic: 123456)
+2025-08-22 18:41:35,904 - src.core.execution_engine - INFO - Position monitoring loop started  
+2025-08-22 18:41:35,904 - src.core.execution_engine - INFO - Position monitoring started       
+2025-08-22 18:41:35,904 - src.core.execution_engine - INFO - Execution engine initialized successfully
+2025-08-22 18:41:35,904 - src.core.execution_engine - INFO - Active positions: 1
+2025-08-22 18:41:35,904 - src.core.execution_engine - INFO - Max slippage: 3 pips
+2025-08-22 18:41:35,904 - src.core.execution_engine - INFO - Processing signal: main_thread_test BUY XAUUSDm @ 3328.68 (Confidence: 0.85)
+2025-08-22 18:41:35,913 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 20 rows
+2025-08-22 18:41:35,913 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:41:35,914 - src.core.mt5_manager - INFO - Retrieved 20 bars for XAUUSDm M15      
+2025-08-22 18:41:35,915 - src.core.execution_engine - INFO - Auto-calculated SL/TP using ATR: SL=3324.43, TP=3335.76
+2025-08-22 18:41:38,921 - src.core.execution_engine - ERROR - Order execution failed after 3 attempts: AutoTrading disabled by client - enable AutoTrading in MT5
+2025-08-22 18:41:38,921 - src.core.execution_engine - INFO - [Mock DB] Storing signal for XAUUSDm
+Result: FAILED
+2025-08-22 18:41:38,922 - src.core.execution_engine - INFO - Stopping execution engine...      
+2025-08-22 18:41:38,922 - src.core.execution_engine - INFO - Waiting for position monitoring thread to stop...
+2025-08-22 18:41:40,904 - src.core.execution_engine - INFO - Position monitoring stopped by flag
+2025-08-22 18:41:40,905 - src.core.execution_engine - INFO - Position monitoring loop ended normally
+2025-08-22 18:41:40,905 - src.core.execution_engine - INFO - Position monitoring thread stopped successfully
+2025-08-22 18:41:40,906 - src.core.execution_engine - INFO - Execution engine stopped
+PS J:\Gold_FX> python .\tests\Phase-2\test_quick_fix.py            
+=== Direct MT5 Status ===
+AutoTrading: True
+Account Trading: True
+
+=== MT5Manager Status ===
+2025-08-22 18:41:55,878 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV   
+2025-08-22 18:41:55,881 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSDm
+2025-08-22 18:41:55,881 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-22 18:41:55,881 - src.core.mt5_manager - INFO - Initializing MT5 with default path     
+2025-08-22 18:41:55,890 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:41:55,892 - src.core.mt5_manager - INFO - ✅ Found valid symbol: XAUUSDm
+2025-08-22 18:41:55,893 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5       
+2025-08-22 18:41:55,893 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:41:55,893 - src.core.mt5_manager - INFO -    Balance: $199.69
+2025-08-22 18:41:55,893 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:41:55,893 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-22 18:41:56,104 - src.core.mt5_manager - WARNING - Slippage detected: 14.0 points (0.01 currency) on BUY XAUUSDm
+2025-08-22 18:41:56,105 - src.core.mt5_manager - INFO - Market order placed successfully: BUY 0.01 XAUUSDm at 3326.4049999999997, Ticket: 2354376525, Slippage: 14.0 points, RetCode: 10009   
+Order success: True
+Error: Quick test
+2025-08-22 18:41:56,105 - src.core.mt5_manager - INFO - Disconnected from MT5
+
+
+PS J:\Gold_FX> python .\tests\Phase-2\test_execution_engine2.py --mode live
+✅ Using real ExecutionEngine
+================================================================================
+🧪 EXECUTION ENGINE COMPREHENSIVE TEST SUITE (FIXED VERSION)
+================================================================================
+📊 Mode: LIVE
+📅 Date: 2025-08-22 18:46:02
+🖥️  Platform: win32
+🐍 Python: 3.13.1
+
+📋 Test Coverage:
+   • 25 core unit tests for ExecutionEngine
+   • 2 edge case tests
+   • Signal processing and validation
+   • Order execution and retry logic
+   • Position management
+   • Risk integration
+   • Performance tracking
+   • Emergency controls
+
+🔧 FIXES APPLIED:
+   ✅ Fixed MockMT5Manager scope and accessibility
+   ✅ Fixed mock class definitions and imports
+   ✅ Fixed test setup to force mocks for consistency
+   ✅ Fixed error reporting in summary
+   ✅ Added proper MT5 API response handling
+
+================================================================================
+
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 1: Signal Processing Success
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 2: Signal Validation - Confidence Threshold
+   ✅ Low confidence signal handled
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 3: Signal Validation - Age Threshold
+   ✅ Old signal handled
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 4: Signal Validation - Invalid Symbol
+   ✅ Invalid symbol handled
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 5: Signal Validation - Invalid Price
+   ✅ Invalid price handled
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 6: Order Execution Success
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 7: Order Execution Failure with Retry
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 8: Position Creation on Execution
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 9: Slippage Calculation
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Slippage calculated: 0.00 pips
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 10: Execution Summary Generation
+   ✅ Summary generated with all required fields
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 11: Emergency Close All Positions
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Emergency close completed
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 12: Engine Stop Functionality
+   ✅ Engine stopped successfully
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 13: BUY Signal Execution
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 14: SELL Signal Execution
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 15: Execution History Tracking
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Execution history tracking validated
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 16: Risk Assessment Integration
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Risk assessment integrated successfully
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 17: Performance Metrics Tracking
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Performance tracking validated
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 18: Configuration Parameter Usage
+   ✅ Configuration validated: Slippage 3, Retries 3
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 19: Concurrent Signal Processing Safety
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 20: Edge Case - None Signal Handling
+ERROR:src.core.execution_engine:Unexpected error during signal processing: 'NoneType' object has no attribute 'strategy_name'
+   ✅ None signal properly rejected with exception: AttributeError
+   ✅ None signal handled gracefully
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 21: Position Management
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Position management validated
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 22: Partial Position Operations
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Partial operations validated
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 23: Error Handling Robustness
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 24: Signal Type Coverage
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+   ✅ Signal types covered
+.
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Test 25: Integration Completeness
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Edge Case: Extreme Prices
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Edge Case: Extreme Prices
+ERROR:src.core.execution_engine:Order execution failed after 3 attempts: No response from MT5
+F
+🧪 Running tests in LIVE mode
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+✅ Connected to live MT5
+⚠️  Using REAL ExecutionEngine - Live trades will be placed!
+✅ Test setup complete - Mode: live
+🔄 Edge Case: Zero Volume
+   ✅ Zero volume handled
+.
+======================================================================
+FAIL: test_01_signal_processing_success (__main__.TestExecutionEngine.test_01_signal_processing_success)
+Test 1/25: Successful signal processing
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 398, in test_01_signal_processing_success
+    self.assertEqual(result.status, ExecutionStatus.EXECUTED, "Signal should be executed successfully")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : Signal should be executed successfully
+
+======================================================================
+FAIL: test_06_order_execution_success (__main__.TestExecutionEngine.test_06_order_execution_success)
+Test 6/25: Order execution success
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 512, in test_06_order_execution_success
+    self.assertEqual(result.status, ExecutionStatus.EXECUTED, "Order should execute successfully")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : Order should execute successfully
+
+======================================================================
+FAIL: test_07_order_execution_failure_with_retry (__main__.TestExecutionEngine.test_07_order_execution_failure_with_retry)
+Test 7/25: Order execution failure with retry logic
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 535, in test_07_order_execution_failure_with_retry
+    self.assertIsInstance(result, ExecutionResult, "Should return ExecutionResult")
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ExecutionResult(signal_id='2226151848080', execution_id='EXEC_20250822_184608_2226151848080', timestamp=datetime.datetime(2025, 8, 22, 18, 46, 8, 870578), status=<ExecutionStatus.REJECTED: 'REJECTED'>, symbol='XAUUSDm', order_type='BUY', requested_size=0.0, executed_size=0.0, requested_price=1960.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='', confidence=0.0, risk_assessment={}, error_message='Confidence 0.30 below minimum 0.6') is not an instance of <class '__main__.ExecutionResult'> : Should return ExecutionResult
+
+======================================================================
+FAIL: test_08_position_creation_on_execution (__main__.TestExecutionEngine.test_08_position_creation_on_execution)
+Test 8/25: Position creation on successful execution
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 549, in test_08_position_creation_on_execution
+    self.assertEqual(result.status, ExecutionStatus.EXECUTED, "Signal should be executed")     
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^     
+AssertionError: <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : Signal should be executed
+
+======================================================================
+FAIL: test_13_buy_signal_execution (__main__.TestExecutionEngine.test_13_buy_signal_execution) 
+Test 13/25: BUY signal execution
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 652, in test_13_buy_signal_execution
+    self.assertEqual(result.status, ExecutionStatus.EXECUTED, "BUY signal should execute")     
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^     
+AssertionError: <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : BUY signal should execute
+
+======================================================================
+FAIL: test_14_sell_signal_execution (__main__.TestExecutionEngine.test_14_sell_signal_execution)
+Test 14/25: SELL signal execution
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 675, in test_14_sell_signal_execution
+    self.assertEqual(result.status, ExecutionStatus.EXECUTED, "SELL signal should execute")    
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^    
+AssertionError: <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : SELL signal should execute
+
+======================================================================
+FAIL: test_19_concurrent_signal_processing (__main__.TestExecutionEngine.test_19_concurrent_signal_processing)
+Test 19/25: Concurrent signal processing safety
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 802, in test_19_concurrent_signal_processing
+    self.assertIsInstance(result, ExecutionResult, "Result should be ExecutionResult")
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ExecutionResult(signal_id='2226151415792', execution_id='EXEC_20250822_184650_2226151415792', timestamp=datetime.datetime(2025, 8, 22, 18, 46, 53, 206641), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAUUSDm', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=1960.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='concurrent_test_0', confidence=0.85, risk_assessment={'monetary_risk': np.float64(4.279999999999973), 'risk_percentage': np.float64(0.02164020628981683), 'reward_risk_ratio': np.float64(1.665887850467326), 'portfolio_risk_pct': np.float64(0.02164020628981683), 'position_value': 1960.0000000000002, 'correlation_impact': 0, 'risk_level': 'MODERATE'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Result should be ExecutionResult
+
+======================================================================
+FAIL: test_23_error_handling_robustness (__main__.TestExecutionEngine.test_23_error_handling_robustness)
+Test 23/25: Error handling robustness
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 869, in test_23_error_handling_robustness
+    self.assertIsInstance(result, ExecutionResult, "Should return ExecutionResult for invalid input")
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ExecutionResult(signal_id='2226157824224', execution_id='EXEC_20250822_184705_2226157824224', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 5, 306992), status=<ExecutionStatus.REJECTED: 'REJECTED'>, symbol='', order_type='BUY', requested_size=0.0, executed_size=0.0, requested_price=100, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='', confidence=0.0, risk_assessment={}, error_message='Confidence 0.50 below minimum 0.6') is not an instance of <class '__main__.ExecutionResult'> : Should return ExecutionResult for invalid input
+
+======================================================================
+FAIL: test_25_integration_completeness (__main__.TestExecutionEngine.test_25_integration_completeness)
+Test 25/25: Integration completeness
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 905, in test_25_integration_completeness
+    self.assertIsInstance(result, ExecutionResult, "Should produce ExecutionResult")
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ExecutionResult(signal_id='2226157828624', execution_id='EXEC_20250822_184711_2226157828624', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 14, 358244), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAUUSDm', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=1960.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='test_strategy', confidence=0.85, risk_assessment={'monetary_risk': 10.0, 'risk_percentage': 0.05056122964910507, 'reward_risk_ratio': -2.0, 'portfolio_risk_pct': 0.05056122964910507, 'position_value': 1960.0000000000002, 'correlation_impact': 0, 'risk_level': 'EXTREME'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Should produce ExecutionResult
+
+======================================================================
+FAIL: test_edge_case_extreme_prices (__main__.TestExecutionEngine.test_edge_case_extreme_prices)
+Test with extreme price values
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 926, in test_edge_case_extreme_prices
+    self.assertIsInstance(result, ExecutionResult, "Should handle extreme prices")
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ExecutionResult(signal_id='2226158207936', execution_id='EXEC_20250822_184714_2226158207936', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 17, 400494), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAU', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=999999.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='test', confidence=0.85, risk_assessment={'monetary_risk': 3000.0, 'risk_percentage': 15.16836889473152, 'reward_risk_ratio': 1.9999966666666635, 'portfolio_risk_pct': 15.16836889473152, 'position_value': 999999.0, 'correlation_impact': 0, 'risk_level': 'EXTREME'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Should handle extreme prices
+
+======================================================================
+FAIL: test_edge_case_extreme_prices (__main__.TestExecutionEngineEdgeCases.test_edge_case_extreme_prices)
+Test with extreme price values
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "J:\Gold_FX\tests\Phase-2\test_execution_engine2.py", line 1038, in test_edge_case_extreme_prices
+    self.assertIsInstance(result, ExecutionResult, "Should handle extreme prices")
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ExecutionResult(signal_id='2226158210400', execution_id='EXEC_20250822_184717_2226158210400', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 20, 427039), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAU', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=999999.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='test', confidence=0.85, risk_assessment={'monetary_risk': 3000.0, 'risk_percentage': 15.16836889473152, 'reward_risk_ratio': 1.9999966666666635, 'portfolio_risk_pct': 15.16836889473152, 'position_value': 999999.0, 'correlation_impact': 0, 'risk_level': 'EXTREME'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Should handle extreme prices
+
+----------------------------------------------------------------------
+Ran 28 tests in 77.809s
+
+FAILED (failures=11)
+
+================================================================================
+📊 TEST EXECUTION SUMMARY
+================================================================================
+⏱️  Execution Time: 77.82 seconds
+🧪 Total Tests: 28
+✅ Passed: 17
+❌ Failed: 11
+💥 Errors: 0
+🎯 Success Rate: 60.7%
+
+❌ FAILURES (11):
+   • test_01_signal_processing_success (__main__.TestExecutionEngine.test_01_signal_processing_success): <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : Signal should be executed successfully
+   • test_06_order_execution_success (__main__.TestExecutionEngine.test_06_order_execution_success): <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : Order should execute successfully
+   • test_07_order_execution_failure_with_retry (__main__.TestExecutionEngine.test_07_order_execution_failure_with_retry): ExecutionResult(signal_id='2226151848080', execution_id='EXEC_20250822_184608_2226151848080', timestamp=datetime.datetime(2025, 8, 22, 18, 46, 8, 870578), status=<ExecutionStatus.REJECTED: 'REJECTED'>, symbol='XAUUSDm', order_type='BUY', requested_size=0.0, executed_size=0.0, requested_price=1960.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='', confidence=0.0, risk_assessment={}, error_message='Confidence 0.30 below minimum 0.6') is not an instance of <class '__main__.ExecutionResult'> : Should return ExecutionResult
+   • test_08_position_creation_on_execution (__main__.TestExecutionEngine.test_08_position_creation_on_execution): <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : Signal should be executed
+   • test_13_buy_signal_execution (__main__.TestExecutionEngine.test_13_buy_signal_execution): <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : BUY signal should execute
+   • test_14_sell_signal_execution (__main__.TestExecutionEngine.test_14_sell_signal_execution): <ExecutionStatus.FAILED: 'FAILED'> != <ExecutionStatus.EXECUTED: 'EXECUTED'> : SELL signal should execute
+   • test_19_concurrent_signal_processing (__main__.TestExecutionEngine.test_19_concurrent_signal_processing): ExecutionResult(signal_id='2226151415792', execution_id='EXEC_20250822_184650_2226151415792', timestamp=datetime.datetime(2025, 8, 22, 18, 46, 53, 206641), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAUUSDm', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=1960.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='concurrent_test_0', confidence=0.85, risk_assessment={'monetary_risk': np.float64(4.279999999999973), 'risk_percentage': np.float64(0.02164020628981683), 'reward_risk_ratio': np.float64(1.665887850467326), 'portfolio_risk_pct': np.float64(0.02164020628981683), 'position_value': 1960.0000000000002, 'correlation_impact': 0, 'risk_level': 'MODERATE'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Result should be ExecutionResult
+   • test_23_error_handling_robustness (__main__.TestExecutionEngine.test_23_error_handling_robustness): ExecutionResult(signal_id='2226157824224', execution_id='EXEC_20250822_184705_2226157824224', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 5, 306992), status=<ExecutionStatus.REJECTED: 'REJECTED'>, symbol='', order_type='BUY', requested_size=0.0, executed_size=0.0, requested_price=100, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='', confidence=0.0, risk_assessment={}, error_message='Confidence 0.50 below minimum 0.6') is not an instance of <class '__main__.ExecutionResult'> : Should return ExecutionResult for invalid input
+   • test_25_integration_completeness (__main__.TestExecutionEngine.test_25_integration_completeness): ExecutionResult(signal_id='2226157828624', execution_id='EXEC_20250822_184711_2226157828624', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 14, 358244), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAUUSDm', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=1960.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='test_strategy', confidence=0.85, risk_assessment={'monetary_risk': 10.0, 'risk_percentage': 0.05056122964910507, 'reward_risk_ratio': -2.0, 'portfolio_risk_pct': 0.05056122964910507, 'position_value': 1960.0000000000002, 'correlation_impact': 0, 'risk_level': 'EXTREME'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Should produce ExecutionResult
+   • test_edge_case_extreme_prices (__main__.TestExecutionEngine.test_edge_case_extreme_prices): ExecutionResult(signal_id='2226158207936', execution_id='EXEC_20250822_184714_2226158207936', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 17, 400494), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAU', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=999999.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='test', confidence=0.85, risk_assessment={'monetary_risk': 3000.0, 'risk_percentage': 15.16836889473152, 'reward_risk_ratio': 1.9999966666666635, 'portfolio_risk_pct': 15.16836889473152, 'position_value': 999999.0, 'correlation_impact': 0, 'risk_level': 'EXTREME'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Should handle extreme prices
+   • test_edge_case_extreme_prices (__main__.TestExecutionEngineEdgeCases.test_edge_case_extreme_prices): ExecutionResult(signal_id='2226158210400', execution_id='EXEC_20250822_184717_2226158210400', timestamp=datetime.datetime(2025, 8, 22, 18, 47, 20, 427039), status=<ExecutionStatus.FAILED: 'FAILED'>, symbol='XAU', order_type='BUY', requested_size=0.01, executed_size=0.0, requested_price=999999.0, executed_price=0.0, ticket=None, stop_loss=None, take_profit=None, slippage=0.0, strategy='test', confidence=0.85, risk_assessment={'monetary_risk': 3000.0, 'risk_percentage': 15.16836889473152, 'reward_risk_ratio': 1.9999966666666635, 'portfolio_risk_pct': 15.16836889473152, 'position_value': 999999.0, 'correlation_impact': 0, 'risk_level': 'EXTREME'}, error_message='No response from MT5') is not an instance of <class '__main__.ExecutionResult'> : Should handle extreme prices
+
+⚠️  SOME TESTS FAILED
+================================================================================

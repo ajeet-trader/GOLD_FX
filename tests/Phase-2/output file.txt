@@ -1,0 +1,502 @@
+PS J:\Gold_FX> python .\src\core\execution_engine.py --mode live
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,294 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:42:25,296 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-22 18:42:25,297 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-22 18:42:25,297 - src.core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-22 18:42:25,308 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:42:25,310 - src.core.mt5_manager - INFO - ✅ Found valid symbol: XAUUSDm
+2025-08-22 18:42:25,310 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5
+2025-08-22 18:42:25,310 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:42:25,310 - src.core.mt5_manager - INFO -    Balance: $199.69
+2025-08-22 18:42:25,310 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:42:25,310 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-22 18:42:25,311 - __main__ - INFO - âœ… Connected to live MT5
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,312 - src.core.mt5_manager - INFO - Initializing MT5 with default path
+2025-08-22 18:42:25,318 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:42:25,319 - src.core.mt5_manager - INFO - Using cached symbol info for XAUUSDm   
+2025-08-22 18:42:25,319 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5       
+2025-08-22 18:42:25,319 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:42:25,319 - src.core.mt5_manager - INFO -    Balance: $199.69
+2025-08-22 18:42:25,319 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:42:25,319 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ Connected to live MT5
+2025-08-22 18:42:25,320 - risk_manager - INFO - Loaded 0 historical trades
+2025-08-22 18:42:25,320 - risk_manager - INFO - Risk management system initialized
+2025-08-22 18:42:25,320 - risk_manager - INFO - Target: $100.0 → $1000.0 (10x)
+2025-08-22 18:42:25,320 - risk_manager - INFO - Max risk per trade: 5.0%
+2025-08-22 18:42:25,320 - risk_manager - INFO - Max portfolio risk: 15.0%
+2025-08-22 18:42:25,320 - risk_manager - INFO - Max drawdown: 25.0%
+2025-08-22 18:42:25,320 - __main__ - INFO - âœ… Initialized live RiskManager
+2025-08-22 18:42:25,321 - __main__ - INFO - Loaded 2 system-managed positions (magic: 123456)  
+2025-08-22 18:42:25,321 - __main__ - INFO - Position monitoring loop started
+2025-08-22 18:42:25,321 - __main__ - INFO - Position monitoring started
+2025-08-22 18:42:25,321 - __main__ - INFO - Execution engine initialized successfully
+2025-08-22 18:42:25,321 - __main__ - INFO - Active positions: 2
+2025-08-22 18:42:25,321 - __main__ - INFO - Max slippage: 3 pips
+2025-08-22 18:42:25,321 - __main__ - INFO - Execution Engine Initialized. Running tests...     
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,325 - src.core.mt5_manager - INFO - Initializing MT5 with default path     
+2025-08-22 18:42:25,332 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:42:25,332 - src.core.mt5_manager - INFO - Using cached symbol info for XAUUSDm   
+2025-08-22 18:42:25,332 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5       
+2025-08-22 18:42:25,333 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:42:25,333 - src.core.mt5_manager - INFO -    Balance: $199.69
+2025-08-22 18:42:25,333 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:42:25,333 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+2025-08-22 18:42:25,333 - signal_engine - INFO - Loading available strategies...
+2025-08-22 18:42:25,658 - root - INFO - Successfully imported technical strategy: IchimokuStrategy
+2025-08-22 18:42:25,678 - root - INFO - Successfully imported technical strategy: HarmonicStrategy
+2025-08-22 18:42:25,686 - root - INFO - Successfully imported technical strategy: ElliottWaveStrategy
+2025-08-22 18:42:25,704 - root - INFO - Successfully imported technical strategy: VolumeProfileStrategy
+2025-08-22 18:42:25,718 - root - INFO - Successfully imported technical strategy: MarketProfileStrategy
+2025-08-22 18:42:25,728 - root - INFO - Successfully imported technical strategy: OrderFlowStrategy
+2025-08-22 18:42:25,742 - root - INFO - Successfully imported technical strategy: WyckoffStrategy
+2025-08-22 18:42:25,756 - root - INFO - Successfully imported technical strategy: GannStrategy
+2025-08-22 18:42:25,772 - root - INFO - Successfully imported technical strategy: FibonacciAdvancedStrategy
+2025-08-22 18:42:25,786 - root - INFO - Successfully imported technical strategy: MomentumDivergenceStrategy
+2025-08-22 18:42:25,818 - root - INFO - Successfully imported smc strategy: OrderBlocksStrategy
+2025-08-22 18:42:25,827 - root - INFO - Successfully imported smc strategy: LiquidityPoolsStrategy
+2025-08-22 18:42:25,841 - root - INFO - Successfully imported smc strategy: MarketStructureStrategy
+2025-08-22 18:42:25,851 - root - INFO - Successfully imported smc strategy: ManipulationStrategy
+TensorFlow/Scikit-learn not available. LSTM strategy will run in simulation mode.
+2025-08-22 18:42:25,880 - root - INFO - Successfully imported ml strategy: LSTMPredictorStrategy
+XGBoost/Scikit-learn not available. Strategy will run in simulation mode.
+2025-08-22 18:42:25,884 - root - INFO - Successfully imported ml strategy: XGBoostClassifierStrategy
+TensorFlow not available. Strategy will run in simulation mode.
+2025-08-22 18:42:25,901 - root - INFO - Successfully imported ml strategy: EnsembleNNStrategy  
+TensorFlow not available. Strategy will run in simulation mode.
+2025-08-22 18:42:25,922 - root - INFO - Successfully imported ml strategy: RLAgentStrategy     
+2025-08-22 18:42:25,932 - root - INFO - Successfully imported fusion strategy: WeightedVoting
+2025-08-22 18:42:25,943 - root - INFO - Successfully imported fusion strategy: ConfidenceSizing
+2025-08-22 18:42:25,946 - root - INFO - Successfully imported fusion strategy: RegimeDetection
+2025-08-22 18:42:25,949 - root - INFO - Successfully imported fusion strategy: AdaptiveEnsembleFusionStrategy
+2025-08-22 18:42:25,949 - signal_engine - INFO - Initializing active strategies...
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,951 - signal_engine - INFO - Initialized technical strategy: ichimoku (IchimokuStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,953 - signal_engine - INFO - Initialized technical strategy: harmonic (HarmonicStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,954 - ElliottWaveStrategy - INFO - Elliott Wave Strategy initialized with min_wave_size=10, lookback=200
+2025-08-22 18:42:25,954 - signal_engine - INFO - Initialized technical strategy: elliott_wave (ElliottWaveStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,955 - signal_engine - INFO - Initialized technical strategy: volume_profile (VolumeProfileStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,956 - MarketProfileStrategy - INFO - Market Profile Strategy initialized   
+2025-08-22 18:42:25,956 - signal_engine - INFO - Initialized technical strategy: market_profile (MarketProfileStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,957 - OrderFlowStrategy - INFO - OrderFlowStrategy initialized successfully
+2025-08-22 18:42:25,958 - signal_engine - INFO - Initialized technical strategy: order_flow (OrderFlowStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,959 - WyckoffStrategy - INFO - WyckoffStrategy initialized with lookback=80, confidence_threshold=0.51
+2025-08-22 18:42:25,959 - signal_engine - INFO - Initialized technical strategy: wyckoff (WyckoffStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,960 - signal_engine - INFO - Initialized technical strategy: gann (GannStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,961 - FibonacciAdvancedStrategy - INFO - Initialized FibonacciAdvancedStrategy with lookback=200, cluster_tolerance=0.3%
+2025-08-22 18:42:25,961 - signal_engine - INFO - Initialized technical strategy: fibonacci_advanced (FibonacciAdvancedStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,962 - MomentumDivergenceStrategy - INFO - Initialized MomentumDivergenceStrategy with oscillator: RSI
+2025-08-22 18:42:25,962 - signal_engine - INFO - Initialized technical strategy: momentum_divergence (MomentumDivergenceStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,964 - signal_engine - INFO - Initialized smc strategy: order_blocks (OrderBlocksStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,965 - signal_engine - INFO - Initialized smc strategy: liquidity_pools (LiquidityPoolsStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,966 - MarketStructureStrategy - INFO - MarketStructureStrategy initialized with lookback=200, swing_window=5, confidence_threshold=0.65
+2025-08-22 18:42:25,966 - signal_engine - INFO - Initialized smc strategy: market_structure (MarketStructureStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,967 - ManipulationStrategy - INFO - Manipulation Strategy initialized      
+2025-08-22 18:42:25,967 - signal_engine - INFO - Initialized smc strategy: manipulation (ManipulationStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,968 - LSTMPredictorStrategy - WARNING - ML libraries not available. Running in simulation mode.
+2025-08-22 18:42:25,969 - signal_engine - INFO - Initialized ml strategy: lstm (LSTMPredictorStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,970 - XGBoostClassifierStrategy - INFO - XGBoostClassifierStrategy initialized (XGBoost available: False)
+2025-08-22 18:42:25,970 - signal_engine - INFO - Initialized ml strategy: xgboost_classifier (XGBoostClassifierStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,971 - EnsembleNNStrategy - INFO - EnsembleNNStrategy initialized (TensorFlow available: False)
+2025-08-22 18:42:25,971 - signal_engine - INFO - Initialized ml strategy: ensemble_nn (EnsembleNNStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,972 - RLAgentStrategy - INFO - RLAgentStrategy initialized (TensorFlow available: False)
+2025-08-22 18:42:25,972 - signal_engine - INFO - Initialized ml strategy: rl_agent (RLAgentStrategy)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,974 - WeightedVoting - INFO - WeightedVoting initialized
+2025-08-22 18:42:25,974 - signal_engine - INFO - Initialized fusion strategy: weighted_voting (WeightedVoting)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,975 - signal_engine - INFO - Initialized fusion strategy: confidence_sizing (ConfidenceSizing)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,976 - RegimeDetection - INFO - RegimeDetection initialized
+2025-08-22 18:42:25,976 - signal_engine - INFO - Initialized fusion strategy: regime_detection (RegimeDetection)
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:25,977 - AdaptiveEnsembleFusionStrategy - INFO - Adaptive Ensemble Fusion Strategy initialized
+2025-08-22 18:42:25,977 - signal_engine - INFO - Initialized fusion strategy: adaptive_ensemble (AdaptiveEnsembleFusionStrategy)
+2025-08-22 18:42:25,978 - signal_engine - INFO - Initialized 22 strategies:
+2025-08-22 18:42:25,978 - signal_engine - INFO -   TECHNICAL: ichimoku, harmonic, elliott_wave, volume_profile, market_profile, order_flow, wyckoff, gann, fibonacci_advanced, momentum_divergence
+2025-08-22 18:42:25,978 - signal_engine - INFO -   SMC: order_blocks, liquidity_pools, market_structure, manipulation
+2025-08-22 18:42:25,978 - signal_engine - INFO -   ML: lstm, xgboost_classifier, ensemble_nn, rl_agent
+2025-08-22 18:42:25,978 - signal_engine - INFO -   FUSION: weighted_voting, confidence_sizing, regime_detection, adaptive_ensemble
+2025-08-22 18:42:25,989 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 100 rows
+2025-08-22 18:42:25,990 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:42:25,990 - src.core.mt5_manager - INFO - Retrieved 100 bars for XAUUSDm M15     
+2025-08-22 18:42:25,992 - signal_engine - WARNING - Detected 4 missing bars in XAUUSDm M15     
+2025-08-22 18:42:26,015 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 200 rows
+2025-08-22 18:42:26,015 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm
+2025-08-22 18:42:26,015 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15     
+2025-08-22 18:42:26,026 - IchimokuStrategy - INFO - Ichimoku generated 3 valid signals out of 3 total
+2025-08-22 18:42:26,028 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15
+2025-08-22 18:42:26,041 - HarmonicStrategy - INFO - Harmonic generated 2 signals from 10 patterns
+2025-08-22 18:42:26,043 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15     
+2025-08-22 18:42:26,141 - ElliottWaveStrategy - WARNING - Error checking volume confirmation: cannot do slice indexing on DatetimeIndex with these indexers [151] of type int64
+2025-08-22 18:42:26,142 - ElliottWaveStrategy - INFO - Found bearish impulse pattern with confidence 0.82
+2025-08-22 18:42:26,149 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.82
+2025-08-22 18:42:26,150 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,152 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.83
+2025-08-22 18:42:26,154 - ElliottWaveStrategy - INFO - Found flat corrective pattern with confidence 0.86
+2025-08-22 18:42:26,155 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.80
+2025-08-22 18:42:26,157 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.84
+2025-08-22 18:42:26,159 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.84
+2025-08-22 18:42:26,160 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.84
+2025-08-22 18:42:26,162 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.81
+2025-08-22 18:42:26,163 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.81
+2025-08-22 18:42:26,164 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,166 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,168 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,169 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.83
+2025-08-22 18:42:26,171 - ElliottWaveStrategy - INFO - Found zigzag corrective pattern with confidence 0.83
+2025-08-22 18:42:26,172 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.78
+2025-08-22 18:42:26,173 - ElliottWaveStrategy - INFO - Found flat corrective pattern with confidence 0.83
+2025-08-22 18:42:26,174 - ElliottWaveStrategy - INFO - Found flat corrective pattern with confidence 0.82
+2025-08-22 18:42:26,176 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.80
+2025-08-22 18:42:26,178 - ElliottWaveStrategy - INFO - Found zigzag corrective pattern with confidence 0.85
+2025-08-22 18:42:26,179 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.85
+2025-08-22 18:42:26,181 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,182 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.80
+2025-08-22 18:42:26,183 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.80
+2025-08-22 18:42:26,185 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.83
+2025-08-22 18:42:26,187 - ElliottWaveStrategy - INFO - Found zigzag corrective pattern with confidence 0.83
+2025-08-22 18:42:26,188 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,189 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,190 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.82
+2025-08-22 18:42:26,281 - ElliottWaveStrategy - WARNING - Error checking volume confirmation: cannot do slice indexing on DatetimeIndex with these indexers [151] of type int64
+2025-08-22 18:42:26,282 - ElliottWaveStrategy - INFO - Found bearish impulse pattern with confidence 0.82
+2025-08-22 18:42:26,288 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.82
+2025-08-22 18:42:26,289 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,290 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.83
+2025-08-22 18:42:26,292 - ElliottWaveStrategy - INFO - Found flat corrective pattern with confidence 0.86
+2025-08-22 18:42:26,293 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.80
+2025-08-22 18:42:26,294 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.84
+2025-08-22 18:42:26,296 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.84
+2025-08-22 18:42:26,297 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.84
+2025-08-22 18:42:26,300 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.81
+2025-08-22 18:42:26,301 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.81
+2025-08-22 18:42:26,302 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,303 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,305 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,306 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.83
+2025-08-22 18:42:26,307 - ElliottWaveStrategy - INFO - Found zigzag corrective pattern with confidence 0.83
+2025-08-22 18:42:26,309 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.78
+2025-08-22 18:42:26,310 - ElliottWaveStrategy - INFO - Found flat corrective pattern with confidence 0.83
+2025-08-22 18:42:26,311 - ElliottWaveStrategy - INFO - Found flat corrective pattern with confidence 0.82
+2025-08-22 18:42:26,313 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.80
+2025-08-22 18:42:26,314 - ElliottWaveStrategy - INFO - Found zigzag corrective pattern with confidence 0.85
+2025-08-22 18:42:26,316 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.85
+2025-08-22 18:42:26,317 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,319 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.80
+2025-08-22 18:42:26,320 - ElliottWaveStrategy - INFO - Found triangle corrective pattern with confidence 0.80
+2025-08-22 18:42:26,322 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.83
+2025-08-22 18:42:26,323 - ElliottWaveStrategy - INFO - Found zigzag corrective pattern with confidence 0.83
+2025-08-22 18:42:26,324 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,325 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.77
+2025-08-22 18:42:26,327 - ElliottWaveStrategy - INFO - Found corrective corrective pattern with confidence 0.82
+2025-08-22 18:42:26,329 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15
+2025-08-22 18:42:26,343 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15     
+2025-08-22 18:42:26,364 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 150 rows
+2025-08-22 18:42:26,364 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm
+2025-08-22 18:42:26,364 - src.core.mt5_manager - INFO - Retrieved 150 bars for XAUUSDm M15     
+2025-08-22 18:42:26,372 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 80 rows
+2025-08-22 18:42:26,373 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:42:26,373 - src.core.mt5_manager - INFO - Retrieved 80 bars for XAUUSDm M15      
+2025-08-22 18:42:26,388 - WyckoffStrategy - INFO - Generated BUY signal: SPRING in ACCUMULATION, Confidence: 0.66
+2025-08-22 18:42:26,391 - src.core.mt5_manager - INFO - Retrieved 150 bars for XAUUSDm M15     
+2025-08-22 18:42:26,397 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15
+2025-08-22 18:42:26,407 - src.utils.data_validator - INFO - Data cleaning: 200 -> 200 rows     
+2025-08-22 18:42:26,407 - src.utils.data_validator - WARNING - ❌ Data validation failed for XAUUSDm H1: 1 errors
+2025-08-22 18:42:26,407 - src.core.mt5_manager - WARNING - ❌ Data validation failed for XAUUSDm: 1 errors
+2025-08-22 18:42:26,408 - src.core.mt5_manager - WARNING -   - Significant data gaps detected: ~49 missing bars
+2025-08-22 18:42:26,408 - src.core.mt5_manager - INFO - ✅ Using cleaned data: 200 bars        
+2025-08-22 18:42:26,408 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm H1      
+2025-08-22 18:42:26,424 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15
+2025-08-22 18:42:26,462 - MomentumDivergenceStrategy - INFO - Generated 0 signals for XAUUSDm on M15
+2025-08-22 18:42:26,471 - src.utils.data_validator - INFO - Data cleaning: 500 -> 500 rows
+2025-08-22 18:42:26,471 - src.utils.data_validator - WARNING - ❌ Data validation failed for XAUUSDm M15: 1 errors
+2025-08-22 18:42:26,471 - src.core.mt5_manager - WARNING - ❌ Data validation failed for XAUUSDm: 1 errors
+2025-08-22 18:42:26,471 - src.core.mt5_manager - WARNING -   - Significant data gaps detected: ~212 missing bars
+2025-08-22 18:42:26,472 - src.core.mt5_manager - INFO - ✅ Using cleaned data: 500 bars        
+2025-08-22 18:42:26,472 - src.core.mt5_manager - INFO - Retrieved 500 bars for XAUUSDm M15     
+2025-08-22 18:42:30,002 - OrderBlocksStrategy - INFO - Order Blocks generated 0 signals from 1 candidates
+2025-08-22 18:42:30,002 - LiquidityPoolsStrategy - INFO - Liquidity Pools Strategy - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,009 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 300 rows
+2025-08-22 18:42:30,009 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:42:30,010 - src.core.mt5_manager - INFO - Retrieved 300 bars for XAUUSDm M15     
+2025-08-22 18:42:30,153 - LiquidityPoolsStrategy - INFO - Generated 26 signals
+2025-08-22 18:42:30,155 - src.core.mt5_manager - INFO - Retrieved 200 bars for XAUUSDm M15
+2025-08-22 18:42:30,175 - ManipulationStrategy - INFO - Manipulation Strategy - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,183 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 250 rows
+2025-08-22 18:42:30,183 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:42:30,184 - src.core.mt5_manager - INFO - Retrieved 250 bars for XAUUSDm M15     
+2025-08-22 18:42:30,255 - ManipulationStrategy - INFO - Generated 0 signals
+LSTM Predictor - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,257 - src.core.mt5_manager - INFO - Retrieved 500 bars for XAUUSDm M15     
+   Training models...
+2025-08-22 18:42:30,261 - LSTMPredictorStrategy - INFO - ML libraries not available. Simulating model training.
+   Generated 1 signals (avg confidence: 0.84)
+      - SELL at 3325.14 (conf: 0.84)
+2025-08-22 18:42:30,265 - XGBoostClassifierStrategy - INFO - XGBoost Classifier - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,272 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 120 rows
+2025-08-22 18:42:30,272 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:42:30,272 - src.core.mt5_manager - INFO - Retrieved 120 bars for XAUUSDm M15     
+2025-08-22 18:42:30,274 - XGBoostClassifierStrategy - INFO - Training XGBoost model...
+2025-08-22 18:42:30,274 - XGBoostClassifierStrategy - WARNING - XGBoost not available, skipping training.
+2025-08-22 18:42:30,281 - XGBoostClassifierStrategy - INFO - No valid signals generated
+2025-08-22 18:42:30,282 - EnsembleNNStrategy - INFO - Ensemble NN - Analyzing XAUUSDm on M15   
+2025-08-22 18:42:30,284 - src.core.mt5_manager - INFO - Retrieved 150 bars for XAUUSDm M15     
+2025-08-22 18:42:30,286 - EnsembleNNStrategy - INFO - Training ensemble models...
+2025-08-22 18:42:30,286 - EnsembleNNStrategy - WARNING - TensorFlow not available or no models initialized for training.
+2025-08-22 18:42:30,292 - EnsembleNNStrategy - INFO - No valid signals generated
+2025-08-22 18:42:30,292 - RLAgentStrategy - INFO - RL Agent - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,294 - src.core.mt5_manager - INFO - Retrieved 80 bars for XAUUSDm M15      
+2025-08-22 18:42:30,300 - RLAgentStrategy - INFO - No valid signals generated
+2025-08-22 18:42:30,300 - WeightedVoting - INFO - Weighted Voting - Analyzing XAUUSDm on M15   
+2025-08-22 18:42:30,302 - src.core.mt5_manager - INFO - Retrieved 100 bars for XAUUSDm M15     
+2025-08-22 18:42:30,305 - WeightedVoting - INFO - Fused signal: BUY with confidence 0.615      
+2025-08-22 18:42:30,305 - WeightedVoting - INFO - Fused signal: BUY with confidence 0.615      
+2025-08-22 18:42:30,306 - WeightedVoting - INFO - Fused signal: BUY with confidence 0.615      
+2025-08-22 18:42:30,306 - WeightedVoting - INFO - Generated 3 signals (avg confidence: 0.65)   
+Confidence Sizing - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,308 - src.core.mt5_manager - INFO - Retrieved 80 bars for XAUUSDm M15      
+2025-08-22 18:42:30,310 - ConfidenceSizing - INFO - Fused signal: BUY with confidence 0.727, position size 0.0236
+2025-08-22 18:42:30,311 - ConfidenceSizing - INFO - Fused signal: BUY with confidence 0.727, position size 0.0236
+2025-08-22 18:42:30,312 - ConfidenceSizing - INFO - Fused signal: BUY with confidence 0.727, position size 0.0236
+   Generated 3 signals (avg confidence: 0.65)
+      - BUY at 3325.14 (conf: 0.73)
+        Position Size: 0.0236
+      - BUY at 3325.14 (conf: 0.65)
+        Position Size: 0.0284
+      - BUY at 3325.14 (conf: 0.58)
+        Position Size: 0.0331
+2025-08-22 18:42:30,313 - RegimeDetection - INFO - Regime Detection - Analyzing XAUUSDm on M15 
+2025-08-22 18:42:30,321 - src.utils.data_validator - INFO - ✅ Data validation passed for XAUUSDm M15: 90 rows
+2025-08-22 18:42:30,322 - src.core.mt5_manager - INFO - ✅ Data validation passed for XAUUSDm  
+2025-08-22 18:42:30,322 - src.core.mt5_manager - INFO - Retrieved 90 bars for XAUUSDm M15      
+2025-08-22 18:42:30,340 - RegimeDetection - INFO - No valid signals generated in sideways regime
+2025-08-22 18:42:30,340 - AdaptiveEnsembleFusionStrategy - INFO - Adaptive Ensemble - Analyzing XAUUSDm on M15
+2025-08-22 18:42:30,342 - src.core.mt5_manager - INFO - Retrieved 100 bars for XAUUSDm M15     
+2025-08-22 18:42:30,347 - AdaptiveEnsembleFusionStrategy - INFO - Generated 1 signals (avg confidence: 0.75)
+2025-08-22 18:42:30,348 - signal_engine - INFO - 📊 Storing signal: FibonacciAdvanced - SELL - Grade: A
+2025-08-22 18:42:30,348 - signal_engine - INFO - 📊 Storing signal: FibonacciAdvanced - BUY - Grade: A
+2025-08-22 18:42:30,349 - signal_engine - INFO - 📊 Storing signal: FibonacciAdvanced - BUY - Grade: A
+2025-08-22 18:42:30,349 - signal_engine - INFO - 📊 Storing signal: VolumeProfileStrategy - BUY - Grade: A
+2025-08-22 18:42:30,349 - signal_engine - INFO - 📊 Storing signal: LiquidityPoolsStrategy - SELL - Grade: A
+2025-08-22 18:42:30,349 - signal_engine - INFO - Generated 5 quality signals from 71 raw signals
+2025-08-22 18:42:30,350 - __main__ - INFO - Using live signal: FibonacciAdvanced SELL @ 3325.307
+2025-08-22 18:42:30,350 - __main__ - INFO - Processing signal: FibonacciAdvanced SELL XAUUSDm @ 3325.307 (Confidence: 0.95)
+2025-08-22 18:42:33,356 - __main__ - ERROR - Order execution failed after 3 attempts: AutoTrading disabled by client - enable AutoTrading in MT5
+2025-08-22 18:42:33,357 - __main__ - INFO - 
+Execution Result:
+2025-08-22 18:42:33,357 - __main__ - INFO - Status: FAILED
+2025-08-22 18:42:33,358 - __main__ - INFO - Ticket: None
+2025-08-22 18:42:33,358 - __main__ - INFO - Executed Price: 0.0
+2025-08-22 18:42:33,358 - __main__ - INFO - Slippage: 0.0
+2025-08-22 18:42:33,359 - __main__ - INFO -
+Execution Summary:
+2025-08-22 18:42:33,359 - __main__ - INFO - Active Positions: 2
+2025-08-22 18:42:33,360 - __main__ - INFO - Total Trades: 0
+2025-08-22 18:42:33,360 - __main__ - INFO - Engine Active: True
+2025-08-22 18:42:33,579 - src.core.mt5_manager - INFO - Position 2354344299 closed at 3325.214, RetCode: 10009
+2025-08-22 18:42:33,799 - src.core.mt5_manager - INFO - Position 2354376525 closed at 3325.214, RetCode: 10009
+2025-08-22 18:42:33,799 - __main__ - INFO - 
+Emergency Close Result:
+2025-08-22 18:42:33,799 - __main__ - INFO - Total Positions: 0
+2025-08-22 18:42:33,800 - __main__ - INFO - Successful Closes: 0
+2025-08-22 18:42:33,800 - __main__ - INFO - Stopping execution engine...
+2025-08-22 18:42:33,801 - __main__ - INFO - Waiting for position monitoring thread to stop...  
+2025-08-22 18:42:35,322 - __main__ - INFO - Position monitoring stopped by flag
+2025-08-22 18:42:35,323 - __main__ - INFO - Position monitoring loop ended normally
+2025-08-22 18:42:35,323 - __main__ - INFO - Position monitoring thread stopped successfully    
+2025-08-22 18:42:35,324 - __main__ - INFO - Execution engine stopped
+2025-08-22 18:42:35,324 - __main__ - INFO -
+Execution Engine test completed!
+PS J:\Gold_FX> python .\src\core\risk_manager.py --mode live    
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+2025-08-22 18:42:49,507 - src.core.mt5_manager - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:42:49,508 - src.core.mt5_manager - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-22 18:42:49,508 - src.core.mt5_manager - INFO - Magic number: 123456
+2025-08-22 18:42:49,509 - src.core.mt5_manager - INFO - Initializing MT5 with default path     
+2025-08-22 18:42:49,521 - src.core.mt5_manager - INFO - Attempting to login to account 273949055 on server Exness-MT5Trial6
+2025-08-22 18:42:49,524 - src.core.mt5_manager - INFO - ✅ Found valid symbol: XAUUSDm
+2025-08-22 18:42:49,525 - src.core.mt5_manager - INFO - ✅ Successfully connected to MT5       
+2025-08-22 18:42:49,525 - src.core.mt5_manager - INFO -    Account: 273949055
+2025-08-22 18:42:49,525 - src.core.mt5_manager - INFO -    Balance: $197.78
+2025-08-22 18:42:49,525 - src.core.mt5_manager - INFO -    Server: Exness-MT5Trial6
+2025-08-22 18:42:49,525 - src.core.mt5_manager - INFO -    Symbol: XAUUSDm
+✅ Connected to live MT5
+2025-08-22 18:42:49,526 - risk_manager - INFO - Loaded 0 historical trades
+2025-08-22 18:42:49,526 - risk_manager - INFO - Risk management system initialized
+2025-08-22 18:42:49,526 - risk_manager - INFO - Target: $100.0 → $1000.0 (10x)
+2025-08-22 18:42:49,526 - risk_manager - INFO - Max risk per trade: 5.0%
+2025-08-22 18:42:49,526 - risk_manager - INFO - Max portfolio risk: 15.0%
+2025-08-22 18:42:49,526 - risk_manager - INFO - Max drawdown: 25.0%
+============================================================
+TESTING FIXED RISK MANAGER
+============================================================
+Mode: LIVE
+Position Sizing Method: KELLY_MODIFIED
+
+📊 Position Sizing Result:
+  Position Size: 0.0100 lots
+  Allowed: True
+  Base Size: 0.01
+  Risk %: 5.06%
+
+🛡️ Risk Summary:
+  Risk Level: LOW
+  Account Balance: $197.78
+  Current Equity: $197.78
+  Open Positions: 0
+2025-08-22 18:42:49,529 - risk_manager - INFO - Position closed: P&L $50.00, Consecutive losses: 0
+
+✅ Risk Validation:
+  Valid: True
+  Warnings: 0
+  Errors: 0
+
+🧮 Testing Kelly Criterion:
+  Win Probability: 63.64%
+  Average Win: $15.71
+  Average Loss: $5.00
+  Kelly Size: 0.0100 lots
+
+============================================================
+✅ ALL ISSUES FIXED - Risk Manager test completed!
+============================================================
+PS J:\Gold_FX> python .\src\core\mt5_manager.py --mode live 
+============================================================
+RUN MODE: LIVE - connecting to MT5 (production)
+============================================================
+🚀 Running MT5 Manager in LIVE mode
+2025-08-22 18:43:01,836 - __main__ - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:43:01,836 - __main__ - WARNING - Data validator not available - data validation will be limited
+2025-08-22 18:43:01,837 - __main__ - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-22 18:43:01,837 - __main__ - INFO - Magic number: 123456
+usage: mt5_manager.py [-h] [--mode {mock,live}] [--test] [--fetch-history] [--account-info]    
+                      [--check-env] [--symbol SYMBOL] [--timeframe TIMEFRAME] [--bars BARS]    
+
+MT5 Manager CLI
+
+options:
+  -h, --help            show this help message and exit
+  --mode {mock,live}    Execution mode
+  --test                Test MT5 connection
+  --fetch-history       Fetch historical data
+  --account-info        Display account info
+  --check-env           Check environment variables
+  --symbol SYMBOL       Trading symbol
+  --timeframe TIMEFRAME
+                        Timeframe for data
+  --bars BARS           Number of bars to fetch
+PS J:\Gold_FX> python .\src\core\mt5_manager.py --test     
+============================================================
+RUN MODE: MOCK - using simulated OHLCV data
+============================================================
+📝 Running MT5 Manager in MOCK mode
+⚠️  No real MT5 connection will be made
+2025-08-22 18:43:12,074 - __main__ - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:43:12,074 - __main__ - WARNING - Data validator not available - data validation will be limited
+2025-08-22 18:43:12,074 - __main__ - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-22 18:43:12,074 - __main__ - INFO - Magic number: 123456
+📝 MOCK MODE - Simulating MT5 connection test
+
+============================================================
+MT5 CONNECTION TEST (MOCK MODE)
+============================================================
+📝 Environment: Mock/Test
+✅ Mock connection: SUCCESS
+💰 Mock Balance: $1,000.00
+📈 Mock Symbol: XAUUSDm
+✅ Mock data fetch: SUCCESS
+============================================================
+PS J:\Gold_FX> python .\src\core\mt5_manager.py --fetch-history
+============================================================
+RUN MODE: MOCK - using simulated OHLCV data
+============================================================
+📝 Running MT5 Manager in MOCK mode
+⚠️  No real MT5 connection will be made
+2025-08-22 18:43:29,202 - __main__ - INFO - Loaded 227 tradable symbols from CSV
+2025-08-22 18:43:29,202 - __main__ - WARNING - Data validator not available - data validation will be limited
+2025-08-22 18:43:29,202 - __main__ - INFO - MT5Manager initialized for symbol: XAUUSD
+2025-08-22 18:43:29,203 - __main__ - INFO - Magic number: 123456
+📝 MOCK MODE - Simulating historical data fetch
+Mock data for XAUUSD H1 - 100 bars
+
+Mock OHLCV Data:
+Time                 Open     High     Low      Close    Volume
+-----------------------------------------------------------------
+2025-08-19 10:00:00  1950.00   1955.00   1947.00   1952.00   1500
+2025-08-19 11:00:00  1952.00   1957.00   1949.00   1954.00   1500
+2025-08-19 12:00:00  1954.00   1959.00   1951.00   1956.00   1500
+2025-08-19 13:00:00  1956.00   1961.00   1953.00   1958.00   1500
+2025-08-19 14:00:00  1958.00   1963.00   1955.00   1960.00   1500
