@@ -649,6 +649,37 @@ class MT5Manager:
         if order_type not in ['BUY', 'SELL']:
             raise ValueError("order_type must be 'BUY' or 'SELL'")
         
+        # ✅ ENHANCED: Check AutoTrading permissions BEFORE attempting order
+        try:
+            terminal_info = mt5.terminal_info()
+            if terminal_info is None:
+                return {
+                    "success": False, 
+                    "error": "Cannot get terminal info - MT5 connection issue",
+                    "retcode": 1,
+                    "comment": "Terminal info unavailable"
+                }
+            
+            if not terminal_info.trade_allowed:
+                return {
+                    "success": False,
+                    "error": "AutoTrading disabled in MT5 terminal - enable Expert Advisors",
+                    "retcode": 10027,
+                    "comment": "AutoTrading disabled by client - enable AutoTrading in MT5"
+                }
+            
+            account_info = mt5.account_info()
+            if account_info and not account_info.trade_allowed:
+                return {
+                    "success": False,
+                    "error": "Trading not allowed for this account",
+                    "retcode": 10018,
+                    "comment": "Trading disabled for account - contact broker"
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Error checking AutoTrading permissions: {e}")
+        
         # Get symbol info for price
         symbol_info = mt5.symbol_info(symbol)
         if symbol_info is None:
@@ -658,6 +689,15 @@ class MT5Manager:
         if not symbol_info.visible:
             if not mt5.symbol_select(symbol, True):
                 raise ValueError(f"Failed to select symbol {symbol}")
+        
+        # Check if trading is allowed for this symbol
+        if hasattr(symbol_info, 'trade_mode') and symbol_info.trade_mode == 0:
+            return {
+                "success": False,
+                "error": f"Trading disabled for symbol {symbol}",
+                "retcode": 10018,
+                "comment": f"Symbol {symbol} trading disabled by broker"
+            }
         
         # Determine price based on order type
         price = symbol_info.ask if order_type == 'BUY' else symbol_info.bid
@@ -686,7 +726,7 @@ class MT5Manager:
         result = mt5.order_send(request)
         
         if result is None:
-            return {"success": False, "error": "Order send returned None"}
+            return {"success": False, "error": "Order send returned None", "retcode": 0, "comment": "MT5 order_send failed"}
         
         # Parse result
         response = {
@@ -704,6 +744,16 @@ class MT5Manager:
             self.logger.info(f"Market order placed successfully: {order_type} {volume} {symbol} "
                        f"at {response['price']}, Ticket: {response['ticket']}")
         else:
+            # Enhanced error messages for AutoTrading issues
+            if result.retcode == 10027:
+                response["comment"] = "AutoTrading disabled by client - enable AutoTrading in MT5"
+            elif result.retcode == 10018:
+                response["comment"] = "Trading disabled - check account permissions or market hours"
+            elif result.retcode == 10015:
+                response["comment"] = "Invalid prices - check symbol quotes and market status"
+            elif result.retcode == 10013:
+                response["comment"] = "Invalid request - check order parameters"
+            
             self.logger.error(f"Market order failed: {response['comment']}, RetCode: {response['retcode']}")
         
         return response
