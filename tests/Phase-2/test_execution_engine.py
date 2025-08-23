@@ -49,10 +49,10 @@ try:
         ExecutionResult, PositionInfo
     )
     from src.core.base import Signal, SignalType, SignalGrade
-    print("✅ Using real ExecutionEngine")
+    print("[+] Using real ExecutionEngine")
     USING_REAL_ENGINE = True
 except ImportError as e:
-    print(f"⚠️ Import error: {e}")
+    print(f"[!] Import error: {e}")
     print("Using fallback classes")
     USING_REAL_ENGINE = False
     
@@ -158,7 +158,7 @@ class TestExecutionEngine(unittest.TestCase):
         if os.environ.get('CI') or os.environ.get('GITHUB_ACTIONS'):
             test_mode = 'mock'
         
-        print(f"\n🧪 Running tests in {test_mode.upper()} mode")
+        print(f"\n[TEST] Running tests in {test_mode.upper()} mode")
         
         # ✅ FIXED: Updated configuration with proper thresholds
         self.test_config = {
