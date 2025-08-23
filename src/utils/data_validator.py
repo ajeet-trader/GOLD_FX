@@ -26,7 +26,14 @@ from typing import Dict, List, Tuple, Optional, Union
 import logging
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+# Try to use LoggerManager, fallback to standard logging
+try:
+    from src.utils.logger import get_logger_manager
+    logger_manager = get_logger_manager()
+    logger = logger_manager.get_logger('data_validator')
+except ImportError:
+    # Fallback to standard logging if LoggerManager not available
+    logger = logging.getLogger(__name__)
 
 @dataclass
 class ValidationResult:

@@ -39,6 +39,17 @@ import pandas as pd
 import numpy as np
 import logging
 
+# Import LoggerManager
+try:
+    from src.utils.logger import get_logger_manager
+except ImportError:
+    # Fallback for when running as standalone script
+    import sys
+    from pathlib import Path
+    project_root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(project_root))
+    from src.utils.logger import get_logger_manager
+
 
 # ============================================================================
 # ENUMERATIONS
@@ -406,8 +417,13 @@ class AbstractStrategy(ABC):
         self.signal_history: List[Signal] = []
         self.last_signal_time: Optional[datetime] = None
         
-        # Setup logging
-        self.logger = logging.getLogger(self.strategy_name)
+        # Setup logging with LoggerManager
+        try:
+            logger_manager = get_logger_manager()
+            self.logger = logger_manager.get_logger('strategy')
+        except Exception:
+            # Fallback to standard logging if LoggerManager fails
+            self.logger = logging.getLogger(self.strategy_name)
         
         # Initialize strategy-specific components
         self._initialize()

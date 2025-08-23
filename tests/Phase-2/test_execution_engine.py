@@ -264,6 +264,14 @@ class TestExecutionEngine(unittest.TestCase):
     def _create_enhanced_mock_risk(self):
         """Create enhanced mock RiskManager"""
         class EnhancedMockRiskManager:
+            def __init__(self):
+                # Add mock logger to prevent AttributeError
+                self.logger = Mock()
+                self.logger.info = Mock()
+                self.logger.warning = Mock()
+                self.logger.error = Mock()
+                self.logger.debug = Mock()
+                
             def calculate_position_size(self, signal, balance, positions):
                 return {
                     'allowed': True,
@@ -300,6 +308,16 @@ class TestExecutionEngine(unittest.TestCase):
         class EnhancedMockLoggerManager:
             def log_trade(self, action, symbol, volume, price, **kwargs):
                 pass
+            
+            def get_logger(self, name: str):
+                """Return a mock logger that implements logging interface"""
+                mock_logger = Mock()
+                mock_logger.info = Mock()
+                mock_logger.warning = Mock()
+                mock_logger.error = Mock()
+                mock_logger.debug = Mock()
+                mock_logger.critical = Mock()
+                return mock_logger
 
         return EnhancedMockLoggerManager()
 

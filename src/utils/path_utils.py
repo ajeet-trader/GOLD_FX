@@ -3,7 +3,14 @@ import sys
 from pathlib import Path
 import logging
 
-logger = logging.getLogger(__name__)
+# Try to use LoggerManager, fallback to standard logging
+try:
+    from src.utils.logger import get_logger_manager
+    logger_manager = get_logger_manager()
+    logger = logger_manager.get_logger('path_utils')
+except ImportError:
+    # Fallback to standard logging if LoggerManager not available
+    logger = logging.getLogger(__name__)
 
 def ensure_src_on_syspath() -> Path:
     """
