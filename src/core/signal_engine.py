@@ -20,14 +20,20 @@ from typing import Dict, List, Optional, Tuple, Any
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import logging
 from enum import Enum
 from dataclasses import dataclass, field # Import 'field'
 import importlib
+import logging
 import sys
 from pathlib import Path
 import time
 from collections import defaultdict
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.utils.logger import get_logger_manager
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -188,8 +194,12 @@ class ConsoleReporter:
 class MockMT5Manager:
     """Mock MT5 manager for testing strategies without MT5 connection."""
 
-    def __init__(self, mode='mock'): # Added mode to constructor for consistent mock data generation
+    def __init__(self, mode='mock', logger_manager=None): # Added mode and logger_manager to constructor
         self.mode = mode
+        
+        # Logger Manager for structured logging
+        self.logger_manager = logger_manager if logger_manager else get_logger_manager()
+        self.logger = self.logger_manager.get_logger('signal')
 
     def get_historical_data(self, symbol="XAUUSDm", timeframe="M15", lookback=500):
         import pandas as pd
@@ -241,9 +251,12 @@ class StrategyImporter:
                 logging.info(f"Successfully imported {strategy_type} strategy: {class_name} (ML simulation mode)")
                 # For ML strategies, we still want to load the class but ensure it's aware of the sim mode.
                 # This assumes the strategy itself handles the ML_AVAILABLE flag.
-                module = importlib.import_module(module_path)
-                strategy_class = getattr(module, class_name)
-                return strategy_class
+                try:
+                    module = importlib.import_module(module_path)
+                    strategy_class = getattr(module, class_name)
+                    return strategy_class
+                except Exception as e2:
+                    return None
             else:
                 logging.warning(f"Could not import {strategy_type} strategy {class_name} due to ImportError: {str(e)}")
                 return None
@@ -340,7 +353,7 @@ class SignalEngine:
     Core signal generation and coordination engine with enhanced error handling and configuration
     """
     
-    def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None):
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None, logger_manager=None):
         """
         Initialize Signal Engine with enhanced error handling and configuration
         
@@ -348,17 +361,17 @@ class SignalEngine:
             config: Configuration dictionary
             mt5_manager: MT5Manager instance (optional)
             database_manager: DatabaseManager instance (optional)
+            logger_manager: LoggerManager instance (optional)
         """
         self.config = config
-        self._setup_logging()
+        
+        # Logger Manager for structured logging
+        self.logger_manager = logger_manager if logger_manager else get_logger_manager()
+        self.logger = self.logger_manager.get_logger('signal')
+        
         self._initialize_managers(mt5_manager, database_manager)
         self._initialize_containers()
         self._load_and_initialize_strategies()
-
-    def _setup_logging(self):
-        """Configure logging for the signal engine"""
-        self.logger = logging.getLogger('signal_engine')
-        logging.basicConfig(level=logging.INFO)
 
     def _initialize_managers(self, mt5_manager, database_manager):
         """Initialize MT5 and database managers"""
@@ -387,7 +400,7 @@ class SignalEngine:
             except Exception as e:
                 self.logger.warning(f"Error connecting to live MT5: {e}. Falling back to mock.")
         
-        return MockMT5Manager(self.data_mode)
+        return MockMT5Manager(self.data_mode, self.logger_manager)
 
     def _initialize_containers(self):
         """Initialize data containers and state"""
@@ -1126,47 +1139,24 @@ def test_signal_engine():
     # Phase 1: Initialization
     reporter.phase_header(1, "Initialization", "OK")
     try:
-        # Capture stdout/stderr to get strategy loading messages but suppress sys.path spam
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        captured_output = StringIO()
-        sys.stdout = captured_output
-        sys.stderr = captured_output
+        # Don't suppress output during initialization to see strategy loading details
+        print("  - Loading strategies...")
         
         # Instantiate SignalEngine. It will handle its own MT5Manager based on config.data.mode
         engine = SignalEngine(config, mt5_manager=None, database_manager=None)
         
-        # Get captured output and filter for important messages
-        output = captured_output.getvalue()
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-        
-        # Look for important warnings/errors in the captured output
-        lines = output.split('\n')
-        for line in lines:
-            if 'WARNING:' in line:
-                if 'Could not import' in line:
-                    reporter.add_warning("Strategy Loading", line.split(':', 2)[2].strip() if line.count(':') >= 2 else line)
-                elif 'Error importing' in line:
-                    strategy_name = line.split(':')[1] if ':' in line else "Unknown"
-                    reporter.add_warning("Strategy Import", f"{strategy_name}: Import failed")
-                elif 'not available' in line and ('TensorFlow' in line or 'ML libraries' in line):
-                    reporter.add_warning("ML Dependencies", "ML libraries not available - running in simulation mode")
-                elif 'not available' in line and 'XGBoost' in line:
-                    reporter.add_warning("ML Dependencies", "XGBoost not available - running in simulation mode")
-            elif 'ERROR:' in line:
-                strategy_name = line.split(':')[1] if ':' in line else "System"
-                error_msg = line.split(':', 2)[2].strip() if line.count(':') >= 2 else line
-                reporter.add_warning(f"ERROR-{strategy_name}", error_msg)
+        # Get actual strategy count
+        actual_loaded_count = sum(len(strategies) for strategies in engine.strategies.values())
+        total_available_count = sum(len(strategies) for strategies in engine.available_strategies.values())
         
         # Print actual mode of the engine for clarity
         print(f"  - Core System: Ready (Mode: {engine.data_mode.upper()})")
         print("  - Configuration: Loaded") 
-        print("  - Strategies: 21 loaded") # Hardcoded count is okay for test output
+        print(f"  - Strategies: {actual_loaded_count}/{total_available_count} loaded")
+        
+        if actual_loaded_count == 0:
+            reporter.add_warning("Strategy Loading", "No strategies were successfully loaded - check strategy files")
     except Exception as e:
-        # Restore stdout if error
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
         reporter.add_warning("System Initialization", f"Critical error: {str(e)}")
         print(f"  - ERROR: {str(e)}")
         return

@@ -60,7 +60,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
-import logging
 import json
 from dataclasses import dataclass, field # Import 'field' for dataclass defaults
 from enum import Enum
@@ -69,6 +68,7 @@ import time
 # Import core modules
 from src.core.base import Signal, SignalType, SignalGrade
 from src.core.risk_manager import RiskManager
+from src.utils.logger import get_logger_manager
 
 # Import CLI args for mode selection
 try:
@@ -78,8 +78,6 @@ except Exception:
         return 'mock'
     def print_mode_banner(_mode): # type: ignore
         pass
-
-logger = logging.getLogger(__name__)
 
 class ExecutionStatus(Enum):
     """Execution status enumeration"""
@@ -189,6 +187,10 @@ class ExecutionEngine:
         """Initialize Execution Engine"""
         self.config = config
 
+        # Logger Manager for structured logging - setup first
+        self.logger_manager = logger_manager if logger_manager else get_logger_manager()
+        self.logger = self.logger_manager.get_logger('execution')
+
         # Determine mode with proper priority: CLI (if specified) > Config > Default
         cli_mode = parse_mode()
         config_mode = self.config.get('mode', 'mock')
@@ -196,15 +198,20 @@ class ExecutionEngine:
         if cli_mode is not None:
             # CLI explicitly specified a mode - use it
             self.mode = cli_mode
-            logger.info(f"🎯 Using CLI specified mode: {cli_mode}")
+            self.logger.info(f"[CLI] Using CLI specified mode: {cli_mode}")
         elif config_mode:
             # No CLI override, use config
             self.mode = config_mode
-            logger.info(f"⚙️ Using config mode: {config_mode}")
+            self.logger.info(f"[CONFIG] Using config mode: {config_mode}")
         else:
             # Fallback to default
             self.mode = 'mock'
-            self.logger.info("🔄 Using default mode: mock")
+            self.logger.info("[DEFAULT] Using default mode: mock")
+            
+        # Normalize 'test' mode to 'mock' for compatibility
+        if self.mode == 'test':
+            self.mode = 'mock'
+            self.logger.info("[TEST] Test mode normalized to mock mode")
 
         # Print clear mode banner
         if self.mode == 'live':
@@ -232,7 +239,7 @@ class ExecutionEngine:
             if mt5_manager:
                 # Use provided MT5 manager
                 self.mt5_manager = mt5_manager
-                logger.info("✅ LIVE MODE: Using provided MT5 manager")
+                self.logger.info("[LIVE] Using provided MT5 manager")
             else:
                 # Create live MT5 manager
                 try:
@@ -240,26 +247,26 @@ class ExecutionEngine:
                     live_mt5 = MT5Manager(symbol="XAUUSDm", magic_number=self.MAGIC_NUMBER)
                     if live_mt5.connect():
                         self.mt5_manager = live_mt5
-                        logger.info("✅ LIVE MODE: Connected to real MT5 terminal")
-                        logger.info(f"   Account: {live_mt5.account_info.get('login', 'Unknown')}")
-                        logger.info(f"   Balance: ${live_mt5.account_info.get('balance', 0):.2f}")
+                        self.logger.info("[LIVE] Connected to real MT5 terminal")
+                        self.logger.info(f"   Account: {live_mt5.account_info.get('login', 'Unknown')}")
+                        self.logger.info(f"   Balance: ${live_mt5.account_info.get('balance', 0):.2f}")
                     else:
-                        logger.error("❌ LIVE MODE FAILED: Cannot connect to MT5 terminal")
+                        self.logger.error("[ERROR] LIVE MODE FAILED: Cannot connect to MT5 terminal")
                         raise ConnectionError("MT5 connection failed - check your .env credentials")
                 except ImportError:
-                    logger.error("❌ LIVE MODE FAILED: MT5Manager module not available")
+                    self.logger.error("[ERROR] LIVE MODE FAILED: MT5Manager module not available")
                     raise ImportError("Install MetaTrader5 package or check MT5 installation")
                 except Exception as e:
-                    logger.error(f"❌ LIVE MODE FAILED: {str(e)}")
+                    self.logger.error(f"[ERROR] LIVE MODE FAILED: {str(e)}")
                     raise RuntimeError(f"Live mode requested but failed: {str(e)}")
         
         elif self.mode == 'mock':
             self.mt5_manager = mt5_manager if mt5_manager else self._create_mock_mt5()
-            logger.info("🎮 MOCK MODE: Using simulated trading environment")
-            logger.info(f"   Simulated Balance: ${self.mt5_manager.get_account_balance():.2f}")
+            self.logger.info("[MOCK] Using simulated trading environment")
+            self.logger.info(f"   Simulated Balance: ${self.mt5_manager.get_account_balance():.2f}")
         
         else:
-            raise ValueError(f"Invalid mode '{self.mode}'. Use 'live' or 'mock'")
+            raise ValueError(f"Invalid mode '{self.mode}'. Use 'live', 'mock', or 'test'")
 
         # Initialize Risk Manager
         self.risk_manager = risk_manager if risk_manager else self._create_mock_risk_manager()
@@ -294,33 +301,41 @@ class ExecutionEngine:
         # Control flags
         self.engine_active = True
 
-        # Logger (using the module-level logger)
-        self.logger = logger
-
         # Initialize engine
         self._initialize_engine()
     
     def _validate_mode_consistency(self) -> None:
         """Validate that the engine is running in the expected mode"""
         if self.mode == 'live':
-            # Verify we're actually connected to live MT5
-            if not hasattr(self.mt5_manager, 'account_info') or not self.mt5_manager.account_info:
-                raise RuntimeError("LIVE mode validation failed: No real MT5 connection detected")
+            # Check if MT5 manager exists and has a valid connection
+            if not hasattr(self.mt5_manager, 'connected') or not self.mt5_manager.connected:
+                # Try checking account_info as fallback
+                if not hasattr(self.mt5_manager, 'account_info') or not self.mt5_manager.account_info:
+                    raise RuntimeError("LIVE mode validation failed: No real MT5 connection detected")
             
-            # Verify account info looks real (not mock)
-            balance = self.mt5_manager.get_account_balance()
-            if balance in [150.0, 1000.0]:  # Common mock balances
-                logger.warning("⚠️ Live mode but balance looks like mock data")
-            
-            logger.info(f"✅ LIVE MODE VALIDATED: Real MT5 connection confirmed")
+            # Additional validation: check if we can get account balance
+            try:
+                balance = self.mt5_manager.get_account_balance()
+                if balance <= 0:
+                    raise RuntimeError("LIVE mode validation failed: Invalid account balance")
+                
+                # Verify account info looks real (not mock)
+                if balance in [150.0, 1000.0]:  # Common mock balances
+                    self.logger.warning("[WARNING] Live mode but balance looks like mock data")
+                    
+                self.logger.info(f"[LIVE] MODE VALIDATED: Real MT5 connection confirmed")
+                self.logger.info(f"   Account Balance: ${balance:.2f}")
+                
+            except Exception as e:
+                raise RuntimeError(f"LIVE mode validation failed: Cannot access account info - {e}")
             
         elif self.mode == 'mock':
-            logger.info(f"✅ MOCK MODE VALIDATED: Simulation environment confirmed")
+            self.logger.info(f"[MOCK] MODE VALIDATED: Simulation environment confirmed")
         
         # Log current prices for verification
         if hasattr(self.mt5_manager, 'price_data'):
             current_gold_price = self.mt5_manager.price_data.get('XAUUSDm', 'Unknown')
-            logger.info(f"   Current XAUUSDm Price: {current_gold_price}")
+            self.logger.info(f"   Current XAUUSDm Price: {current_gold_price}")
 
 
     # --- Mock Creator Methods ---
@@ -372,7 +387,7 @@ class ExecutionEngine:
                 # Simulate price movement after execution
                 self.price_data[symbol] = base_price * (1 + (np.random.random() - 0.5) * 0.001)
 
-                logger.info(f"[{self.mode} MT5] Simulating {order_type} order for {symbol}, vol={volume} @ {executed_price:.2f}")
+                self.logger.info(f"[{self.mode} MT5] Simulating {order_type} order for {symbol}, vol={volume} @ {executed_price:.2f}")
 
                 return {
                     'success': True,
@@ -382,11 +397,11 @@ class ExecutionEngine:
                 }
 
             def close_position(self, ticket, volume=None):
-                logger.info(f"[{self.mode} MT5] Simulating close position {ticket}")
+                self.logger.info(f"[{self.mode} MT5] Simulating close position {ticket}")
                 return {'success': True}
 
             def modify_position(self, ticket, sl=None, tp=None):
-                logger.info(f"[{self.mode} MT5] Simulating modify position {ticket}")
+                self.logger.info(f"[{self.mode} MT5] Simulating modify position {ticket}")
                 return {'success': True}
 
         return MockMT5Manager(self.mode)
@@ -395,7 +410,7 @@ class ExecutionEngine:
         """Create mock RiskManager for testing"""
         class MockRiskManager:
             def calculate_position_size(self, signal, balance, positions):
-                logger.info(f"[Mock RiskManager] Calculating size for {signal.symbol}")
+                self.logger.info(f"[Mock RiskManager] Calculating size for {signal.symbol}")
                 return {
                     'allowed': True,
                     'position_size': 0.02, # Fixed size for mock
@@ -408,7 +423,7 @@ class ExecutionEngine:
                 }
 
             def update_position_closed(self, trade_result):
-                logger.info(f"[Mock RiskManager] Updating for closed trade: {trade_result.get('profit')}")
+                self.logger.info(f"[Mock RiskManager] Updating for closed trade: {trade_result.get('profit')}")
 
         return MockRiskManager()
 
@@ -416,10 +431,10 @@ class ExecutionEngine:
         """Create mock DatabaseManager for testing"""
         class MockDatabaseManager:
             def store_signal(self, signal_data):
-                logger.info(f"[Mock DB] Storing signal for {signal_data.get('symbol')}")
+                self.logger.info(f"[Mock DB] Storing signal for {signal_data.get('symbol')}")
 
             def store_trade(self, trade_data):
-                logger.info(f"[Mock DB] Storing trade for {trade_data.get('symbol')}")
+                self.logger.info(f"[Mock DB] Storing trade for {trade_data.get('symbol')}")
 
             def get_trades(self, limit=1000):
                 return []
@@ -430,7 +445,7 @@ class ExecutionEngine:
         """Create mock LoggerManager for testing"""
         class MockLoggerManager:
             def log_trade(self, action, symbol, volume, price, **kwargs):
-                logger.info(f"[Mock Logger] Logged trade: {action} {symbol} vol={volume}")
+                self.logger.info(f"[Mock Logger] Logged trade: {action} {symbol} vol={volume}")
 
         return MockLoggerManager()
 
@@ -443,7 +458,7 @@ class ExecutionEngine:
             # Load existing positions
             self._load_existing_positions()
 
-            self.logger.info(f"✅ Execution engine initialized successfully")
+            self.logger.info(f"[SUCCESS] Execution engine initialized successfully")
             self.logger.info(f"   Mode: {self.mode.upper()}")
             self.logger.info(f"   Active positions: {len(self.active_positions)}")
             self.logger.info(f"   Max slippage: {self.max_slippage} pips")
@@ -1220,6 +1235,11 @@ if __name__ == "__main__":
     class MockLoggerManager:
         def log_trade(self, action, symbol, volume, price, **kwargs):
             pass
+        
+        def get_logger(self, name):
+            """Return a basic logger for testing"""
+            import logging
+            return logging.getLogger(name)
 
     # Create ExecutionEngine instance
     execution_engine = ExecutionEngine(

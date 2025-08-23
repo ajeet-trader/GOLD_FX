@@ -82,8 +82,8 @@ def parse_mode(argv: list[str] | None = None) -> Optional[ModeLiteral]:
     parser = argparse.ArgumentParser(add_help=False)  # Don't interfere with other parsers
     parser.add_argument(
         "--mode",
-        choices=["mock", "live"],
-        help="Run mode: 'mock' uses simulated data; 'live' connects to MT5",
+        choices=["mock", "live", "test"],
+        help="Run mode: 'mock' uses simulated data; 'live' connects to MT5; 'test' runs quick tests",
     )
 
     try:
@@ -97,24 +97,29 @@ def parse_mode(argv: list[str] | None = None) -> Optional[ModeLiteral]:
         # If parsing fails, don't override config
         return None
 
+# Global banner tracking to prevent duplicates
+_BANNER_DISPLAYED = False
+
 def print_mode_banner(mode: ModeLiteral) -> None:
+    """Print a clear banner indicating the selected mode (only once per session)."""
+    global _BANNER_DISPLAYED
+    
+    # Only print banner if it hasn't been displayed yet
+    if not _BANNER_DISPLAYED:
+        line = "=" * 60
+        
+        if mode == "live":
+            print(line)
+            print("RUN MODE: LIVE - connecting to MT5 (production)")
+            print(line)
+        else:
+            print(line)
+            print("RUN MODE: MOCK - using simulated OHLCV data")
+            print(line)
+        
+        _BANNER_DISPLAYED = True
 
-    """Print a clear banner indicating the selected mode."""
-
-    line = "=" * 60
-
-    if mode == "live":
-
-        print(line)
-
-        print("RUN MODE: LIVE - connecting to MT5 (production)")
-
-        print(line)
-
-    else:
-
-        print(line)
-
-        print("RUN MODE: MOCK - using simulated OHLCV data")
-
-        print(line)
+def reset_banner_flag():
+    """Reset the banner flag for testing purposes."""
+    global _BANNER_DISPLAYED
+    _BANNER_DISPLAYED = False

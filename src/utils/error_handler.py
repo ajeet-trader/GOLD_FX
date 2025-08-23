@@ -28,7 +28,6 @@ Dependencies:
     - threading
 """
 
-import logging
 import traceback
 import threading
 import time
@@ -39,6 +38,15 @@ from dataclasses import dataclass
 from functools import wraps
 import queue
 import json
+
+# Add project root to path if running standalone
+if __name__ == "__main__" and __package__ is None:
+    from pathlib import Path
+    import sys
+    project_root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(project_root))
+
+from src.utils.logger import get_logger_manager
 
 
 class ErrorSeverity(Enum):
@@ -185,8 +193,9 @@ class ErrorHandler:
         self._monitoring_thread = None
         self._stop_event = threading.Event()
         
-        # Logger
-        self.logger = logging.getLogger('xau_error_handler')
+        # Logger Manager for structured logging
+        self.logger_manager = get_logger_manager()
+        self.logger = self.logger_manager.get_logger('error')
         
         # System state
         self.system_healthy = True

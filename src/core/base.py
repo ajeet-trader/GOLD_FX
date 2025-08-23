@@ -188,6 +188,7 @@ class Signal:
     # Trade levels
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    entry_price: Optional[float] = None  # Entry price for the signal
     entry_zone_low: Optional[float] = None
     entry_zone_high: Optional[float] = None
     
@@ -233,6 +234,7 @@ class Signal:
             'grade': self.grade.value if self.grade else None,
             'stop_loss': self.stop_loss,
             'take_profit': self.take_profit,
+            'entry_price': self.entry_price,
             'entry_zone_low': self.entry_zone_low,
             'entry_zone_high': self.entry_zone_high,
             'risk_reward_ratio': self.risk_reward_ratio,

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Main System Runner
-==================
-Quick launcher for the XAUUSD Trading System
+Main System Runner with Enhanced Logging
+========================================
+Quick launcher for the XAUUSD Trading System with comprehensive logging
 
 Usage:
     python run_system.py           # Start system (interactive with task pump)
     python run_system.py --test    # Run tests
     python run_system.py --setup   # Re-run setup
     python run_system.py --mode mock/live  # Set mode
+    python run_system.py --init-logging    # Initialize enhanced logging only
 """
 
 
@@ -23,6 +24,16 @@ from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+# Initialize Original Logging System
+try:
+    from src.utils.logger import get_logger_manager
+    LOGGING_AVAILABLE = True
+except ImportError:
+    LOGGING_AVAILABLE = False
+    def get_logger_manager(*args, **kwargs):
+        print("⚠️ Original logging not available")
+        return None
 
 # Import CLI args utility
 try:
@@ -49,14 +60,107 @@ except Exception as e:
     ExecutionEngine = None  # Will guard usage below
 
 
+def show_log_locations():
+    """Show current log file locations and status"""
+    print("\n📁 Original Logging System File Locations:")
+    print("=" * 50)
+    
+    log_base = Path(__file__).parent / 'logs'
+    
+    # Main system log
+    print("🔧 System Logs:")
+    system_log = log_base / 'system.log'
+    if system_log.exists():
+        size = system_log.stat().st_size
+        print(f"   ✅ System: {system_log} ({size:,} bytes)")
+    else:
+        print(f"   ⏳ System: {system_log} (not created yet)")
+    
+    # Specialized logs created by original logger
+    print("\n📊 Specialized Logs:")
+    specialized_logs = [
+        ('Trades', 'trades/trades.log'),
+        ('Signals', 'signals/signals.log'),
+        ('Performance', 'performance/performance.log'),
+        ('Errors', 'errors/errors.log')
+    ]
+    
+    for name, path in specialized_logs:
+        full_path = log_base / path
+        if full_path.exists():
+            size = full_path.stat().st_size
+            print(f"   ✅ {name}: {full_path} ({size:,} bytes)")
+        else:
+            print(f"   ⏳ {name}: {full_path} (not created yet)")
+    
+    # Check for any other log files
+    print("\n📂 Other Log Files:")
+    if log_base.exists():
+        other_logs = []
+        for log_file in log_base.glob('**/*.log*'):
+            if log_file.name not in ['system.log', 'trades.log', 'signals.log', 'performance.log', 'errors.log']:
+                other_logs.append(log_file)
+        
+        if other_logs:
+            for log_file in other_logs:
+                size = log_file.stat().st_size
+                print(f"   📄 {log_file.name}: {log_file} ({size:,} bytes)")
+        else:
+            print("   ℹ️ No other log files found")
+    else:
+        print(f"   ⏳ Log directory: {log_base} (not created yet)")
+    
+    print("\n📝 Note: Log files are created when the corresponding operations occur.")
+    print("Run the system or specific components to generate logs.")
+
+
+def cleanup_old_logs():
+    """Run the original logger's cleanup utility"""
+    try:
+        if LOGGING_AVAILABLE:
+            logger_manager = get_logger_manager()
+            if logger_manager:
+                print("\n🧹 Starting Log Cleanup (Original Logger)...")
+                
+                # Use original logger's cleanup method
+                logger_manager.cleanup_old_logs(days=30)
+                print("✅ Log cleanup completed using original logger's method!")
+            else:
+                print("⚠️ Logger manager not available")
+        else:
+            print("⚠️ Original logging system not available")
+            
+    except Exception as e:
+        print(f"❌ Log cleanup failed: {e}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description='XAUUSD Trading System')
+    parser = argparse.ArgumentParser(description='XAUUSD Trading System with Original Logging')
     parser.add_argument('--test', action='store_true', help='Run system tests')
     parser.add_argument('--setup', action='store_true', help='Re-run setup')
     parser.add_argument('--connect', action='store_true', help='Test MT5 connection')
-    parser.add_argument('--mode', choices=['mock', 'live'], help='Run mode (mock/live)')
+    parser.add_argument('--mode', choices=['mock', 'live', 'paper'], help='Run mode (mock/live/paper)')
+    parser.add_argument('--init-logging', action='store_true', help='Initialize original logging system only')
+    parser.add_argument('--no-enhanced-logging', action='store_true', help='Skip logging initialization')
     
     args = parser.parse_args()
+    
+    # Initialize Original Logging System (unless explicitly disabled)
+    if not args.no_enhanced_logging:
+        if LOGGING_AVAILABLE:
+            print("🔧 Initializing Original Logging System...")
+            logger_manager = get_logger_manager()
+            if logger_manager:
+                print("✅ Original logging system initialized")
+            else:
+                print("⚠️ Original logging initialization failed, continuing with basic logging")
+        else:
+            print("⚠️ Original logging not available, using basic logging")
+    
+    # If only initializing logging, exit here
+    if args.init_logging:
+        print("Original logging initialization completed.")
+        return True
     
     # Print mode banner if CLI is available
     if CLI_AVAILABLE:
@@ -97,11 +201,13 @@ def main():
         
         else:
             # Start interactive mode with main-thread task pump
-            print("🎯 XAUUSD Trading System - Interactive Mode")
+            print("🎯 XAUUSD Trading System - Interactive Mode with Enhanced Logging")
             print("Commands:")
             print("  connect  - Connect to MT5")
             print("  test     - Run system tests")
             print("  stats    - Show system statistics")
+            print("  logs     - Show log file locations")
+            print("  cleanup  - Clean up old log files")
             print("  quit     - Exit system")
 
             # Create ExecutionEngine to manage MT5 operations (if available)
@@ -165,8 +271,12 @@ def main():
                         elif cmd == 'stats':
                             stats = core.get_system_stats()
                             print(f"System Stats: {stats}")
+                        elif cmd == 'logs':
+                            show_log_locations()
+                        elif cmd == 'cleanup':
+                            cleanup_old_logs()
                         else:
-                            print("Unknown command. Try: connect, test, stats, quit")
+                            print("Unknown command. Try: connect, test, stats, logs, cleanup, quit")
 
                     # Short sleep to yield and set pump cadence
                     time.sleep(0.2)

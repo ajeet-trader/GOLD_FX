@@ -40,10 +40,10 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple, Deque
 from collections import deque
-import logging
 from dataclasses import dataclass, field
 import json
 from enum import Enum
+from src.utils.logger import get_logger_manager
 
 # Import base classes
 try:
@@ -164,26 +164,42 @@ class PositionRisk:
 class MockMT5Manager:
     """Mock MT5 Manager for testing and development"""
     
-    def __init__(self, mode='mock'):
+    def __init__(self, mode='mock', logger_manager=None):
         self.mode = mode
-        self._connected = True
+        
+        # Logger Manager for structured logging
+        from src.utils.logger import get_logger_manager
+        self.logger_manager = logger_manager if logger_manager else get_logger_manager()
+        self.logger = self.logger_manager.get_logger('risk')
+        self.connected = True  # Mock is always "connected"
         self._balance = 150.0
         self._equity = 145.0
 
     def connect(self) -> bool:
         """Mock connection method"""
+        self.connected = True
         return True
+    
+    def disconnect(self) -> None:
+        """Mock disconnection method"""
+        self.connected = False
 
     def get_account_balance(self) -> float:
         """Get mock account balance"""
+        if not self.connected:
+            raise ConnectionError("Not connected to MT5. Call connect() first.")
         return self._balance
 
     def get_account_equity(self) -> float:
         """Get mock account equity"""
+        if not self.connected:
+            raise ConnectionError("Not connected to MT5. Call connect() first.")
         return self._equity
 
     def get_open_positions(self) -> List[Dict]:
         """Get mock open positions"""
+        if not self.connected:
+            raise ConnectionError("Not connected to MT5. Call connect() first.")
         return [
             {'symbol': 'XAUUSDm', 'type': 'BUY', 'volume': 0.02,
              'price_current': 1960.0, 'profit': 25.0},
@@ -247,7 +263,7 @@ class RiskManager:
     Designed for aggressive 10x returns while protecting capital.
     """
 
-    def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None):
+    def __init__(self, config: Dict[str, Any], mt5_manager=None, database_manager=None, logger_manager=None):
         """Initialize Risk Manager"""
         self.config = config
         self.database_manager = database_manager or MockDatabaseManager()
@@ -260,6 +276,10 @@ class RiskManager:
             cli_mode = None
         
         self.mode = cli_mode or config.get('mode', 'mock')
+        
+        # Logger Manager for structured logging
+        self.logger_manager = logger_manager if logger_manager else get_logger_manager()
+        self.logger = self.logger_manager.get_logger('risk')
 
         print_mode_banner(self.mode)
 
@@ -273,14 +293,14 @@ class RiskManager:
                     print("✅ Connected to live MT5")
                 else:
                     print("⚠️  Failed to connect to live MT5, falling back to mock data")
-                    self.mt5_manager = MockMT5Manager(self.mode)
+                    self.mt5_manager = MockMT5Manager(self.mode, self.logger_manager)
                     self.mode = 'mock'
             except ImportError:
                 print("⚠️  MT5Manager not available, using mock data")
-                self.mt5_manager = MockMT5Manager(self.mode)
+                self.mt5_manager = MockMT5Manager(self.mode, self.logger_manager)
                 self.mode = 'mock'
         else:
-            self.mt5_manager = mt5_manager if mt5_manager else MockMT5Manager(self.mode)
+            self.mt5_manager = mt5_manager if mt5_manager else MockMT5Manager(self.mode, self.logger_manager)
 
         # Risk configuration
         self.risk_config = config.get('risk_management', {})
@@ -338,9 +358,6 @@ class RiskManager:
         self.current_risk_level = RiskLevel.LOW
         self.risk_metrics_history = []
 
-        # Logger
-        self.logger = logging.getLogger('risk_manager')
-
         # Initialize risk monitoring
         self._initialize_risk_monitoring()
 
@@ -354,7 +371,7 @@ class RiskManager:
             self._update_risk_metrics()
 
             self.logger.info("Risk management system initialized")
-            self.logger.info(f"Target: ${self.initial_capital} → ${self.target_capital} (10x)")
+            self.logger.info(f"Target: ${self.initial_capital} -> ${self.target_capital} (10x)")
             self.logger.info(f"Max risk per trade: {self.max_risk_per_trade:.1%}")
             self.logger.info(f"Max portfolio risk: {self.max_portfolio_risk:.1%}")
             self.logger.info(f"Max drawdown: {self.max_drawdown:.1%}")
@@ -861,6 +878,59 @@ class RiskManager:
         else:
             return 'EXTREME'
 
+    def validate_signal(self, signal: Signal) -> bool:
+        """Validate a trading signal for risk management compliance"""
+        try:
+            # Basic validation
+            if not signal:
+                return False
+            
+            # Check signal confidence
+            if signal.confidence < 0.5:  # Minimum confidence threshold
+                self.logger.info(f"Signal confidence {signal.confidence} below minimum 0.5")
+                return False
+            
+            # Check if symbol is valid
+            if not signal.symbol or signal.symbol == "":
+                self.logger.warning("Signal has invalid symbol")
+                return False
+            
+            # Check if price is reasonable
+            if signal.price <= 0:
+                self.logger.warning("Signal has invalid price")
+                return False
+            
+            # Validate stop loss and take profit
+            if signal.stop_loss:
+                if signal.signal_type == SignalType.BUY and signal.stop_loss >= signal.price:
+                    self.logger.warning("Invalid stop loss for BUY signal")
+                    return False
+                elif signal.signal_type == SignalType.SELL and signal.stop_loss <= signal.price:
+                    self.logger.warning("Invalid stop loss for SELL signal")
+                    return False
+            
+            # Check if emergency stop is active
+            if self.emergency_stop:
+                self.logger.warning("Emergency stop is active - rejecting signal")
+                return False
+            
+            # Check consecutive losses
+            if self.consecutive_losses >= self.max_consecutive_losses:
+                self.logger.warning(f"Max consecutive losses reached: {self.consecutive_losses}")
+                return False
+            
+            # Check market hours (basic check)
+            current_hour = datetime.now().hour
+            if current_hour in [23]:  # Avoid problematic hours
+                self.logger.info("Market hours restriction - rejecting signal")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Signal validation failed: {str(e)}")
+            return False
+
     def update_position_closed(self, trade_result: Dict[str, Any]) -> None:
         """Update risk metrics when a position is closed"""
         try:
@@ -982,6 +1052,19 @@ class RiskManager:
     def _update_risk_metrics(self) -> None:
         """Update comprehensive risk metrics"""
         try:
+            # Check if MT5 manager is available and connected
+            if not self.mt5_manager:
+                self.logger.warning("No MT5 manager available for risk metrics update")
+                return
+            
+            # For mock mode, ensure connection
+            if hasattr(self.mt5_manager, 'connected') and not self.mt5_manager.connected:
+                if hasattr(self.mt5_manager, 'connect'):
+                    self.mt5_manager.connect()
+                else:
+                    self.logger.warning("MT5 manager not connected and cannot connect")
+                    return
+            
             # Get current account info
             account_balance = self.mt5_manager.get_account_balance()
             equity = self.mt5_manager.get_account_equity()
@@ -1430,6 +1513,7 @@ class RiskManager:
 # Testing function
 if __name__ == "__main__":
     # Setup logging
+    import logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'

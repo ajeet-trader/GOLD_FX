@@ -38,8 +38,16 @@ from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, 
 from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 import json
-import logging
 from contextlib import contextmanager
+
+# Add project root to path if running standalone
+if __name__ == "__main__" and __package__ is None:
+    from pathlib import Path
+    import sys
+    project_root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(project_root))
+
+from src.utils.logger import get_logger_manager
 
 # Create base class for models
 Base = declarative_base()
@@ -134,6 +142,10 @@ class Signal(Base):
     strength = Column(Float)
     quality_grade = Column(String(1))  # A, B, C
     risk_reward_ratio = Column(Float)
+    
+    # Trade levels
+    stop_loss = Column(Float)
+    take_profit = Column(Float)
     
     # Execution data
     executed = Column(Boolean, default=False)
@@ -265,10 +277,11 @@ class DatabaseManager:
         # SQLAlchemy setup
         self.engine = None
         self.Session = None
-        self.initialized = False
         
-        # Logger
-        self.logger = logging.getLogger('xau_database')
+        # Logger Manager for structured logging
+        self.logger_manager = get_logger_manager()
+        self.logger = self.logger_manager.get_logger('database')
+        self.initialized = False
     
     def initialize_database(self) -> bool:
         """
@@ -292,6 +305,9 @@ class DatabaseManager:
             # Create session factory
             self.Session = sessionmaker(bind=self.engine)
             
+            # Check if we need to migrate the database schema
+            self._check_and_migrate_schema()
+            
             # Create all tables
             Base.metadata.create_all(self.engine)
             
@@ -305,6 +321,57 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Database initialization failed: {str(e)}")
             return False
+    
+    def _check_and_migrate_schema(self):
+        """Check and migrate database schema if needed"""
+        try:
+            # Use raw sqlite3 connection for schema migration
+            import sqlite3
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            
+            try:
+                # Check if signals table exists
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='signals'"
+                )
+                result = cursor.fetchone()
+                
+                if result:
+                    # Check if stop_loss and take_profit columns exist
+                    cursor.execute("PRAGMA table_info(signals)")
+                    pragma_result = cursor.fetchall()
+                    column_names = [row[1] for row in pragma_result]
+                    
+                    missing_columns = []
+                    if 'stop_loss' not in column_names:
+                        missing_columns.append('stop_loss')
+                    if 'take_profit' not in column_names:
+                        missing_columns.append('take_profit')
+                    
+                    if missing_columns:
+                        self.logger.info(f"Migrating signals table to add columns: {missing_columns}")
+                        
+                        # Add missing columns
+                        if 'stop_loss' in missing_columns:
+                            cursor.execute("ALTER TABLE signals ADD COLUMN stop_loss FLOAT")
+                            self.logger.info("Added stop_loss column")
+                        if 'take_profit' in missing_columns:
+                            cursor.execute("ALTER TABLE signals ADD COLUMN take_profit FLOAT")
+                            self.logger.info("Added take_profit column")
+                        
+                        conn.commit()
+                        self.logger.info("Schema migration completed successfully")
+                    else:
+                        self.logger.info("All required columns exist, no migration needed")
+                        
+            finally:
+                cursor.close()
+                conn.close()
+                        
+        except Exception as e:
+            self.logger.warning(f"Schema migration failed: {str(e)}")
+            # If migration fails, we'll just continue with the existing schema
     
     @contextmanager
     def get_session(self):

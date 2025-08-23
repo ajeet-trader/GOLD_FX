@@ -10,11 +10,11 @@ import pytz
 BASE_PATH = Path("J:/Gold_FX/src/core")
 
 def get_output_filename():
-    """Generate filename with IST timestamp"""
+    """Generate filename with IST timestamp and .md extension"""
     ist = pytz.timezone('Asia/Kolkata')
     now_ist = datetime.now(ist)
     timestamp = now_ist.strftime("%Y%m%d_%H%M%S")
-    return Path(__file__).parent / f"core_results_{timestamp}.txt"
+    return Path(__file__).parent / f"core_results_{timestamp}.md"
 
 # Core files to run
 CORE_FILES = [
@@ -61,7 +61,7 @@ def run_core_file(core_file: Path, mode: str):
         return {
             "status": "timeout",
             "output": "",
-            "errors": "Execution timed out after 60 seconds"
+            "errors": "⏱️ Execution timed out after 1200 seconds"
         }
     except Exception as e:
         return {
@@ -79,53 +79,55 @@ def main():
     print(f"Output will be saved to: {output_file}")
     
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"Core Run Results ({timestamp})\n")
-        f.write("=" * 80 + "\n\n")
+        # Header
+        f.write(f"# ⚙️ Core Module Run Results\n")
+        f.write(f"**Run Timestamp:** {timestamp}\n\n")
+        f.write("---\n\n")
         
         total_files = len(CORE_FILES)
-        current_file = 0
-        
-        for core_file in CORE_FILES:
-            current_file += 1
+        for idx, core_file in enumerate(CORE_FILES, start=1):
             core_name = core_file.stem
             
-            print(f"Running core {current_file}/{total_files}: {core_name}")
+            print(f"Running core {idx}/{total_files}: {core_name}")
             
-            f.write(f"### Core File: {core_file}\n")
-            f.write(f"### Core Name: {core_name}\n\n")
+            f.write(f"## 📌 Core Module: `{core_name}`\n")
+            f.write(f"**File Path:** `{core_file}`\n\n")
             
             for mode in ["mock", "live"]:
-                f.write(f"--- Mode: {mode.upper()} ---\n")
+                f.write(f"<details>\n<summary>🔧 Mode: **{mode.upper()}**</summary>\n\n")
                 
                 result = run_core_file(core_file, mode)
                 
                 if result["status"] == "success":
-                    f.write("STDOUT OUTPUT:\n")
-                    f.write(result["output"])
-                    f.write("\n")
+                    f.write("✅ **Execution Successful**\n\n")
+                    if result["output"]:
+                        f.write("```txt\n")
+                        f.write(result["output"])
+                        f.write("\n```\n")
                     if result["errors"]:
-                        f.write("STDERR OUTPUT:\n")
+                        f.write("⚠️ **Warnings / STDERR**\n")
+                        f.write("```txt\n")
                         f.write(result["errors"])
-                        f.write("\n")
+                        f.write("\n```\n")
                         
                 elif result["status"] == "error":
-                    f.write(f"EXECUTION FAILED (Return Code: {result.get('return_code', 'N/A')}):\n")
+                    f.write(f"❌ **Execution Failed** (Return Code: {result.get('return_code', 'N/A')})\n\n")
                     if result["output"]:
-                        f.write("STDOUT:\n")
+                        f.write("**STDOUT:**\n```txt\n")
                         f.write(result["output"])
-                        f.write("\n")
-                    f.write("STDERR:\n")
+                        f.write("\n```\n")
+                    f.write("**STDERR:**\n```txt\n")
                     f.write(result["errors"])
-                    f.write("\n")
+                    f.write("\n```\n")
                     
                 elif result["status"] == "timeout":
-                    f.write(f"EXECUTION TIMEOUT: {result['errors']}\n\n")
+                    f.write(f"⏱️ **Execution Timeout:** {result['errors']}\n\n")
                 else:
-                    f.write(f"EXCEPTION: {result['errors']}\n\n")
+                    f.write(f"⚠️ **Exception:** {result['errors']}\n\n")
                 
-                f.write("-" * 60 + "\n\n")
+                f.write("</details>\n\n")
             
-            f.write("=" * 80 + "\n\n")
+            f.write("---\n\n")
     
     print(f"All core modules executed. Results saved to {output_file}")
 
