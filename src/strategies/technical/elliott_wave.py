@@ -811,9 +811,16 @@ class ElliottWaveStrategy(AbstractStrategy): # Inherit from AbstractStrategy
             
             if pattern.pattern_type == WaveType.IMPULSE and len(pattern.waves) >= 3:
                 for i, wave in enumerate(pattern.waves):
-                    if i in [0, 2, 4]:
-                        wave_volume = data.loc[wave.start_index:wave.end_index, 'Volume'].mean()
+                    if i in [0, 2, 4]:  # Check impulse waves (1, 3, 5)
+                        # Use iloc for integer indexing to avoid DatetimeIndex slicing errors
+                        start_idx = max(0, min(wave.start_index, len(data) - 1))
+                        end_idx = max(0, min(wave.end_index, len(data) - 1))
                         
+                        # Ensure valid range
+                        if start_idx >= end_idx:
+                            continue
+                            
+                        wave_volume = data.iloc[start_idx:end_idx + 1]['Volume'].mean()
                         avg_volume = data['Volume'].mean()
                         
                         if wave_volume > avg_volume * 1.2:

@@ -121,7 +121,12 @@ class LiquidityPoolsStrategy(AbstractStrategy):
         self.equal_highs_tolerance = self.config.get('parameters', {}).get('equal_highs_tolerance', 0.12)
         self.approach_buffer = self.config.get('parameters', {}).get('approach_buffer', 0.2)
         self.confidence_threshold = self.config.get('parameters', {}).get('confidence_threshold', 0.75)  # Increased base confidence
-        self.cooldown_bars = self.config.get('parameters', {}).get('cooldown_bars', 3)
+        self.cooldown_bars = self.config.get('parameters', {}).get('cooldown_bars', 10)  # Increased from 3 to 10
+        
+        # Signal throttling parameters
+        self.max_signals_per_run = self.config.get('parameters', {}).get('max_signals_per_run', 5)  # Maximum 5 signals per analysis
+        self.min_pool_strength = self.config.get('parameters', {}).get('min_pool_strength', 2.0)  # Minimum pool strength required
+        self.max_active_pools = self.config.get('parameters', {}).get('max_active_pools', 10)  # Focus on top 10 pools only
         
         # Internal state
         self.active_pools: List[LiquidityPool] = []
@@ -192,12 +197,25 @@ class LiquidityPoolsStrategy(AbstractStrategy):
             # Identify liquidity pools
             self.active_pools = self._identify_liquidity_pools(data)
             
+            # Apply signal throttling: filter to strongest pools only
+            if len(self.active_pools) > self.max_active_pools:
+                # Sort pools by strength descending and take top pools only
+                self.active_pools = sorted(self.active_pools, key=lambda p: p.strength, reverse=True)[:self.max_active_pools]
+            
+            # Filter pools by minimum strength requirement
+            self.active_pools = [pool for pool in self.active_pools if pool.strength >= self.min_pool_strength]
+            
             # Get current price and ATR
             current_price = data['Close'].iloc[-1]
             atr = self._calculate_atr(data)
             
-            # Process each pool
+            # Process each pool with signal count limit
+            signal_count = 0
             for pool in self.active_pools:
+                # Stop generating signals if we've reached the limit
+                if signal_count >= self.max_signals_per_run:
+                    break
+                    
                 # Skip if pool is on cooldown
                 last_signal_bar = self.last_signal_bar.get(f"{pool.pool_type.value}_{pool.level}", -self.cooldown_bars - 1)
                 if len(data) - 1 - last_signal_bar < self.cooldown_bars:
@@ -205,15 +223,31 @@ class LiquidityPoolsStrategy(AbstractStrategy):
                 
                 # Calculate signal metrics
                 signal = self._evaluate_pool_interaction(data, pool, current_price, atr, symbol, timeframe)
-                if signal: # Removed self.validate_signal as it's done implicitly when appending to self.signal_history
-                    if self.validate_signal(signal): # Explicitly validate before adding to list for consistency
+                if signal and self.validate_signal(signal):
+                    # Check for signal deduplication (avoid similar signals from same price level)
+                    is_duplicate = False
+                    for existing_signal in signals:
+                        price_diff = abs(signal.price - existing_signal.price)
+                        same_direction = signal.signal_type == existing_signal.signal_type
+                        
+                        # Consider signals duplicates if they're within 0.5% price range and same direction
+                        if same_direction and (price_diff / signal.price) < 0.005:
+                            is_duplicate = True
+                            break
+                    
+                    if not is_duplicate:
                         signals.append(signal)
                         self.last_signal_bar[f"{pool.pool_type.value}_{pool.level}"] = len(data) - 1
+                        signal_count += 1
             
             # Store sweeps for analysis
             self._update_sweeps(data)
 
-            self.logger.info(f"Generated {len(signals)} signals") # Consistent logging
+            self.logger.info(f"Liquidity Pools Analysis Complete:")
+            self.logger.info(f"  - Total pools detected: {len(self._identify_liquidity_pools(data))}")
+            self.logger.info(f"  - Active pools (after filtering): {len(self.active_pools)}")
+            self.logger.info(f"  - Generated signals: {len(signals)} (limit: {self.max_signals_per_run})")
+            self.logger.info(f"  - Pool strength threshold: {self.min_pool_strength}")
             
             return signals
             

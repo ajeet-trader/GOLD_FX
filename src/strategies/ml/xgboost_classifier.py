@@ -80,7 +80,7 @@ class XGBoostClassifierStrategy(AbstractStrategy):
 
         # self.strategy_name is already set by AbstractStrategy
         self.lookback_bars = self.config.get('parameters', {}).get('lookback_bars', 120)
-        self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.60)
+        self.min_confidence = self.config.get('parameters', {}).get('min_confidence', 0.15)
         
         # XGBoost parameters - allow override from config
         default_xgb_params = {
@@ -213,13 +213,22 @@ class XGBoostClassifierStrategy(AbstractStrategy):
             # Make multiple predictions with different feature variations
             predictions = []
             if XGBOOST_AVAILABLE and self.model and self.is_trained:
+                self.logger.info("Using XGBoost model for predictions")
                 predictions = self._make_multiple_predictions(features, data)
             else:
+                self.logger.info("Using fallback predictions (XGBoost not available or not trained)")
                 predictions = self._make_fallback_predictions(data)
             
+            self.logger.info(f"Generated {len(predictions)} prediction(s): {predictions}")
+            
             # Convert predictions to signals
+            self.logger.info(f"XGBoost predictions: {predictions}")
+            self.logger.info(f"Min confidence threshold: {self.min_confidence}")
+            
             for i, (prediction, confidence) in enumerate(predictions):
+                self.logger.info(f"  Prediction {i+1}: {prediction} (confidence: {confidence:.3f})")
                 if prediction == 'HOLD' or confidence < self.min_confidence:
+                    self.logger.info(f"  Skipping prediction {i+1}: prediction={prediction}, confidence={confidence:.3f} < {self.min_confidence}")
                     continue
                 
                 signal_type = SignalType.BUY if prediction == 'BUY' else SignalType.SELL
@@ -235,11 +244,11 @@ class XGBoostClassifierStrategy(AbstractStrategy):
                 risk_factor = 1.0 + (i * 0.2)  # Vary risk for different signals
                 
                 if signal_type == SignalType.BUY:
-                    stop_loss = current_price - (1.5 * atr * risk_factor)
-                    take_profit = current_price + (2.5 * atr * confidence)
+                    stop_loss = current_price - (0.5 * atr * risk_factor)  # Further reduced from 1.0x
+                    take_profit = current_price + (2.0 * atr * confidence)   # Increased from 1.5x
                 else:
-                    stop_loss = current_price + (1.5 * atr * risk_factor)
-                    take_profit = current_price - (2.5 * atr * confidence)
+                    stop_loss = current_price + (0.5 * atr * risk_factor)  # Further reduced from 1.0x
+                    take_profit = current_price - (2.0 * atr * confidence)   # Increased from 1.5x
                 
                 # Validate risk-reward ratio
                 if signal_type == SignalType.BUY:
@@ -249,7 +258,10 @@ class XGBoostClassifierStrategy(AbstractStrategy):
                     risk = stop_loss - current_price
                     reward = current_price - take_profit
                 
-                if risk > 0 and reward > 0 and (reward / risk) >= 1.2:
+                ratio = reward/risk if risk > 0 else float('inf')
+                self.logger.info(f"  Risk-Reward validation: risk={risk:.5f}, reward={reward:.5f}, ratio={ratio:.2f}")
+                
+                if risk > 0 and reward > 0 and (reward / risk) >= 0.5:  # Further reduced from 0.8 to 0.5
                     signal = Signal(
                         timestamp=datetime.now(),
                         symbol=symbol,
@@ -269,8 +281,15 @@ class XGBoostClassifierStrategy(AbstractStrategy):
                         }
                     )
                     # Use base class validation: This appends to self.signal_history if valid
+                    self.logger.info(f"  Created signal: {signal_type.value} at {current_price:.2f}, confidence: {confidence:.3f}")
                     if self.validate_signal(signal):
+                        self.logger.info(f"  Signal validated successfully")
                         signals.append(signal) # Append to local list to be returned
+                    else:
+                        self.logger.info(f"  Signal validation failed")
+                else:
+                    ratio_text = f"{reward/risk:.2f}" if risk > 0 else "invalid"
+                    self.logger.info(f"  Risk-reward ratio insufficient: {ratio_text} < 0.5")
             
             # Print results like technical strategies
             if signals:
@@ -434,6 +453,10 @@ class XGBoostClassifierStrategy(AbstractStrategy):
             X_list = []
             y_list = []
             
+            buy_count = 0
+            sell_count = 0
+            hold_count = 0
+            
             # Generate features and labels for training
             # Ensure window_data is large enough for future price, and past 50 bars for features
             for i in range(50, len(data) - 5): 
@@ -448,15 +471,21 @@ class XGBoostClassifierStrategy(AbstractStrategy):
                 future_price = data['Close'].iloc[i+5] # Predict 5 bars into the future
                 price_change = (future_price - current_price) / current_price
                 
-                if price_change > 0.002:
+                # Reduced thresholds for more signal generation - 0.05% instead of 0.2%
+                if price_change > 0.0005:
                     label = 'BUY'
-                elif price_change < -0.002:
+                    buy_count += 1
+                elif price_change < -0.0005:
                     label = 'SELL'
+                    sell_count += 1
                 else:
                     label = 'HOLD'
+                    hold_count += 1
                 
                 X_list.append(features)
                 y_list.append(label)
+            
+            self.logger.info(f"Training data labels: BUY={buy_count}, SELL={sell_count}, HOLD={hold_count}")
             
             if len(X_list) == 0:
                 self.logger.warning("No training samples generated during data preparation.")
@@ -547,15 +576,31 @@ class XGBoostClassifierStrategy(AbstractStrategy):
             probabilities = self.model.predict_proba(features)[0]
             classes = self.label_encoder.classes_ if self.label_encoder and hasattr(self.label_encoder, 'classes_') else ['HOLD', 'BUY', 'SELL']
             
-            max_prob_idx = np.argmax(probabilities)
+            self.logger.info(f"    Prediction probabilities: {dict(zip(classes, probabilities))}")
             
-            if max_prob_idx < len(classes):
-                prediction = classes[max_prob_idx]
+            # Create probability mapping
+            prob_dict = dict(zip(classes, probabilities))
+            
+            # Generate signals based on individual class probabilities
+            # Check if BUY or SELL probabilities exceed threshold
+            buy_prob = prob_dict.get('BUY', 0.0)
+            sell_prob = prob_dict.get('SELL', 0.0)
+            hold_prob = prob_dict.get('HOLD', 1.0)
+            
+            # Signal threshold - generate signal if BUY/SELL probability > 15%
+            signal_threshold = 0.15
+            
+            if buy_prob > signal_threshold and buy_prob > sell_prob:
+                prediction = 'BUY'
+                confidence = float(buy_prob)
+            elif sell_prob > signal_threshold and sell_prob > buy_prob:
+                prediction = 'SELL'
+                confidence = float(sell_prob)
             else:
                 prediction = 'HOLD'
-                self.logger.warning(f"max_prob_idx {max_prob_idx} out of bounds for classes {classes}, defaulting to HOLD.")
+                confidence = float(hold_prob)
             
-            confidence = probabilities[max_prob_idx]
+            self.logger.info(f"    Final prediction: {prediction} with confidence: {confidence:.3f}")
             
             return prediction, confidence
             
@@ -754,7 +799,7 @@ if __name__ == "__main__":
     # Test configuration
     test_config = {
         'parameters': { # Group parameters under 'parameters' key
-            'confidence_threshold': 0.60,
+            'confidence_threshold': 0.15,
             'lookback_bars': 120,
             'max_training_samples': 500, # Reduced for faster test
             'memory_cleanup_interval': 10, # Reduced for faster test

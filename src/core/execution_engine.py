@@ -231,7 +231,7 @@ class ExecutionEngine:
 
         # Configuration constants
         self.MIN_CONFIDENCE_THRESHOLD = config.get('execution', {}).get('min_confidence', 0.6)
-        self.SIGNAL_AGE_THRESHOLD = config.get('execution', {}).get('signal_age_threshold', 300)
+        self.SIGNAL_AGE_THRESHOLD = config.get('execution', {}).get('signal_age_threshold', 3600)  # 1 hour default
         self.MAGIC_NUMBER = config.get('execution', {}).get('magic_number', 123456)
 
         # Initialize MT5 Manager - FIXED: No Silent Fallbacks
@@ -706,14 +706,12 @@ class ExecutionEngine:
                 if signal.stop_loss <= signal.price:
                     return {'valid': False, 'reason': 'Invalid stop loss for SELL signal'}
 
-            # Check market hours (basic check)
+            # Check market hours (relaxed for mock mode to enable 24/7 testing)
             current_hour = datetime.now().hour
             current_weekday = datetime.now().weekday()
 
-            # if current_hour in [23]: # Avoid problematic hours
-            #     return {'valid': False, 'reason': 'Market hours restriction'}
-
-            if current_weekday in [5, 6]:  # Saturday=5, Sunday=6
+            # Only apply weekend restrictions in live mode
+            if self.mode == 'live' and current_weekday in [5, 6]:  # Saturday=5, Sunday=6
                 return {'valid': False, 'reason': 'Weekend market closure'}
 
 
@@ -1281,7 +1279,7 @@ if __name__ == "__main__":
             'slippage': {
                 'max_slippage': 3
             },
-            'signal_age_threshold': 30000,
+            'signal_age_threshold': 7200,  # 2 hours for testing (was too restrictive at 30000s)
             'min_confidence': 0.6,
             'magic_number': 123456
         },

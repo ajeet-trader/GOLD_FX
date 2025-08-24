@@ -503,7 +503,8 @@ class EnsembleNNStrategy(AbstractStrategy):
             std_dev = np.std(price_sequence)
             normalized_sequence = (price_sequence - np.mean(price_sequence)) / (std_dev if std_dev != 0 else 1)
             
-            return normalized_sequence.reshape(1, 30, 1)
+            # Return shape (30, 1) for consistency with training
+            return normalized_sequence.reshape(30, 1)
             
         except Exception as e:
             self.logger.error(f"LSTM feature extraction failed: {e}", exc_info=True)
@@ -520,8 +521,8 @@ class EnsembleNNStrategy(AbstractStrategy):
             
             X_dense, X_lstm, y = self._prepare_training_data(data)
             
-            if X_dense is None or len(X_dense) < 100:
-                self.logger.warning("Insufficient or invalid training data for ensemble training.")
+            if X_dense is None or len(X_dense) < 50:
+                self.logger.warning(f"Insufficient training data: {len(X_dense) if X_dense is not None else 0} samples (minimum 50 required).")
                 return
             
             indices = np.arange(len(X_dense))
@@ -594,16 +595,16 @@ class EnsembleNNStrategy(AbstractStrategy):
     def _prepare_training_data(self, data: pd.DataFrame) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
         """Prepare training data for ensemble models"""
         try:
-            if len(data) < 150:
-                self.logger.warning("Insufficient data for training data preparation.")
+            if len(data) < 120:  # Reduced from 150 to accommodate new parameters
+                self.logger.warning(f"Insufficient data for training: {len(data)} bars (minimum 120 required).")
                 return None, None, None
             
             X_dense_list = []
             X_lstm_list = []
             y_list = []
             
-            for i in range(60, len(data) - 5): # Iterate through data to create samples
-                window_data = data.iloc[i-60:i] # Use historical window for features
+            for i in range(50, len(data) - 3): # Iterate through data to create samples (reduced lookback)
+                window_data = data.iloc[i-50:i] # Use 50-bar historical window for features
                 
                 dense_features = self._extract_dense_features_for_training(window_data)
                 lstm_features = self._extract_lstm_features_for_training(window_data)
@@ -612,12 +613,12 @@ class EnsembleNNStrategy(AbstractStrategy):
                     continue # Skip if feature extraction fails for this window
                 
                 current_price = data['Close'].iloc[i]
-                future_price = data['Close'].iloc[i+5] # Predict 5 bars into the future
+                future_price = data['Close'].iloc[i+3] # Predict 3 bars into the future (reduced horizon)
                 price_change = (future_price - current_price) / current_price
                 
-                if price_change > 0.003:
+                if price_change > 0.002:  # Reduced threshold for more signals
                     label = 'BUY'
-                elif price_change < -0.003:
+                elif price_change < -0.002:
                     label = 'SELL'
                 else:
                     label = 'HOLD'
@@ -631,7 +632,7 @@ class EnsembleNNStrategy(AbstractStrategy):
                 return None, None, None
             
             X_dense = np.array(X_dense_list).squeeze() # Squeeze if necessary for dense features
-            X_lstm = np.array(X_lstm_list).squeeze() # Squeeze if necessary for lstm features
+            X_lstm = np.array(X_lstm_list) # Keep LSTM features as (samples, timesteps, features)
             
             if not TENSORFLOW_AVAILABLE: # Fallback for label encoding if TF not available
                 unique_labels = sorted(list(set(y_list)))
@@ -653,7 +654,7 @@ class EnsembleNNStrategy(AbstractStrategy):
     def _extract_dense_features_for_training(self, data: pd.DataFrame) -> Optional[List[float]]:
         """Extract simplified dense features for training"""
         try:
-            if len(data) < 50:
+            if len(data) < 40:  # Reduced minimum for 50-bar lookback
                 return None
             
             close = data['Close']
@@ -701,6 +702,7 @@ class EnsembleNNStrategy(AbstractStrategy):
             std_dev = np.std(price_sequence)
             normalized_sequence = (price_sequence - np.mean(price_sequence)) / (std_dev if std_dev != 0 else 1) # Avoid div by zero
             
+            # Return consistent shape for both training and prediction: (30, 1)
             return normalized_sequence.reshape(30, 1)
             
         except Exception as e:
@@ -738,7 +740,7 @@ class EnsembleNNStrategy(AbstractStrategy):
                             self.logger.warning(f"Invalid LSTM features for model {i+1}, skipping")
                             continue
                         
-                        # Ensure concrete numpy shape (1, timesteps, features)
+                        # Ensure concrete numpy shape for prediction: (1, timesteps, features)
                         lstm_input = np.asarray(lstm_features, dtype=np.float32)
                         
                         # Validate shape dimensions
@@ -746,14 +748,15 @@ class EnsembleNNStrategy(AbstractStrategy):
                             self.logger.warning(f"Empty LSTM input for model {i+1}, skipping")
                             continue
                         
-                        # The _extract_lstm_features already returns (1, 30, 1) shape
-                        # Only reshape if not already in correct 3D shape
-                        if lstm_input.ndim == 3 and lstm_input.shape == (1, 30, 1):
-                            # Already correct shape from _extract_lstm_features
+                        # Reshape to proper 3D format for prediction: (1, 30, 1)
+                        if lstm_input.ndim == 2 and lstm_input.shape == (30, 1):
+                            # Shape from _extract_lstm_features: (30, 1) -> (1, 30, 1)
+                            lstm_input = lstm_input.reshape(1, 30, 1)
+                        elif lstm_input.ndim == 3 and lstm_input.shape == (1, 30, 1):
+                            # Already correct shape
                             pass
-                        elif lstm_input.ndim == 2:
-                            lstm_input = lstm_input.reshape(1, lstm_input.shape[0], lstm_input.shape[1])
-                        elif lstm_input.ndim == 1:
+                        elif lstm_input.ndim == 1 and lstm_input.shape == (30,):
+                            # 1D sequence -> (1, 30, 1)
                             lstm_input = lstm_input.reshape(1, 30, 1)
                         else:
                             self.logger.warning(f"Unexpected LSTM input shape {lstm_input.shape} for model {i+1}, skipping")
@@ -932,14 +935,15 @@ class EnsembleNNStrategy(AbstractStrategy):
                                 self.logger.warning(f"Empty LSTM input for model {i+1}, skipping")
                                 continue
                             
-                            # The _extract_lstm_features already returns (1, 30, 1) shape
-                            # Only reshape if not already in correct 3D shape
-                            if lstm_input.ndim == 3 and lstm_input.shape == (1, 30, 1):
-                                # Already correct shape from _extract_lstm_features
+                            # Reshape to proper 3D format for prediction: (1, 30, 1)
+                            if lstm_input.ndim == 2 and lstm_input.shape == (30, 1):
+                                # Shape from _extract_lstm_features: (30, 1) -> (1, 30, 1)
+                                lstm_input = lstm_input.reshape(1, 30, 1)
+                            elif lstm_input.ndim == 3 and lstm_input.shape == (1, 30, 1):
+                                # Already correct shape
                                 pass
-                            elif lstm_input.ndim == 2:
-                                lstm_input = lstm_input.reshape(1, lstm_input.shape[0], lstm_input.shape[1])
-                            elif lstm_input.ndim == 1:
+                            elif lstm_input.ndim == 1 and lstm_input.shape == (30,):
+                                # 1D sequence -> (1, 30, 1)
                                 lstm_input = lstm_input.reshape(1, 30, 1)
                             else:
                                 self.logger.warning(f"Unexpected LSTM input shape {lstm_input.shape} for model {i+1}, skipping")
